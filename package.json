@@ -1,0 +1,30 @@
+{
+  "name": "wallboards-pro",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 3001",
+    "build": "next build",
+    "start": "next start -p 3001"
+  },
+  "dependencies": {
+    "next": "^14.2.0",
+    "react": "^18",
+    "react-dom": "^18",
+    "sequelize": "^6",
+    "sequelize-parse-url": "^1.0.0",
+    "pg": "^8",
+    "pg-hstore": "^2",
+    "mssql": "^10",
+    "recharts": "^2",
+    "bcryptjs": "^2"
+  },
+  "devDependencies": {
+    "typescript": "^5",
+    "@types/node": "^20",
+    "@types/react": "^18",
+    "@types/react-dom": "^18",
+    "@types/bcryptjs": "^2",
+    "@types/mssql": "^9"
+  }
+}
