@@ -2,6 +2,9 @@
   "name": "wallboards-pro",
   "version": "1.0.0",
   "private": true,
+  "engines": {
+    "node": "20.x"
+  },
   "scripts": {
     "dev": "next dev -p 3001",
     "build": "next build",
@@ -13,8 +16,8 @@
     "react-dom": "^18",
     "sequelize": "^6",
     "sequelize-parse-url": "^1.0.0",
-    "pg": "^8",
-    "pg-hstore": "^2",
+    "pg": "^8.11.0",
+    "pg-hstore": "^2.3.4",
     "mssql": "^10",
     "recharts": "^2",
     "bcryptjs": "^2"
