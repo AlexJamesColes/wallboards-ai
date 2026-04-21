@@ -9,11 +9,7 @@ export function ensureDbReady(): Promise<void> {
     const url = process.env.DATABASE_URL;
     if (!url) { console.warn('[db] DATABASE_URL not set'); return; }
     try {
-      const parse = require('sequelize-parse-url');
-      const parsed = parse(url);
-      const sql = new Sequelize(parsed.database, parsed.username, parsed.password, {
-        host: parsed.host,
-        port: parsed.port || undefined,
+      const sql = new Sequelize(url, {
         dialect: 'postgres',
         dialectOptions: { ssl: { require: true, rejectUnauthorized: false } },
         logging: false,
