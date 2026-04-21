@@ -224,13 +224,13 @@ export default function BoardEditor({ board: init, datasets }: Props) {
                   <div style={label}>Data Source Config (JSON)</div>
                   <textarea style={{ ...input, height: 80, resize: 'vertical', fontFamily: 'monospace', fontSize: 12 }}
                     value={typeof form.data_source_config === 'string' ? form.data_source_config : JSON.stringify(form.data_source_config || {}, null, 2)}
-                    onChange={e => setForm(f => ({ ...f, data_source_config: e.target.value }))} />
+                    onChange={e => setForm(f => ({ ...f, data_source_config: e.target.value as any }))} />
                 </div>
                 <div style={{ gridColumn: '1/-1' }}>
                   <div style={label}>Display Config (JSON)</div>
                   <textarea style={{ ...input, height: 60, resize: 'vertical', fontFamily: 'monospace', fontSize: 12 }}
                     value={typeof form.display_config === 'string' ? form.display_config : JSON.stringify(form.display_config || {}, null, 2)}
-                    onChange={e => setForm(f => ({ ...f, display_config: e.target.value }))} />
+                    onChange={e => setForm(f => ({ ...f, display_config: e.target.value as any }))} />
                   <div style={{ fontSize: 11, color: '#475569', marginTop: 4 }}>For number widgets: {"{ \"goal\": 100, \"value_key\": \"count\" }"}</div>
                 </div>
                 <div>
