@@ -5,8 +5,15 @@ import NewBoardButton from './NewBoardButton';
 export const dynamic = 'force-dynamic';
 
 export default async function AdminPage() {
-  await ensureDbReady();
-  const boards = await listBoards();
+  let boards: any[] = [];
+  let dbError: string | null = null;
+  try {
+    await ensureDbReady();
+    boards = await listBoards();
+  } catch (e: any) {
+    console.error('[admin] DB error:', e?.message);
+    dbError = e?.message || 'Database connection failed';
+  }
 
   return (
     <div style={{ minHeight: '100vh', background: '#0a0f1c', fontFamily: 'var(--font-raleway, sans-serif)', paddingBottom: 60 }}>
@@ -60,7 +67,12 @@ export default async function AdminPage() {
               </div>
             </div>
           ))}
-          {boards.length === 0 && (
+          {dbError && (
+            <div style={{ gridColumn: '1/-1', padding: '24px', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)', borderRadius: 12, color: '#fca5a5', fontSize: 13 }}>
+              <strong>Database error:</strong> {dbError}
+            </div>
+          )}
+          {!dbError && boards.length === 0 && (
             <div style={{ gridColumn: '1/-1', padding: '60px 0', textAlign: 'center', color: '#475569', fontSize: 14 }}>
               No boards yet. Hit "New Board" to create your first wallboard.
             </div>
