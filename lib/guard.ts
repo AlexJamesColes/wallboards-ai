@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
-import { isAuthenticated } from './auth';
+import { isAuthenticatedFromRequest } from './auth';
 
 export type RouteHandler = (req: Request, ctx: any) => Promise<Response>;
 
 export function withAdmin(handler: RouteHandler): RouteHandler {
   return async (req, ctx) => {
-    if (!isAuthenticated()) {
+    if (!isAuthenticatedFromRequest(req)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     try {

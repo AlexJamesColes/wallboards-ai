@@ -37,3 +37,23 @@ export function checkPassword(input: string): boolean {
 export function getSessionToken(): string {
   return makeSessionToken();
 }
+
+// For use in API route handlers — reads cookie from the raw request
+// instead of next/headers (which can behave differently in Route Handlers).
+export function isAuthenticatedFromRequest(req: Request): boolean {
+  try {
+    const cookieHeader = req.headers.get('cookie') || '';
+    const cookies = Object.fromEntries(
+      cookieHeader.split(';').map(c => {
+        const [k, ...v] = c.trim().split('=');
+        return [k, v.join('=')];
+      })
+    );
+    const token = cookies[SESSION_COOKIE];
+    if (!token) return false;
+    const expected = makeSessionToken();
+    return timingSafeEqual(Buffer.from(token, 'hex'), Buffer.from(expected, 'hex'));
+  } catch {
+    return false;
+  }
+}
