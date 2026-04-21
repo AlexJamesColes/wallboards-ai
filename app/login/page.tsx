@@ -1,10 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Raleway } from 'next/font/google';
 import styles from './login.module.css';
-
-const raleway = Raleway({ subsets: ['latin'], weight: ['400', '500', '600', '700', '800'] });
 
 export default function LoginPage() {
   const router = useRouter();
@@ -32,7 +29,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className={`${styles.body} ${raleway.className}`}>
+    <div className={styles.body}>
       <div className={styles.bgWrap} aria-hidden>
         <div className={styles.bgGrid} />
         <div className={`${styles.bgOrb} ${styles.bgOrb1}`} />
