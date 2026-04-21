@@ -10,8 +10,9 @@ function makeSessionToken(): string {
   return createHash('sha256').update(pw + ':' + secret).digest('hex');
 }
 
-export function isAuthenticated(): boolean {
-  const token = cookies().get(SESSION_COOKIE)?.value;
+export function isAuthenticated(cookieStore?: ReturnType<typeof cookies>): boolean {
+  const store = cookieStore ?? cookies();
+  const token = store.get(SESSION_COOKIE)?.value;
   if (!token) return false;
   const expected = makeSessionToken();
   try {
