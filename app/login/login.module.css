@@ -32,25 +32,25 @@
 }
 .bgOrb1 {
   width: 700px; height: 700px;
-  background: radial-gradient(circle, rgba(16,185,129,0.18), transparent 65%);
+  background: radial-gradient(circle, rgba(96,165,250,0.20), transparent 65%);
   top: -10%; left: -10%;
   animation: drift1 14s ease-in-out infinite;
 }
 .bgOrb2 {
   width: 650px; height: 650px;
-  background: radial-gradient(circle, rgba(5,150,105,0.13), transparent 65%);
+  background: radial-gradient(circle, rgba(168,85,247,0.14), transparent 65%);
   bottom: -10%; right: -10%;
   animation: drift2 18s ease-in-out infinite;
 }
 .bgOrb3 {
   width: 500px; height: 500px;
-  background: radial-gradient(circle, rgba(110,231,183,0.09), transparent 65%);
+  background: radial-gradient(circle, rgba(59,130,246,0.10), transparent 65%);
   top: 35%; left: 50%;
   animation: drift3 12s ease-in-out infinite;
 }
 .bgOrb4 {
   width: 450px; height: 450px;
-  background: radial-gradient(circle, rgba(16,185,129,0.07), transparent 65%);
+  background: radial-gradient(circle, rgba(236,72,153,0.09), transparent 65%);
   bottom: 15%; left: -5%;
   animation: drift4 15s ease-in-out infinite;
 }
@@ -101,7 +101,7 @@
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background: radial-gradient(600px circle at top right, rgba(16,185,129,0.07), transparent 55%);
+  background: radial-gradient(600px circle at top right, rgba(168,85,247,0.08), transparent 55%);
   border-radius: inherit;
 }
 @keyframes cardIn {
@@ -123,7 +123,7 @@
   color: #f1f5f9;
   letter-spacing: -0.3px;
 }
-.brand span { color: #10b981; }
+.brand span { color: #60a5fa; }
 .sub {
   font-size: 9px;
   font-weight: 600;
@@ -140,9 +140,9 @@
   gap: 9px;
   padding: 5px 12px;
   border-radius: 999px;
-  background: rgba(16,185,129,0.10);
-  border: 1px solid rgba(16,185,129,0.25);
-  color: #6ee7b7;
+  background: rgba(96,165,250,0.10);
+  border: 1px solid rgba(96,165,250,0.25);
+  color: #93c5fd;
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.18em;
@@ -152,8 +152,8 @@
 .eyebrowDot {
   width: 6px; height: 6px;
   border-radius: 50%;
-  background: #10b981;
-  box-shadow: 0 0 8px rgba(16,185,129,0.7);
+  background: #60a5fa;
+  box-shadow: 0 0 8px rgba(96,165,250,0.7);
   animation: dotPulse 2.4s ease-in-out infinite;
 }
 @keyframes dotPulse {
@@ -202,8 +202,8 @@
 }
 .formGroup input::placeholder { color: #475569; }
 .formGroup input:focus {
-  border-color: rgba(16,185,129,0.45);
-  box-shadow: 0 0 0 3px rgba(16,185,129,0.12);
+  border-color: rgba(168,85,247,0.45);
+  box-shadow: 0 0 0 3px rgba(168,85,247,0.12);
   background: rgba(11,15,26,0.85);
 }
 
@@ -217,7 +217,7 @@
   padding: 13px 18px;
   border: none;
   border-radius: 10px;
-  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  background: linear-gradient(135deg, #a855f7 0%, #6366f1 100%);
   color: #fff;
   font-size: 14px;
   font-weight: 700;
@@ -225,11 +225,11 @@
   cursor: pointer;
   transition: transform 0.15s ease, box-shadow 0.15s ease;
   margin-top: 8px;
-  box-shadow: 0 10px 28px rgba(16,185,129,0.30);
+  box-shadow: 0 10px 28px rgba(168,85,247,0.30);
 }
 .btn:hover:not(:disabled) {
   transform: translateY(-1px);
-  box-shadow: 0 14px 36px rgba(16,185,129,0.45);
+  box-shadow: 0 14px 36px rgba(168,85,247,0.45);
 }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
