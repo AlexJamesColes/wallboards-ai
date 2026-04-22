@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { ensureDbReady, getWidget, getDatasetData, listDatasets } from '@/lib/db';
 import { runQuery } from '@/lib/mssql';
-import { fetchZendesk } from '@/lib/zendesk';
+import { fetchZendesk, fetchZendeskMetric } from '@/lib/zendesk';
 
 // No auth — called by the public kiosk view
 
@@ -97,10 +97,23 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
 
     // ── Zendesk ───────────────────────────────────────────────────────────────
     if (data_source_type === 'zendesk') {
-      const path = (data_source_config as any)?.path;
+      const dsc = data_source_config as any;
+
+      // Metric mode (friendly UI)
+      if (dsc?.mode === 'metric' || dsc?.metric) {
+        const result = await fetchZendeskMetric(dsc);
+        // For number widgets without an explicit value_key, surface the total count
+        if (type === 'number' && !dcfg?.count_rows && !dcfg?.value_key) {
+          return processRows([{ count: result.count }], ['count'], { ...dcfg, value_key: 'count' }, type);
+        }
+        return processRows(result.rows, result.columns, dcfg, type);
+      }
+
+      // Raw mode (legacy / advanced)
+      const path = dsc?.path;
       if (!path) return NextResponse.json({ columns: [], rows: [] });
       const data  = await fetchZendesk(path);
-      const key   = (data_source_config as any)?.key || Object.keys(data).find(k => Array.isArray(data[k]));
+      const key   = dsc?.key || Object.keys(data).find((k: string) => Array.isArray(data[k]));
       const rows: any[] = key ? data[key] : [data];
       const columns = rows.length > 0 ? Object.keys(rows[0]) : [];
       return processRows(rows, columns, dcfg, type);

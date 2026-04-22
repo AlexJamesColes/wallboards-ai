@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import type { WbBoard, WbWidget, WbDataset } from '@/lib/db';
+import { ZD_METRICS, ZD_TIMES, ZD_FILTER_FIELDS } from '@/lib/zendesk';
 
 interface Props {
   board: WbBoard & { widgets: WbWidget[] };
@@ -258,6 +259,34 @@ export default function BoardEditor({ board: init, datasets }: Props) {
       if (value === undefined || value === '' || value === null) delete next[key]; else next[key] = value;
       return { ...f, display_config: next as any };
     });
+  }
+
+  // ── data_source_config helpers ────────────────────────────────────────────
+  function getDsc(): Record<string, any> {
+    const raw = form.data_source_config;
+    if (!raw) return {};
+    if (typeof raw === 'object') return raw as any;
+    try { return JSON.parse(raw as any); } catch { return {}; }
+  }
+  function setDscField(key: string, value: any) {
+    setForm(f => {
+      const cur: any = typeof f.data_source_config === 'string'
+        ? (() => { try { return JSON.parse(f.data_source_config as any); } catch { return {}; } })()
+        : (f.data_source_config || {});
+      const next = { ...cur };
+      if (value === undefined || value === null || value === '') delete next[key]; else next[key] = value;
+      return { ...f, data_source_config: next as any };
+    });
+  }
+
+  // ── Zendesk metric filter helpers ─────────────────────────────────────────
+  type ZdFilterRow = { field: string; value: string };
+  function getZdFilters(): ZdFilterRow[] { return getDsc().zd_filters || []; }
+  function setZdFilters(filters: ZdFilterRow[]) { setDscField('zd_filters', filters.length ? filters : undefined); }
+  function addZdFilter()                        { setZdFilters([...getZdFilters(), { field: 'tag', value: '' }]); }
+  function removeZdFilter(i: number)            { setZdFilters(getZdFilters().filter((_, j) => j !== i)); }
+  function updateZdFilter(i: number, k: keyof ZdFilterRow, v: string) {
+    const f = [...getZdFilters()]; f[i] = { ...f[i], [k]: v }; setZdFilters(f);
   }
 
   // ── Filter helpers ────────────────────────────────────────────────────────
@@ -553,22 +582,100 @@ export default function BoardEditor({ board: init, datasets }: Props) {
                   </select>
                 </div>
 
+                {/* ── SQL source ── */}
+                {form.data_source_type === 'sql' && (
+                  <div style={{ gridColumn: '1/-1' }}>
+                    <div style={lbl}>SQL Query</div>
+                    <textarea style={{ ...inp, height: 100, resize: 'vertical', fontFamily: 'monospace', fontSize: 12 }}
+                      placeholder="SELECT name, count FROM dbo.agents ORDER BY count DESC"
+                      value={(getDsc() as any).query || ''}
+                      onChange={e => setDscField('query', e.target.value || undefined)} />
+                  </div>
+                )}
+
+                {/* ── Noetica Dataset source ── */}
                 {form.data_source_type === 'dataset' && (
                   <div style={{ gridColumn: '1/-1' }}>
                     <div style={lbl}>Dataset</div>
-                    <select style={inp} value={(form.data_source_config as any)?.dataset || ''} onChange={e => setForm(f => ({ ...f, data_source_config: { ...(f.data_source_config as any), dataset: e.target.value } }))}>
+                    <select style={inp} value={getDsc().dataset || ''} onChange={e => setDscField('dataset', e.target.value)}>
                       <option value="">Select dataset…</option>
                       {datasets.map(d => <option key={d.id} value={d.name}>{d.name}</option>)}
                     </select>
                   </div>
                 )}
 
-                <div style={{ gridColumn: '1/-1' }}>
-                  <div style={lbl}>Data Source Config (JSON)</div>
-                  <textarea style={{ ...inp, height: 80, resize: 'vertical', fontFamily: 'monospace', fontSize: 12 }}
-                    value={typeof form.data_source_config === 'string' ? form.data_source_config : JSON.stringify(form.data_source_config || {}, null, 2)}
-                    onChange={e => setForm(f => ({ ...f, data_source_config: e.target.value as any }))} />
-                </div>
+                {/* ── Zendesk source ── */}
+                {form.data_source_type === 'zendesk' && (() => {
+                  const dsc  = getDsc();
+                  const mode = dsc.mode || 'metric';
+                  const btnS: React.CSSProperties = { padding: '4px 12px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.1)', cursor: 'pointer', fontSize: 12, fontWeight: 600 };
+                  const on  = (active: boolean): React.CSSProperties => active
+                    ? { ...btnS, background: C.primary, color: '#fff', borderColor: C.primary }
+                    : { ...btnS, background: 'rgba(255,255,255,0.04)', color: '#94a3b8' };
+                  return (
+                    <div style={{ gridColumn: '1/-1', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                      {/* Mode toggle */}
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button style={on(mode === 'metric')} onClick={() => setDscField('mode', 'metric')}>Metric</button>
+                        <button style={on(mode === 'raw')}    onClick={() => setDscField('mode', 'raw')}>Raw API path</button>
+                      </div>
+
+                      {mode === 'metric' ? (
+                        <>
+                          {/* Metric */}
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                            <div>
+                              <div style={lbl}>Display</div>
+                              <select style={inp} value={dsc.metric || 'created_tickets'} onChange={e => setDscField('metric', e.target.value)}>
+                                {Object.entries(ZD_METRICS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+                              </select>
+                            </div>
+                            <div>
+                              <div style={lbl}>Time</div>
+                              <select style={inp} value={dsc.time || 'today'} onChange={e => setDscField('time', e.target.value)}>
+                                {Object.entries(ZD_TIMES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                              </select>
+                            </div>
+                          </div>
+
+                          {/* Zendesk filters */}
+                          <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 8, padding: '10px 12px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                              <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Zendesk Filters</div>
+                              <button onClick={addZdFilter} style={{ padding: '2px 10px', background: C.bg(0.1), border: `1px solid ${C.bg(0.25)}`, borderRadius: 6, color: C.primaryLight, fontSize: 12, cursor: 'pointer' }}>+ Add</button>
+                            </div>
+                            {getZdFilters().length === 0 && (
+                              <div style={{ fontSize: 11, color: '#334155' }}>No filters — showing all tickets matching the metric &amp; time period.</div>
+                            )}
+                            {getZdFilters().map((f, i) => (
+                              <div key={i} style={{ display: 'grid', gridTemplateColumns: '140px 1fr 28px', gap: 6, marginBottom: 6 }}>
+                                <select value={f.field} onChange={e => updateZdFilter(i, 'field', e.target.value)} style={{ ...inp, marginTop: 0 }}>
+                                  {Object.entries(ZD_FILTER_FIELDS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+                                </select>
+                                <input placeholder="value" value={f.value} onChange={e => updateZdFilter(i, 'value', e.target.value)} style={{ ...inp, marginTop: 0 }} />
+                                <button onClick={() => removeZdFilter(i)} style={{ background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.2)', borderRadius: 6, color: '#f87171', fontSize: 14, cursor: 'pointer' }}>×</button>
+                              </div>
+                            ))}
+                          </div>
+                        </>
+                      ) : (
+                        /* Raw mode */
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 140px', gap: 10 }}>
+                          <div>
+                            <div style={lbl}>API Path</div>
+                            <input type="text" style={inp} value={dsc.path || ''} placeholder="search.json?query=type:ticket status:open"
+                              onChange={e => setDscField('path', e.target.value || undefined)} />
+                          </div>
+                          <div>
+                            <div style={lbl}>Array key</div>
+                            <input type="text" style={inp} value={dsc.key || ''} placeholder="results"
+                              onChange={e => setDscField('key', e.target.value || undefined)} />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
 
                 <div style={{ gridColumn: '1/-1' }}>
                   <div style={lbl}>Display Config (JSON)</div>
