@@ -6,6 +6,7 @@ import Link from 'next/link';
 import type { WbBoard, WbWidget, WbDataset } from '@/lib/db';
 import { WB_DEPARTMENTS } from '@/lib/departments';
 import { WIDGET_TYPES } from '@/lib/widget-types';
+import { hasCollision } from '@/lib/placement';
 import { ZD_METRICS, ZD_TIMES, ZD_FILTER_FIELDS, ZD_GROUP_BY } from '@/lib/zendesk';
 import CustomSelect from '@/components/CustomSelect';
 import SourcePicker from '@/components/SourcePicker';
@@ -76,8 +77,14 @@ export default function BoardEditor({ board: init, datasets }: Props) {
   const [connections, setConnections] = useState<any>(null);
 
   const [dragPreview, setDragPreview] = useState<DragPreview>(null);
+  const [dragInvalid, setDragInvalid] = useState(false);
   const dragFinalRef = useRef<DragPreview>(null);
   const gridRef      = useRef<HTMLDivElement>(null);
+  const [notice, setNotice] = useState<{ kind: 'error' | 'info'; text: string } | null>(null);
+  function showNotice(kind: 'error' | 'info', text: string) {
+    setNotice({ kind, text });
+    setTimeout(() => setNotice(n => (n?.text === text ? null : n)), 4500);
+  }
 
   // Zendesk filter-value autocomplete options, cached by field
   const [zdOptions, setZdOptions] = useState<Record<string, ComboOption[]>>({});
@@ -124,7 +131,24 @@ export default function BoardEditor({ board: init, datasets }: Props) {
     router.push('/admin');
   }
 
-  function startAdd()                      { setSelected(null); setAdding(false); setPickingSource(true); setForm({}); }
+  function startAdd() {
+    // Refuse early if there's no 1×1 slot anywhere — saves the user from
+    // picking a source only to hit "board full" on save.
+    const anySlot = (function () {
+      for (let r = 1; r <= board.rows; r++) {
+        for (let c = 1; c <= board.cols; c++) {
+          const cand = { col_start: c, row_start: r, col_span: 1, row_span: 1 };
+          if (!hasCollision(cand, widgets)) return true;
+        }
+      }
+      return false;
+    })();
+    if (!anySlot) {
+      showNotice('error', 'There is no free space on this board for a new widget. Resize or remove a widget first, or switch to a larger grid.');
+      return;
+    }
+    setSelected(null); setAdding(false); setPickingSource(true); setForm({});
+  }
   function pickSource(src: 'sql' | 'zendesk' | 'dataset') {
     setPickingSource(false);
     setAdding(true);
@@ -194,18 +218,22 @@ export default function BoardEditor({ board: init, datasets }: Props) {
       if (adding) {
         const res  = await fetch(`/api/boards/${board.id}/widgets`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
         const data = await res.json();
-        if (data.widget) {
+        if (res.ok && data.widget) {
           setWidgets(ws => [...ws, data.widget]);
           // Close the form after a successful save
           setAdding(false); setSelected(null); setForm({});
+        } else {
+          showNotice('error', data.error || 'Could not create the widget.');
         }
       } else if (selected) {
         const res  = await fetch(`/api/widgets/${selected.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
         const data = await res.json();
-        if (data.widget) {
+        if (res.ok && data.widget) {
           setWidgets(ws => ws.map(w => w.id === data.widget.id ? data.widget : w));
           // Close the form after a successful save
           setSelected(null); setForm({});
+        } else {
+          showNotice('error', data.error || 'Could not save the widget.');
         }
       }
     } finally { setSaving(false); }
@@ -219,25 +247,24 @@ export default function BoardEditor({ board: init, datasets }: Props) {
   }
 
   async function duplicateWidget(src: WbWidget) {
-    // Place the copy one row below the original, clamped to the board
-    const nextRowStart = Math.min(board.rows - src.row_span + 1, src.row_start + src.row_span);
+    // Server picks the placement — we just send the desired size and config.
     const payload = {
       title:              `${src.title} (copy)`,
       type:               src.type,
       data_source_type:   src.data_source_type,
       data_source_config: src.data_source_config,
       display_config:     src.display_config,
-      col_start:          src.col_start,
-      row_start:          nextRowStart,
       col_span:           src.col_span,
       row_span:           src.row_span,
       refresh_interval:   src.refresh_interval,
     };
     const res  = await fetch(`/api/boards/${board.id}/widgets`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
     const data = await res.json();
-    if (data.widget) {
+    if (res.ok && data.widget) {
       setWidgets(ws => [...ws, data.widget]);
       selectWidget(data.widget);
+    } else {
+      showNotice('error', data.error || 'Could not duplicate the widget.');
     }
   }
 
@@ -276,6 +303,11 @@ export default function BoardEditor({ board: init, datasets }: Props) {
       const next = { ...initial, colStart, rowStart };
       dragFinalRef.current = next;
       setDragPreview(next);
+      // Live collision check so the preview turns red when invalid
+      setDragInvalid(hasCollision(
+        { id: widget.id, col_start: colStart, row_start: rowStart, col_span: widget.col_span, row_span: widget.row_span },
+        widgets,
+      ));
     }
 
     async function onMouseUp() {
@@ -283,17 +315,25 @@ export default function BoardEditor({ board: init, datasets }: Props) {
       document.removeEventListener('mouseup',   onMouseUp);
       document.body.style.cursor = '';
       const final = dragFinalRef.current;
+      const wasInvalid = dragInvalid;
       setDragPreview(null);
+      setDragInvalid(false);
       dragFinalRef.current = null;
 
       if (!hasDragged) { selectWidget(widget); return; } // it was a click
 
       if (!final || (final.colStart === widget.col_start && final.rowStart === widget.row_start)) return;
+      if (wasInvalid) {
+        // Snap back silently — the red tint already told the user why
+        return;
+      }
       const res  = await fetch(`/api/widgets/${widget.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ col_start: final.colStart, row_start: final.rowStart }) });
       const data = await res.json();
-      if (data.widget) {
+      if (res.ok && data.widget) {
         setWidgets(ws => ws.map(w => w.id === data.widget.id ? data.widget : w));
         if (selected?.id === widget.id) { setSelected(data.widget); setForm(f => ({ ...f, col_start: data.widget.col_start, row_start: data.widget.row_start })); }
+      } else if (data.error) {
+        showNotice('error', data.error);
       }
     }
 
@@ -324,6 +364,10 @@ export default function BoardEditor({ board: init, datasets }: Props) {
       const next = { ...initial, colSpan, rowSpan };
       dragFinalRef.current = next;
       setDragPreview(next);
+      setDragInvalid(hasCollision(
+        { id: widget.id, col_start: widget.col_start, row_start: widget.row_start, col_span: colSpan, row_span: rowSpan },
+        widgets,
+      ));
     }
 
     async function onMouseUp() {
@@ -331,15 +375,20 @@ export default function BoardEditor({ board: init, datasets }: Props) {
       document.removeEventListener('mouseup',   onMouseUp);
       document.body.style.cursor = '';
       const final = dragFinalRef.current;
+      const wasInvalid = dragInvalid;
       setDragPreview(null);
+      setDragInvalid(false);
       dragFinalRef.current = null;
 
       if (!final || (final.colSpan === widget.col_span && final.rowSpan === widget.row_span)) return;
+      if (wasInvalid) return; // snap back silently
       const res  = await fetch(`/api/widgets/${widget.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ col_span: final.colSpan, row_span: final.rowSpan }) });
       const data = await res.json();
-      if (data.widget) {
+      if (res.ok && data.widget) {
         setWidgets(ws => ws.map(w => w.id === data.widget.id ? data.widget : w));
         if (selected?.id === widget.id) { setSelected(data.widget); setForm(f => ({ ...f, col_span: data.widget.col_span, row_span: data.widget.row_span })); }
+      } else if (data.error) {
+        showNotice('error', data.error);
       }
     }
 
@@ -472,11 +521,18 @@ export default function BoardEditor({ board: init, datasets }: Props) {
                 <div onMouseDown={e => startMove(e, w)}
                   style={{
                     position: 'absolute', inset: 0,
-                    background:   isDragging ? C.bg(0.25) : isSel ? C.bg(0.18) : 'transparent',
-                    border:       `2px solid ${isDragging ? C.bg(0.75) : isSel ? C.bg(0.6) : 'transparent'}`,
+                    background:   isDragging && dragInvalid ? 'rgba(248,113,113,0.25)'
+                                : isDragging                ? C.bg(0.25)
+                                : isSel                     ? C.bg(0.18)
+                                                            : 'transparent',
+                    border:       `2px solid ${
+                                    isDragging && dragInvalid ? 'rgba(248,113,113,0.85)'
+                                  : isDragging                ? C.bg(0.75)
+                                  : isSel                     ? C.bg(0.6)
+                                                              : 'transparent'}`,
                     borderRadius: 12,
                     cursor:       'grab',
-                    transition:   'background 0.15s, border-color 0.15s',
+                    transition:   'background 0.12s, border-color 0.12s',
                   }}
                 />
                 {/* Resize handle (on top of overlay) */}
@@ -520,6 +576,25 @@ export default function BoardEditor({ board: init, datasets }: Props) {
 
       {pickingSource && (
         <SourcePicker onPick={pickSource} onCancel={() => setPickingSource(false)} />
+      )}
+
+      {notice && (
+        <div role="status" onClick={() => setNotice(null)}
+          style={{
+            position: 'fixed', top: 76, right: 24, zIndex: 100,
+            maxWidth: 380,
+            background: notice.kind === 'error' ? 'rgba(40,12,16,0.95)' : 'rgba(20,26,42,0.95)',
+            border:     `1px solid ${notice.kind === 'error' ? 'rgba(248,113,113,0.55)' : C.bg(0.45)}`,
+            borderRadius: 10,
+            padding: '12px 14px',
+            color: notice.kind === 'error' ? '#fecaca' : '#e2e8f0',
+            fontSize: 13, lineHeight: 1.4, fontWeight: 500,
+            boxShadow: '0 12px 32px rgba(0,0,0,0.55)',
+            backdropFilter: 'blur(10px)',
+            cursor: 'pointer',
+          }}>
+          {notice.text}
+        </div>
       )}
 
       {/* Top bar */}
