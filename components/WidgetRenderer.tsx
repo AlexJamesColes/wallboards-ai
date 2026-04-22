@@ -74,7 +74,7 @@ export default function WidgetRenderer({ widget }: Props) {
 
   return (
     <div style={wrapper}>
-      <div style={{ padding: '7px 10px 2px', fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.06em', flexShrink: 0 }}>
+      <div style={{ padding: '7px 10px 2px', fontSize: 12, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', flexShrink: 0 }}>
         {widget.title}
       </div>
       <div style={{ flex: 1, minHeight: 0, padding: bodyPadding, fontFamily, fontSize }}>
