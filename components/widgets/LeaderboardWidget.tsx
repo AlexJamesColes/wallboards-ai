@@ -18,8 +18,11 @@ export default function LeaderboardWidget({ widget, data }: Props) {
 
   const sorted = [...rows].sort((a, b) => Number(b[valueCol] || 0) - Number(a[valueCol] || 0));
 
-  // Compact by default so 15-20 entries fit comfortably. User can enlarge
-  // with the Text Style font-size field if they want fewer, larger rows.
+  // Rows adapt to available vertical space:
+  //   - When there's room, each row grows up to ~56px so names have space to
+  //     breathe (matches Geckoboard's comfortable spacing with few entries).
+  //   - When many rows need to fit, flex-shrink lets them squish down to
+  //     a compact 26px each; overflow scrolls once even that runs out.
   return (
     <div style={{ height: '100%', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
       {sorted.map((row, i) => {
@@ -27,7 +30,10 @@ export default function LeaderboardWidget({ widget, data }: Props) {
         return (
           <div key={i} style={{
             display: 'flex', alignItems: 'center', gap: 10,
-            padding: '3px 2px',
+            padding: '2px 2px',
+            flex: '1 1 0',
+            minHeight: 26,
+            maxHeight: 56,
             borderBottom: i < sorted.length - 1 ? '1px solid rgba(255,255,255,0.045)' : undefined,
           }}>
             <span style={{

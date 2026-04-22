@@ -9,9 +9,12 @@ export default function TableWidget({ widget, data }: Props) {
 
   if (columns.length === 0) return <div style={{ color: '#475569', fontSize: 12, paddingTop: 8 }}>No data</div>;
 
+  // Rows auto-size to fill available vertical space when there are few rows,
+  // and squish to a compact minimum when many rows must fit. CSS `height: 1px`
+  // on the table gives it a target for its tbody rows to `height: auto` from.
   return (
-    <div style={{ height: '100%', overflowY: 'auto' }}>
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 'inherit' }}>
+    <div style={{ height: '100%', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 'inherit', flex: '1 0 auto' }}>
         <thead>
           <tr>
             {columns.map(col => (
