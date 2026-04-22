@@ -12,6 +12,12 @@ export const GET = withAdmin(async () => {
   if (isMssqlConfigured()) {
     try { await runQuery('SELECT 1 AS ok'); mssql = { ok: true, error: null }; }
     catch (e: any) { mssql = { ok: false, error: e.message }; }
+  } else {
+    // Report which piece is missing so it's actionable
+    const missing: string[] = [];
+    if (!process.env.WB_MSSQL_HOST) missing.push('WB_MSSQL_HOST');
+    if (!process.env.MSSQL_GECKO_PASSWORD && !process.env.WB_MSSQL_PASSWORD) missing.push('MSSQL_GECKO_PASSWORD');
+    mssql = { ok: false, error: `Missing env: ${missing.join(', ')}` };
   }
 
   let zendesk: any = { ok: false, error: 'Not configured' };
