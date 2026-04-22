@@ -394,6 +394,32 @@ export default function BoardEditor({ board: init, datasets }: Props) {
     const f = [...getZdFilters()]; f[i] = { ...f[i], [k]: v }; setZdFilters(f);
   }
 
+  // ── Column format helpers (tables) ────────────────────────────────────────
+  type ColumnFormatRow = {
+    column:        string;
+    prefix?:       string;
+    suffix?:       string;
+    decimals?:     number | string;
+    abbreviation?: 'auto' | 'none' | 'K' | 'M' | 'B';
+  };
+  function getColumnFormats(): ColumnFormatRow[] { return getDisplayCfg().column_formats || []; }
+  function setColumnFormats(formats: ColumnFormatRow[]) {
+    setDisplayCfgField('column_formats', formats.length ? formats : undefined);
+  }
+  function addColumnFormat() {
+    setColumnFormats([...getColumnFormats(), { column: '' }]);
+  }
+  function removeColumnFormat(i: number) {
+    setColumnFormats(getColumnFormats().filter((_, j) => j !== i));
+  }
+  function updateColumnFormat(i: number, k: keyof ColumnFormatRow, v: any) {
+    const f = [...getColumnFormats()];
+    const next: any = { ...f[i] };
+    if (v === '' || v === undefined || v === null) delete next[k]; else next[k] = v;
+    f[i] = next;
+    setColumnFormats(f);
+  }
+
   // ── Filter helpers ────────────────────────────────────────────────────────
   type FilterRow = { field: string; op: string; value: string };
   function getFilters(): FilterRow[] { return getDisplayCfg().filters || []; }
@@ -992,6 +1018,56 @@ export default function BoardEditor({ board: init, datasets }: Props) {
                     <div style={{ fontSize: 12, color: '#334155' }}>No filters — widget shows all rows from the dataset.</div>
                   )}
                 </div>
+
+                {/* ── Per-column formatting (tables) ── */}
+                {form.type === 'table' && (
+                  <div style={{ gridColumn: '1/-1', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 10, padding: '12px 14px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase' as const, letterSpacing: '0.07em' }}>
+                        Column Formats <span style={{ fontWeight: 400, textTransform: 'none' as const, color: '#334155' }}>— add a row to format one column</span>
+                      </div>
+                      <button onClick={addColumnFormat}
+                        style={{ padding: '3px 10px', background: C.bg(0.1), border: `1px solid ${C.bg(0.25)}`, borderRadius: 6, color: C.primaryLight, fontSize: 12, cursor: 'pointer' }}>
+                        + Add Format
+                      </button>
+                    </div>
+                    {getColumnFormats().length === 0 && (
+                      <div style={{ fontSize: 12, color: '#334155' }}>No format rules — columns render as-is.</div>
+                    )}
+                    {getColumnFormats().map((f, i) => (
+                      <div key={i} style={{ display: 'grid', gridTemplateColumns: '1.4fr 70px 70px 80px 32px', gap: 6, marginBottom: 6, alignItems: 'start' }}>
+                        <input
+                          placeholder="Column name (e.g. Actual Earn MTD)"
+                          value={f.column}
+                          onChange={e => updateColumnFormat(i, 'column', e.target.value)}
+                          style={{ ...inp, marginTop: 0 }} />
+                        <input
+                          placeholder="Prefix"
+                          value={f.prefix || ''}
+                          onChange={e => updateColumnFormat(i, 'prefix', e.target.value)}
+                          style={{ ...inp, marginTop: 0, textAlign: 'center' }} />
+                        <input
+                          placeholder="Suffix"
+                          value={f.suffix || ''}
+                          onChange={e => updateColumnFormat(i, 'suffix', e.target.value)}
+                          style={{ ...inp, marginTop: 0, textAlign: 'center' }} />
+                        <input
+                          type="number" min={0} max={6}
+                          placeholder="Decimals"
+                          value={f.decimals === undefined ? '' : f.decimals}
+                          onChange={e => updateColumnFormat(i, 'decimals', e.target.value === '' ? '' : parseInt(e.target.value))}
+                          style={{ ...inp, marginTop: 0, textAlign: 'center' }} />
+                        <button onClick={() => removeColumnFormat(i)}
+                          style={{ background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.2)', borderRadius: 6, color: '#f87171', cursor: 'pointer', fontSize: 16, lineHeight: 1 }}>
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                    <div style={{ fontSize: 11, color: '#334155', marginTop: 6 }}>
+                      Tip: for a money column use prefix <code style={{ color: '#94a3b8' }}>£</code> and decimals <code style={{ color: '#94a3b8' }}>2</code>. For a percentage, suffix <code style={{ color: '#94a3b8' }}>%</code>.
+                    </div>
+                  </div>
+                )}
 
                 {/* ── Column selection ── */}
                 <div style={{ gridColumn: '1/-1' }}>

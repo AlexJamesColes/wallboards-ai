@@ -1,11 +1,42 @@
 'use client';
 import type { WbWidget } from '@/lib/db';
+import { formatNumber } from '@/lib/formatNumber';
 
 interface Props { widget: WbWidget; data: any; }
+
+interface ColumnFormat {
+  column:        string;
+  prefix?:       string;
+  suffix?:       string;
+  decimals?:     'auto' | number | string;
+  abbreviation?: 'auto' | 'none' | 'K' | 'M' | 'B';
+}
 
 export default function TableWidget({ widget, data }: Props) {
   const columns: string[] = data?.columns || [];
   const rows: any[] = data?.rows || [];
+  const cfg     = (widget.display_config as any) || {};
+  const formats: ColumnFormat[] = Array.isArray(cfg.column_formats) ? cfg.column_formats : [];
+  const formatFor = (col: string) => formats.find(f => f.column === col);
+
+  function renderCell(col: string, value: any): string {
+    if (value === null || value === undefined) return '—';
+    const fmt = formatFor(col);
+    if (!fmt) return String(value);
+    const n = Number(value);
+    if (isNaN(n)) return String(value); // non-numeric — show as-is
+    // Re-use formatNumber with this column's settings mapped into its config shape
+    const decimals = fmt.decimals === undefined || fmt.decimals === 'auto' || fmt.decimals === ''
+      ? 'auto'
+      : Number(fmt.decimals);
+    const prefix = fmt.prefix || '';
+    const suffix = fmt.suffix || '';
+    const formatted = formatNumber(n, {
+      num_abbreviation: fmt.abbreviation ?? 'none',
+      num_decimals:     decimals as any,
+    });
+    return `${prefix}${formatted}${suffix}`;
+  }
 
   if (columns.length === 0) return <div style={{ color: '#475569', fontSize: 12, paddingTop: 8 }}>No data</div>;
 
@@ -29,7 +60,7 @@ export default function TableWidget({ widget, data }: Props) {
             <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.035)' }}>
               {columns.map(col => (
                 <td key={col} style={{ padding: '3px 6px', color: '#cbd5e1', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {row[col] !== null && row[col] !== undefined ? String(row[col]) : '—'}
+                  {renderCell(col, row[col])}
                 </td>
               ))}
             </tr>
