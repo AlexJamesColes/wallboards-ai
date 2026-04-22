@@ -485,13 +485,13 @@ export default function BoardEditor({ board: init, datasets }: Props) {
     return (
       <>
         {/* Background cells */}
-        <div style={{ position: 'absolute', inset, display: 'grid', gridTemplateColumns: `repeat(${board.cols}, 1fr)`, gridTemplateRows: `repeat(${board.rows}, 1fr)`, gap }}>
+        <div style={{ position: 'absolute', inset, display: 'grid', gridTemplateColumns: `repeat(${board.cols}, minmax(0, 1fr))`, gridTemplateRows: `repeat(${board.rows}, minmax(0, 1fr))`, gap }}>
           {Array.from({ length: board.cols * board.rows }).map((_, i) => (
             <div key={i} style={{ background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.04)', borderRadius: 2 }} />
           ))}
         </div>
         {/* Widget overlay — renders live widget, with drag interaction on top */}
-        <div style={{ position: 'absolute', inset, display: 'grid', gridTemplateColumns: `repeat(${board.cols}, 1fr)`, gridTemplateRows: `repeat(${board.rows}, 1fr)`, gap }}>
+        <div style={{ position: 'absolute', inset, display: 'grid', gridTemplateColumns: `repeat(${board.cols}, minmax(0, 1fr))`, gridTemplateRows: `repeat(${board.rows}, minmax(0, 1fr))`, gap }}>
           {widgets.map(w => {
             const dp         = dragPreview?.widgetId === w.id ? dragPreview : null;
             const colStart   = dp?.colStart ?? w.col_start;

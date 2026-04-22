@@ -33,10 +33,15 @@ export default function KioskView({ board }: Props) {
         <Clock />
       </div>
 
-      {/* Widget grid */}
-      <div style={{ flex: 1, display: 'grid', gridTemplateColumns: `repeat(${cols}, 1fr)`, gridTemplateRows: `repeat(${rows}, 1fr)`, gap: 8, padding: 8 }}>
+      {/* Widget grid.
+          `minmax(0, 1fr)` is critical: without the 0 min, CSS Grid rows and
+          columns grow to fit their content, so a widget with a 25-row table
+          would blow its cell out, pushing the whole board past the viewport.
+          With minmax(0, 1fr) every row/column is a strict equal share of the
+          available space and content that doesn't fit scrolls inside. */}
+      <div style={{ flex: 1, display: 'grid', gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`, gridTemplateRows: `repeat(${rows}, minmax(0, 1fr))`, gap: 8, padding: 8, minHeight: 0 }}>
         {widgets.map(widget => (
-          <div key={widget.id} style={{ gridColumn: `${widget.col_start} / span ${widget.col_span}`, gridRow: `${widget.row_start} / span ${widget.row_span}`, minWidth: 0, minHeight: 0 }}>
+          <div key={widget.id} style={{ gridColumn: `${widget.col_start} / span ${widget.col_span}`, gridRow: `${widget.row_start} / span ${widget.row_span}`, minWidth: 0, minHeight: 0, overflow: 'hidden' }}>
             <WidgetRenderer widget={widget} />
           </div>
         ))}
