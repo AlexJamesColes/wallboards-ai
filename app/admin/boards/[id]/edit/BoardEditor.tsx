@@ -466,7 +466,12 @@ export default function BoardEditor({ board: init, datasets }: Props) {
   }
 
   const connDot = (ok?: boolean) => (
-    <span style={{ width: 7, height: 7, borderRadius: '50%', background: ok ? C.primary : ok === false ? '#f87171' : '#475569', display: 'inline-block', marginRight: 6, boxShadow: ok ? `0 0 6px ${C.glow}` : undefined }} />
+    <span style={{
+      width: 8, height: 8, borderRadius: '50%',
+      background: ok ? '#10b981' : ok === false ? '#f87171' : '#475569',
+      display: 'inline-block', marginRight: 8, flexShrink: 0,
+      boxShadow: ok ? '0 0 8px rgba(16,185,129,0.55)' : ok === false ? '0 0 6px rgba(248,113,113,0.45)' : undefined,
+    }} />
   );
 
   const activePreset = (board.cols === 8 && board.rows === 5) ? 'desktop'
@@ -535,15 +540,23 @@ export default function BoardEditor({ board: init, datasets }: Props) {
           {/* Connections */}
           <div style={card}>
             <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12 }}>Connections</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {[
-                { label: 'SQL Server',     ok: connections?.mssql?.ok,   err: connections?.mssql?.error   },
-                { label: 'Zendesk',        ok: connections?.zendesk?.ok, err: connections?.zendesk?.error  },
-                { label: 'Noetica (push)', ok: connections?.noetica?.ok, err: connections?.noetica?.error  },
+                { label: 'SQL Server', subtitle: 'Gecko RDS',       ok: connections?.mssql?.ok,   err: connections?.mssql?.error   },
+                { label: 'Zendesk',    subtitle: 'thedirectteam',   ok: connections?.zendesk?.ok, err: connections?.zendesk?.error  },
+                { label: 'Noetica',    subtitle: 'Live Call Data',  ok: connections?.noetica?.ok, err: connections?.noetica?.error  },
               ].map(c => (
-                <div key={c.label} style={{ fontSize: 12, color: c.ok ? C.primaryLight : c.ok === false ? '#f87171' : '#64748b', display: 'flex', alignItems: 'center' }}>
-                  {connDot(c.ok)}{c.label}
-                  {c.err && !c.ok && <span style={{ marginLeft: 6, color: '#475569', fontSize: 11 }}>({c.err})</span>}
+                <div key={c.label} title={c.err && !c.ok ? c.err : undefined}
+                  style={{ display: 'flex', alignItems: 'flex-start' }}>
+                  <span style={{ marginTop: 4 }}>{connDot(c.ok)}</span>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: c.ok ? '#e2e8f0' : c.ok === false ? '#fecaca' : '#94a3b8', lineHeight: 1.2 }}>
+                      {c.label}
+                    </div>
+                    <div style={{ fontSize: 11, color: '#64748b', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {c.subtitle}
+                    </div>
+                  </div>
                 </div>
               ))}
             </div>
