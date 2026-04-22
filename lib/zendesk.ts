@@ -117,7 +117,9 @@ export async function fetchZendeskMetric(config: {
   metric?:     string;
   time?:       string;
   zd_filters?: Array<{ field: string; value: string }>;
-}): Promise<{ count: number; rows: any[]; columns: string[] }> {
+  /** For charts: fetch enough pages to produce a meaningful time series. */
+  maxPages?:   number;
+}): Promise<{ count: number; rows: any[]; columns: string[]; timeField: 'created' | 'solved' | 'updated' }> {
   const def = ZD_METRICS[config.metric || 'created_tickets'] || ZD_METRICS.created_tickets;
 
   const parts: string[] = [def.baseQuery];
@@ -128,11 +130,19 @@ export async function fetchZendeskMetric(config: {
   const filterQuery = buildZdFilterQuery(config.zd_filters || []);
   if (filterQuery) parts.push(filterQuery);
 
-  const query = parts.join(' ');
-  const data  = await fetchZendesk(`search.json?query=${encodeURIComponent(query)}&per_page=100`);
+  const query    = parts.join(' ');
+  const maxPages = Math.max(1, config.maxPages || 1);
 
-  const rawRows: any[] = data.results || [];
-  const count: number  = data.count   ?? rawRows.length;
+  let rawRows: any[] = [];
+  let count   = 0;
+  let pagePath: string | null = `search.json?query=${encodeURIComponent(query)}&per_page=100`;
+  for (let i = 0; i < maxPages && pagePath; i++) {
+    const data: any = await fetchZendesk(pagePath);
+    rawRows = rawRows.concat(data.results || []);
+    if (i === 0) count = data.count ?? rawRows.length;
+    // Zendesk returns a full URL in next_page — strip to a relative path
+    pagePath = data.next_page ? data.next_page.replace(/^https?:\/\/[^/]+\/api\/v2\//, '') : null;
+  }
 
   const rows = rawRows.map(t => ({
     id:          t.id,
@@ -144,8 +154,66 @@ export async function fetchZendeskMetric(config: {
     created_at:  t.created_at  ? new Date(t.created_at).toLocaleDateString('en-GB') : '',
     updated_at:  t.updated_at  ? new Date(t.updated_at).toLocaleDateString('en-GB') : '',
     tags:        Array.isArray(t.tags) ? t.tags.join(', ') : '',
+    // raw ISO timestamps for downstream bucketing (not shown in tables)
+    _created_iso: t.created_at || null,
+    _solved_iso:  t.solved_at  || null,
+    _updated_iso: t.updated_at || null,
   }));
 
-  const columns = TICKET_COLUMNS;
-  return { count, rows, columns };
+  return { count, rows, columns: TICKET_COLUMNS, timeField: def.timeField };
+}
+
+/**
+ * Group Zendesk ticket rows into daily buckets for line/bar charts.
+ * Produces a dense series (one row per day in the range, zero-filled).
+ */
+export function bucketTicketsByDay(
+  rows: any[],
+  timeField: 'created' | 'solved' | 'updated',
+  time: string,
+): Array<{ date: string; count: number }> {
+  const isoKey = `_${timeField}_iso` as const;
+  const counts = new Map<string, number>();
+  for (const r of rows) {
+    const iso = r[isoKey];
+    if (!iso) continue;
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) continue;
+    // bucket by local date (YYYY-MM-DD)
+    const key = d.toISOString().slice(0, 10);
+    counts.set(key, (counts.get(key) || 0) + 1);
+  }
+
+  // Determine the date range to render (zero-fill missing days)
+  const now   = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  let start = new Date(today);
+  let end   = new Date(today);
+  switch (time) {
+    case 'today':        start = today; break;
+    case 'yesterday':    start = new Date(today); start.setDate(start.getDate() - 1); end = start; break;
+    case 'last_7_days':  start = new Date(today); start.setDate(start.getDate() - 6); break;
+    case 'last_30_days': start = new Date(today); start.setDate(start.getDate() - 29); break;
+    case 'this_week': {
+      const d = new Date(today); const day = d.getDay();
+      d.setDate(d.getDate() - (day === 0 ? 6 : day - 1));
+      start = d;
+      break;
+    }
+    case 'this_month':   start = new Date(today.getFullYear(), today.getMonth(), 1); break;
+    default: {
+      // no predefined range — infer from data
+      const keys = Array.from(counts.keys()).sort();
+      if (keys.length) { start = new Date(keys[0]); end = new Date(keys[keys.length - 1]); }
+    }
+  }
+
+  const series: Array<{ date: string; count: number }> = [];
+  for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+    const key = d.toISOString().slice(0, 10);
+    // Display as DD MMM (e.g. "22 Apr")
+    const label = d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
+    series.push({ date: label, count: counts.get(key) || 0 });
+  }
+  return series;
 }

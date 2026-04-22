@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { ensureDbReady, getWidget, getDatasetData, listDatasets } from '@/lib/db';
 import { runQuery } from '@/lib/mssql';
-import { fetchZendesk, fetchZendeskMetric } from '@/lib/zendesk';
+import { fetchZendesk, fetchZendeskMetric, bucketTicketsByDay } from '@/lib/zendesk';
 
 // No auth — called by the public kiosk view
 
@@ -110,15 +110,27 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
 
       // Default: metric mode with sensible defaults so a newly-saved Zendesk
       // widget renders something even if the user didn't touch the dropdowns.
+      const isChart = type === 'line' || type === 'bar' || type === 'hbar';
       const metricCfg = {
         metric:     dsc?.metric     || 'created_tickets',
         time:       dsc?.time       || 'today',
         zd_filters: dsc?.zd_filters || [],
+        // Charts need more rows to build an accurate time series
+        maxPages:   isChart ? 5 : 1,
       };
       const result = await fetchZendeskMetric(metricCfg);
+
       if (type === 'number' && !dcfg?.count_rows && !dcfg?.value_key) {
         return processRows([{ count: result.count }], ['count'], { ...dcfg, value_key: 'count' }, type);
       }
+
+      if (isChart) {
+        // Aggregate tickets into daily counts and expose as a dense time series
+        const series = bucketTicketsByDay(result.rows, result.timeField, metricCfg.time);
+        const chartCfg = { ...dcfg, x_key: dcfg?.x_key || 'date', y_key: dcfg?.y_key || 'count' };
+        return processRows(series, ['date', 'count'], chartCfg, type);
+      }
+
       return processRows(result.rows, result.columns, dcfg, type);
     }
 
