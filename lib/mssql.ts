@@ -37,7 +37,11 @@ async function getPool(): Promise<sql.ConnectionPool> {
     password: c.password,
     options: {
       encrypt: true,
-      trustServerCertificate: false,
+      // AWS RDS uses an Amazon-issued certificate that isn't in Node's
+      // default CA bundle. Connection is still encrypted over TLS — we just
+      // skip CA-chain validation. Override with WB_MSSQL_TRUST_CERT=false if
+      // the RDS cert is ever loaded via NODE_EXTRA_CA_CERTS.
+      trustServerCertificate: process.env.WB_MSSQL_TRUST_CERT !== 'false',
       connectTimeout: 15000,
       requestTimeout: 30000,
     },
