@@ -46,6 +46,9 @@ export default function WidgetRenderer({ widget }: Props) {
     display: 'flex', flexDirection: 'column',
     overflow: 'hidden',
     position: 'relative',
+    // Establish a containment context so children using cqi/cqh/cqmin units
+    // size relative to this widget's box rather than the page viewport.
+    containerType: 'size',
   };
 
   if (loading) return (

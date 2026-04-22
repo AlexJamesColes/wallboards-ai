@@ -797,37 +797,37 @@ export default function BoardEditor({ board: init, datasets }: Props) {
 
               ) : showMonitor ? (
                 /* ── Monitor frame ─────────────────────────────────────── */
-                <div style={{ width: '100%', maxWidth: 1100, margin: '0 auto' }}>
+                <div style={{ width: '100%', maxWidth: 1500, margin: '0 auto' }}>
                   {/* Bezel */}
                   <div style={{
                     background: 'linear-gradient(180deg, #191e30 0%, #10141f 100%)',
-                    borderRadius: '14px 14px 3px 3px',
+                    borderRadius: '12px 12px 3px 3px',
                     border: '2px solid rgba(255,255,255,0.08)',
                     borderBottom: '3px solid rgba(255,255,255,0.04)',
-                    padding: '24px 10px 10px',
+                    padding: '16px 6px 6px',
                     position: 'relative',
                     boxShadow: '0 10px 48px rgba(0,0,0,0.7)',
                   }}>
                     {/* Camera dot */}
-                    <div style={{ position: 'absolute', top: 9, left: '50%', transform: 'translateX(-50%)', width: 7, height: 7, background: '#1a2038', borderRadius: '50%', border: '1px solid rgba(255,255,255,0.07)' }} />
+                    <div style={{ position: 'absolute', top: 6, left: '50%', transform: 'translateX(-50%)', width: 6, height: 6, background: '#1a2038', borderRadius: '50%', border: '1px solid rgba(255,255,255,0.07)' }} />
                     {/* Screen — 16:9 aspect, like a real widescreen TV */}
                     <div style={{ background: board.background || '#0a0f1c', borderRadius: 3, overflow: 'hidden', aspectRatio: '16 / 9' }}>
-                      <div ref={gridRef} style={{ position: 'relative', width: '100%', height: '100%', padding: 8, userSelect: 'none', boxSizing: 'border-box' }}>
-                        {renderGridLayers(8, 4)}
+                      <div ref={gridRef} style={{ position: 'relative', width: '100%', height: '100%', padding: 6, userSelect: 'none', boxSizing: 'border-box' }}>
+                        {renderGridLayers(6, 4)}
                       </div>
                     </div>
                   </div>
                   {/* Stand neck */}
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                    <div style={{ width: 46, height: 20, background: '#10141f', border: '2px solid rgba(255,255,255,0.06)', borderTop: 'none', borderRadius: '0 0 3px 3px' }} />
-                    <div style={{ width: 112, height: 7, background: '#0c1018', borderRadius: '0 0 6px 6px', border: '2px solid rgba(255,255,255,0.05)', borderTop: 'none', marginTop: -1 }} />
+                    <div style={{ width: 40, height: 14, background: '#10141f', border: '2px solid rgba(255,255,255,0.06)', borderTop: 'none', borderRadius: '0 0 3px 3px' }} />
+                    <div style={{ width: 96, height: 5, background: '#0c1018', borderRadius: '0 0 6px 6px', border: '2px solid rgba(255,255,255,0.05)', borderTop: 'none', marginTop: -1 }} />
                   </div>
                 </div>
 
               ) : (
                 /* ── Custom / plain grid ───────────────────────────────── */
-                <div ref={gridRef} style={{ width: '100%', position: 'relative', aspectRatio: '16 / 9', maxWidth: 1100, margin: '0 auto', padding: 8, userSelect: 'none', boxSizing: 'border-box' }}>
-                  {renderGridLayers(8, 4)}
+                <div ref={gridRef} style={{ width: '100%', position: 'relative', aspectRatio: '16 / 9', maxWidth: 1500, margin: '0 auto', padding: 6, userSelect: 'none', boxSizing: 'border-box' }}>
+                  {renderGridLayers(6, 4)}
                 </div>
               )}
 
