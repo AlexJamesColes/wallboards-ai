@@ -263,7 +263,54 @@ export async function fetchZendeskMetric(config: {
     _updated_iso:   t.updated_at || null,
   }));
 
+  // Sideload is best-effort — Zendesk search doesn't always include end-user
+  // requesters. Resolve any IDs we still don't have a name for via a
+  // follow-up /users/show_many (same for groups/brands/orgs if needed).
+  if (config.sideload) {
+    const missingUserIds: string[] = [];
+    const missingGroupIds: string[] = [];
+    const missingBrandIds: string[] = [];
+    const missingOrgIds:   string[] = [];
+    for (const r of rows) {
+      if (r.requester_id     && !users[String(r.requester_id)])       missingUserIds.push(String(r.requester_id));
+      if (r.assignee_id      && !users[String(r.assignee_id)])        missingUserIds.push(String(r.assignee_id));
+      if (r.group_id         && !groups[String(r.group_id)])          missingGroupIds.push(String(r.group_id));
+      if (r.brand_id         && !brands[String(r.brand_id)])          missingBrandIds.push(String(r.brand_id));
+      if (r.organization_id  && !orgs[String(r.organization_id)])     missingOrgIds.push(String(r.organization_id));
+    }
+    await Promise.all([
+      resolveShowMany('users',        missingUserIds, users,  (u: any) => u.name || u.email || String(u.id)),
+      resolveShowMany('groups',       missingGroupIds, groups, (g: any) => g.name || String(g.id)),
+      resolveShowMany('brands',       missingBrandIds, brands, (b: any) => b.name || String(b.id)),
+      resolveShowMany('organizations',missingOrgIds,   orgs,   (o: any) => o.name || String(o.id)),
+    ]);
+  }
+
   return { count, rows, columns: TICKET_COLUMNS, timeField: def.timeField, users, groups, brands, orgs };
+}
+
+/**
+ * Batched show_many lookup: fill the `into` map with names for any IDs that
+ * sideloading missed. Zendesk allows up to 100 IDs per call.
+ */
+async function resolveShowMany(
+  resource: 'users' | 'groups' | 'brands' | 'organizations',
+  ids: string[],
+  into: Record<string, string>,
+  nameOf: (entity: any) => string,
+): Promise<void> {
+  const unique = Array.from(new Set(ids.filter(id => id && !into[id])));
+  if (!unique.length) return;
+  for (let i = 0; i < unique.length; i += 100) {
+    const batch = unique.slice(i, i + 100);
+    try {
+      const data: any = await fetchZendesk(`${resource}/show_many.json?ids=${batch.join(',')}`);
+      const list = data[resource] || [];
+      for (const entity of list) {
+        if (entity?.id) into[entity.id] = nameOf(entity);
+      }
+    } catch { /* swallow — we'll fall back to "User {id}" */ }
+  }
 }
 
 // ── Leaderboard / group-by ────────────────────────────────────────────────
@@ -344,8 +391,57 @@ export function groupTickets(
 }
 
 /**
+ * Fetch accurate daily counts for a metric + time range, using Zendesk's
+ * /search/count endpoint (one lightweight call per day). This is the only
+ * reliable way to chart long periods because Zendesk search caps total
+ * results at 1000, so fetching full tickets and bucketing them silently
+ * truncates anything older than the most recent 1000. Per-day counts have
+ * no such cap and stay accurate regardless of volume.
+ */
+export async function fetchZendeskDailyCounts(config: {
+  metric?:     string;
+  time?:       string;
+  zd_filters?: Array<{ field: string; value: string }>;
+}): Promise<Array<{ date: string; count: number }>> {
+  const def = ZD_METRICS[config.metric || 'created_tickets'] || ZD_METRICS.created_tickets;
+  const range = getDateRange(config.time || 'today');
+  if (!range) return [];
+
+  const filterQuery = buildZdFilterQuery(config.zd_filters || []);
+
+  const days: Date[] = [];
+  for (let d = new Date(range.start); d <= range.end; d.setDate(d.getDate() + 1)) {
+    days.push(new Date(d));
+  }
+
+  // Parallel-batch the count queries to stay polite with Zendesk rate limits
+  const BATCH = 10;
+  const out: Array<{ date: string; count: number }> = new Array(days.length);
+  for (let i = 0; i < days.length; i += BATCH) {
+    const slice = days.slice(i, i + BATCH);
+    const results = await Promise.all(slice.map(async (d, j) => {
+      const next = new Date(d); next.setDate(next.getDate() + 1);
+      const parts = [def.baseQuery, `${def.timeField}>=${toDateStr(d)}`, `${def.timeField}<${toDateStr(next)}`];
+      if (filterQuery) parts.push(filterQuery);
+      const query = parts.join(' ');
+      const label = d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
+      try {
+        const data: any = await fetchZendesk(`search/count.json?query=${encodeURIComponent(query)}`);
+        return { idx: i + j, row: { date: label, count: Number(data.count) || 0 } };
+      } catch {
+        return { idx: i + j, row: { date: label, count: 0 } };
+      }
+    }));
+    for (const r of results) out[r.idx] = r.row;
+  }
+  return out;
+}
+
+/**
  * Group Zendesk ticket rows into daily buckets for line/bar charts.
  * Produces a dense series (one row per day in the range, zero-filled).
+ * NOTE: for charts prefer fetchZendeskDailyCounts — this function only sees
+ * up to 1000 tickets (Zendesk search cap) and silently drops older days.
  */
 export function bucketTicketsByDay(
   rows: any[],

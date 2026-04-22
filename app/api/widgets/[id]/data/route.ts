@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { ensureDbReady, getWidget, getDatasetData, listDatasets } from '@/lib/db';
 import { runQuery } from '@/lib/mssql';
-import { fetchZendesk, fetchZendeskMetric, bucketTicketsByDay, groupTickets } from '@/lib/zendesk';
+import { fetchZendesk, fetchZendeskMetric, fetchZendeskDailyCounts, groupTickets } from '@/lib/zendesk';
 
 // No auth — called by the public kiosk view
 
@@ -108,31 +108,33 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
         return processRows(rows, columns, dcfg, type);
       }
 
-      // Default: metric mode with sensible defaults so a newly-saved Zendesk
-      // widget renders something even if the user didn't touch the dropdowns.
       const isChart       = type === 'line' || type === 'bar' || type === 'hbar';
       const isLeaderboard = type === 'leaderboard';
       const groupBy       = dsc?.group_by as string | undefined;
 
-      const metricCfg = {
+      const commonCfg = {
         metric:     dsc?.metric     || 'created_tickets',
         time:       dsc?.time       || 'today',
         zd_filters: dsc?.zd_filters || [],
-        // Charts and leaderboards need more rows for accurate aggregates
-        maxPages:   isChart || isLeaderboard ? 5 : 1,
-        sideload:   isLeaderboard,
       };
-      const result = await fetchZendeskMetric(metricCfg);
+
+      // Charts: use per-day count queries — accurate at any volume, avoids
+      // Zendesk's 1000-result search cap that would silently drop older days.
+      if (isChart) {
+        const series = await fetchZendeskDailyCounts(commonCfg);
+        const chartCfg = { ...dcfg, x_key: dcfg?.x_key || 'date', y_key: dcfg?.y_key || 'count' };
+        return processRows(series, ['date', 'count'], chartCfg, type);
+      }
+
+      // Leaderboards and tables need ticket rows (with user/group/etc names)
+      const result = await fetchZendeskMetric({
+        ...commonCfg,
+        maxPages: isLeaderboard ? 5 : 1,
+        sideload: isLeaderboard,
+      });
 
       if (type === 'number' && !dcfg?.count_rows && !dcfg?.value_key) {
         return processRows([{ count: result.count }], ['count'], { ...dcfg, value_key: 'count' }, type);
-      }
-
-      if (isChart) {
-        // Aggregate tickets into daily counts and expose as a dense time series
-        const series = bucketTicketsByDay(result.rows, result.timeField, metricCfg.time);
-        const chartCfg = { ...dcfg, x_key: dcfg?.x_key || 'date', y_key: dcfg?.y_key || 'count' };
-        return processRows(series, ['date', 'count'], chartCfg, type);
       }
 
       if (isLeaderboard && groupBy) {
