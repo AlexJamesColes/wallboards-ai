@@ -24,7 +24,7 @@ const C = {
 };
 
 const PRESETS = {
-  desktop: { cols: 12, rows: 6, label: 'Desktop', desc: '12 × 6  —  widescreen TV / monitor' },
+  desktop: { cols: 8, rows: 5, label: 'Desktop', desc: '8 × 5  —  widescreen TV / monitor (16:9)' },
   mobile:  { cols: 4,  rows: 8, label: 'Mobile',  desc: '4 × 8  —  portrait / phone display' },
 } as const;
 
