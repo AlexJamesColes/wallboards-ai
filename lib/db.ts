@@ -38,12 +38,25 @@ export interface WbBoard {
   id: string;
   slug_token: string;
   name: string;
+  department: string | null;
   cols: number;
   rows: number;
   background: string;
   created_by: string | null;
   widgets: WbWidget[];
 }
+
+export const WB_DEPARTMENTS = [
+  'Operations',
+  'Sales',
+  'Renewals',
+  'Customer Services',
+  'Internal Audit',
+  'SME',
+  'Fleet',
+  'Ancillary',
+] as const;
+export type WbDepartment = typeof WB_DEPARTMENTS[number];
 
 export interface WbDataset {
   id: string;
@@ -54,7 +67,7 @@ export interface WbDataset {
 export const getBoard: (id: string) => Promise<WbBoard | null> = wbDb.getBoard;
 export const getBoardByToken: (token: string) => Promise<WbBoard | null> = wbDb.getBoardByToken;
 export const listBoards: () => Promise<(WbBoard & { widget_count: number })[]> = wbDb.listBoards;
-export const createBoard: (name: string) => Promise<WbBoard> = wbDb.createBoard;
+export const createBoard: (name: string, department?: string | null) => Promise<WbBoard> = wbDb.createBoard;
 export const updateBoard: (id: string, fields: Partial<WbBoard>) => Promise<WbBoard | null> = wbDb.updateBoard;
 export const deleteBoard: (id: string) => Promise<void> = wbDb.deleteBoard;
 export const getWidget: (id: string) => Promise<WbWidget | null> = wbDb.getWidget;

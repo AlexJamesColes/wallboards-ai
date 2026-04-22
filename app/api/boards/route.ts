@@ -10,6 +10,6 @@ export const GET = withAdmin(async () => {
 export const POST = withAdmin(async (req) => {
   await ensureDbReady();
   const body = await readJson(req);
-  const board = await createBoard(body?.name || 'New Board');
+  const board = await createBoard(body?.name || 'New Board', body?.department ?? null);
   return NextResponse.json({ board }, { status: 201 });
 });

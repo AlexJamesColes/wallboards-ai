@@ -59,8 +59,24 @@ function processRows(rows: any[], allCols: string[], displayConfig: any, type: s
     if (countRows) {
       return NextResponse.json({ value: finalRows.length, columns, rows: finalRows });
     }
-    const valueKey = displayConfig?.value_key || columns[0];
-    return NextResponse.json({ value: Number(finalRows[0]?.[valueKey]) || 0, columns, rows: finalRows });
+    const row0 = finalRows[0] || {};
+    // Auto-pick the first numeric column if no value_key set — so a query
+    // like "SELECT name, amount" works regardless of column order.
+    const numericCol = columns.find(c => {
+      const v = row0[c];
+      return v !== null && v !== undefined && v !== '' && !isNaN(Number(v));
+    });
+    const valueKey  = displayConfig?.value_key || numericCol || columns[0];
+    // Use the first non-numeric column as a subtitle (e.g. the name that
+    // goes with the value) so "SELECT top_earner, total" renders as
+    // "3892" with "Fuad Olaiya" below.
+    const subtitleCol = columns.find(c => c !== valueKey && typeof row0[c] === 'string');
+    const subtitle    = displayConfig?.subtitle || (subtitleCol ? row0[subtitleCol] : undefined);
+    return NextResponse.json({
+      value:    Number(row0[valueKey]) || 0,
+      subtitle: subtitle || undefined,
+      columns, rows: finalRows,
+    });
   }
   return NextResponse.json({ columns, rows: finalRows });
 }

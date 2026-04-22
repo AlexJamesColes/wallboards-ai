@@ -9,7 +9,10 @@ export default function NumberWidget({ widget, data }: Props) {
   const num = value !== null && value !== undefined ? Number(value) : null;
   const cfg = (widget.display_config as any) || {};
   const goal = cfg.goal !== undefined ? Number(cfg.goal) : null;
-  const subtitle = cfg.subtitle || '';
+  // Subtitle can come from display_config (static) or from the data payload
+  // (dynamic — e.g. a row like { top_earner: "Fuad Olaiya", total: 3892 }
+  // returns the name as data.subtitle).
+  const subtitle = cfg.subtitle || data?.subtitle || '';
 
   let borderColor = 'transparent';
   let glowColor = 'transparent';

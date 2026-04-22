@@ -26,6 +26,7 @@ async function initPool(databaseUrl) {
         id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         slug_token  UUID NOT NULL UNIQUE DEFAULT gen_random_uuid(),
         name        VARCHAR(200) NOT NULL DEFAULT 'New Board',
+        department  VARCHAR(100),
         cols        INTEGER NOT NULL DEFAULT 4,
         rows        INTEGER NOT NULL DEFAULT 3,
         background  VARCHAR(20) NOT NULL DEFAULT '#0a0f1c',
@@ -34,6 +35,8 @@ async function initPool(databaseUrl) {
         updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
       )
     `);
+    // Add department column for installs that predate it
+    await client.query(`ALTER TABLE wb_boards ADD COLUMN IF NOT EXISTS department VARCHAR(100)`);
 
     await client.query(`
       CREATE TABLE IF NOT EXISTS wb_widgets (
@@ -124,18 +127,18 @@ async function listBoards() {
   return result;
 }
 
-async function createBoard(name) {
+async function createBoard(name, department) {
   const p = getPool();
   const { rows } = await p.query(
-    `INSERT INTO wb_boards (name) VALUES ($1) RETURNING *`,
-    [name || 'New Board']
+    `INSERT INTO wb_boards (name, department) VALUES ($1, $2) RETURNING *`,
+    [name || 'New Board', department || null]
   );
   return { ...rows[0], widgets: [] };
 }
 
 async function updateBoard(id, fields) {
   const p = getPool();
-  const allowed = ['name', 'cols', 'rows', 'background'];
+  const allowed = ['name', 'department', 'cols', 'rows', 'background'];
   const sets = [];
   const vals = [];
   for (const k of allowed) {

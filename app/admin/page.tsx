@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { ensureDbReady, listBoards } from '@/lib/db';
+import { ensureDbReady, listBoards, WB_DEPARTMENTS } from '@/lib/db';
 import NewBoardButton from './NewBoardButton';
 
 export const dynamic = 'force-dynamic';
@@ -48,38 +48,63 @@ export default async function AdminPage() {
           <NewBoardButton />
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 20 }}>
-          {boards.map((board) => (
-            <div key={board.id} style={{ background: 'linear-gradient(180deg, rgba(20,26,42,0.78), rgba(15,20,32,0.65))', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 20, padding: 24, display: 'flex', flexDirection: 'column', gap: 16, backdropFilter: 'blur(18px)' }}>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 16, fontWeight: 700, color: '#f1f5f9', marginBottom: 8 }}>{board.name}</div>
-                <div style={{ fontSize: 12, color: '#64748b' }}>
-                  {board.widget_count} widget{board.widget_count !== 1 ? 's' : ''} · {board.cols}×{board.rows} grid
-                </div>
-              </div>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <Link href={`/view/${board.slug_token}`} target="_blank"
-                  style={{ flex: 1, textAlign: 'center', padding: '9px 0', background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.25)', borderRadius: 10, color: '#a5b4fc', fontSize: 13, fontWeight: 600 }}>
-                  View ↗
-                </Link>
-                <Link href={`/admin/boards/${board.id}/edit`}
-                  style={{ flex: 1, textAlign: 'center', padding: '9px 0', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, color: '#94a3b8', fontSize: 13, fontWeight: 600 }}>
-                  Edit
-                </Link>
-              </div>
+        {dbError && (
+          <div style={{ padding: '24px', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)', borderRadius: 12, color: '#fca5a5', fontSize: 13 }}>
+            <strong>Database error:</strong> {dbError}
+          </div>
+        )}
+        {!dbError && boards.length === 0 && (
+          <div style={{ padding: '60px 0', textAlign: 'center', color: '#475569', fontSize: 14 }}>
+            No boards yet. Hit "New Board" to create your first wallboard.
+          </div>
+        )}
+        {!dbError && boards.length > 0 && (() => {
+          // Canonical dept order, then a trailing "Uncategorised" bucket
+          const groups: { label: string; items: any[] }[] = WB_DEPARTMENTS.map(d => ({
+            label: d,
+            items: boards.filter(b => b.department === d),
+          }));
+          const uncategorised = boards.filter(b => !b.department || !WB_DEPARTMENTS.includes(b.department));
+          if (uncategorised.length) groups.push({ label: 'Uncategorised', items: uncategorised });
+          const visible = groups.filter(g => g.items.length);
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 36 }}>
+              {visible.map(group => (
+                <section key={group.label}>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 14 }}>
+                    <h2 style={{ fontSize: 15, fontWeight: 700, color: '#e2e8f0', margin: 0 }}>{group.label}</h2>
+                    <span style={{ fontSize: 12, color: '#475569' }}>
+                      {group.items.length} board{group.items.length !== 1 ? 's' : ''}
+                    </span>
+                    <div style={{ flex: 1, height: 1, background: 'linear-gradient(90deg, rgba(99,102,241,0.18), transparent)' }} />
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 20 }}>
+                    {group.items.map(board => (
+                      <div key={board.id} style={{ background: 'linear-gradient(180deg, rgba(20,26,42,0.78), rgba(15,20,32,0.65))', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 20, padding: 24, display: 'flex', flexDirection: 'column', gap: 16, backdropFilter: 'blur(18px)' }}>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: 16, fontWeight: 700, color: '#f1f5f9', marginBottom: 8 }}>{board.name}</div>
+                          <div style={{ fontSize: 12, color: '#64748b' }}>
+                            {board.widget_count} widget{board.widget_count !== 1 ? 's' : ''} · {board.cols}×{board.rows} grid
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          <Link href={`/view/${board.slug_token}`} target="_blank"
+                            style={{ flex: 1, textAlign: 'center', padding: '9px 0', background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.25)', borderRadius: 10, color: '#a5b4fc', fontSize: 13, fontWeight: 600 }}>
+                            View ↗
+                          </Link>
+                          <Link href={`/admin/boards/${board.id}/edit`}
+                            style={{ flex: 1, textAlign: 'center', padding: '9px 0', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, color: '#94a3b8', fontSize: 13, fontWeight: 600 }}>
+                            Edit
+                          </Link>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              ))}
             </div>
-          ))}
-          {dbError && (
-            <div style={{ gridColumn: '1/-1', padding: '24px', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)', borderRadius: 12, color: '#fca5a5', fontSize: 13 }}>
-              <strong>Database error:</strong> {dbError}
-            </div>
-          )}
-          {!dbError && boards.length === 0 && (
-            <div style={{ gridColumn: '1/-1', padding: '60px 0', textAlign: 'center', color: '#475569', fontSize: 14 }}>
-              No boards yet. Hit "New Board" to create your first wallboard.
-            </div>
-          )}
-        </div>
+          );
+        })()}
       </main>
     </div>
   );

@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import type { WbBoard, WbWidget, WbDataset } from '@/lib/db';
+import { WB_DEPARTMENTS } from '@/lib/db';
 import { ZD_METRICS, ZD_TIMES, ZD_FILTER_FIELDS, ZD_GROUP_BY } from '@/lib/zendesk';
 import CustomSelect from '@/components/CustomSelect';
 import SourcePicker from '@/components/SourcePicker';
@@ -96,12 +97,13 @@ export default function BoardEditor({ board: init, datasets }: Props) {
     fetch('/api/connections').then(r => r.json()).then(setConnections).catch(() => {});
   }, []);
 
-  async function saveBoardSettings(opts: { name?: string; cols?: number; rows?: number; background?: string } = {}) {
+  async function saveBoardSettings(opts: { name?: string; department?: string | null; cols?: number; rows?: number; background?: string } = {}) {
     await fetch(`/api/boards/${board.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         name:       opts.name       ?? boardName,
+        department: opts.department !== undefined ? opts.department : board.department,
         cols:       opts.cols       ?? board.cols,
         rows:       opts.rows       ?? board.rows,
         background: opts.background ?? board.background,
@@ -516,6 +518,24 @@ export default function BoardEditor({ board: init, datasets }: Props) {
 
         {/* ── Sidebar ─────────────────────────────────────────────────── */}
         <div style={{ width: 280, flexShrink: 0, borderRight: '1px solid rgba(255,255,255,0.06)', padding: 16, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+          {/* Department */}
+          <div style={card}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: C.primary, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12 }}>Department</div>
+            <CustomSelect
+              value={board.department || ''}
+              onChange={v => {
+                const department = v || null;
+                setBoard(b => ({ ...b, department }));
+                saveBoardSettings({ department });
+              }}
+              placeholder="Uncategorised"
+              options={[
+                { value: '', label: 'Uncategorised' },
+                ...WB_DEPARTMENTS.map(d => ({ value: d, label: d })),
+              ]}
+            />
+          </div>
 
           {/* Board layout presets */}
           <div style={card}>
