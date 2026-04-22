@@ -7,6 +7,7 @@ import type { WbBoard, WbWidget, WbDataset } from '@/lib/db';
 import { ZD_METRICS, ZD_TIMES, ZD_FILTER_FIELDS } from '@/lib/zendesk';
 import CustomSelect from '@/components/CustomSelect';
 import SourcePicker from '@/components/SourcePicker';
+import WidgetRenderer from '@/components/WidgetRenderer';
 
 interface Props {
   board: WbBoard & { widgets: WbWidget[] };
@@ -141,6 +142,29 @@ export default function BoardEditor({ board: init, datasets }: Props) {
     await fetch(`/api/widgets/${id}`, { method: 'DELETE' });
     setWidgets(ws => ws.filter(w => w.id !== id));
     if (selected?.id === id) cancelEdit();
+  }
+
+  async function duplicateWidget(src: WbWidget) {
+    // Place the copy one row below the original, clamped to the board
+    const nextRowStart = Math.min(board.rows - src.row_span + 1, src.row_start + src.row_span);
+    const payload = {
+      title:              `${src.title} (copy)`,
+      type:               src.type,
+      data_source_type:   src.data_source_type,
+      data_source_config: src.data_source_config,
+      display_config:     src.display_config,
+      col_start:          src.col_start,
+      row_start:          nextRowStart,
+      col_span:           src.col_span,
+      row_span:           src.row_span,
+      refresh_interval:   src.refresh_interval,
+    };
+    const res  = await fetch(`/api/boards/${board.id}/widgets`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    const data = await res.json();
+    if (data.widget) {
+      setWidgets(ws => [...ws, data.widget]);
+      selectWidget(data.widget);
+    }
   }
 
   // ── Grid helpers ─────────────────────────────────────────────────────────
@@ -317,7 +341,7 @@ export default function BoardEditor({ board: init, datasets }: Props) {
             <div key={i} style={{ background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.04)', borderRadius: 2 }} />
           ))}
         </div>
-        {/* Widget overlay */}
+        {/* Widget overlay — renders live widget, with drag interaction on top */}
         <div style={{ position: 'absolute', inset, display: 'grid', gridTemplateColumns: `repeat(${board.cols}, 1fr)`, gridTemplateRows: `repeat(${board.rows}, 1fr)`, gap }}>
           {widgets.map(w => {
             const dp         = dragPreview?.widgetId === w.id ? dragPreview : null;
@@ -328,31 +352,40 @@ export default function BoardEditor({ board: init, datasets }: Props) {
             const isSel      = selected?.id  === w.id;
             const isDragging = !!dp;
             return (
-              <div key={w.id} onMouseDown={e => startMove(e, w)}
+              <div key={w.id}
                 style={{
                   gridColumn:   `${colStart} / span ${colSpan}`,
                   gridRow:      `${rowStart} / span ${rowSpan}`,
-                  background:   isDragging ? C.bg(0.3) : isSel ? C.bg(0.2) : C.bg(0.1),
-                  border:       `1px solid ${isDragging ? C.bg(0.75) : isSel ? C.bg(0.55) : C.bg(0.28)}`,
-                  borderRadius: 4,
-                  display:      'flex', alignItems: 'center', justifyContent: 'center',
-                  position:     'relative', cursor: 'grab',
+                  position:     'relative',
                   zIndex:       isDragging ? 10 : 1,
-                  overflow:     'hidden',
-                  fontSize:     10, color: C.primaryLight, fontWeight: 600,
-                  padding:      3, textAlign: 'center',
                   boxShadow:    isDragging ? `0 4px 24px ${C.bg(0.4)}` : undefined,
+                  borderRadius: 12,
+                  overflow:     'hidden',
+                  opacity:      isDragging ? 0.92 : 1,
                 }}
               >
-                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 'calc(100% - 18px)', pointerEvents: 'none' }}>
-                  {w.title}
-                </span>
+                {/* Live widget render (behind, non-interactive) */}
+                <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+                  <WidgetRenderer widget={w} />
+                </div>
+                {/* Drag / select overlay (captures mouse) */}
+                <div onMouseDown={e => startMove(e, w)}
+                  style={{
+                    position: 'absolute', inset: 0,
+                    background:   isDragging ? C.bg(0.25) : isSel ? C.bg(0.18) : 'transparent',
+                    border:       `2px solid ${isDragging ? C.bg(0.75) : isSel ? C.bg(0.6) : 'transparent'}`,
+                    borderRadius: 12,
+                    cursor:       'grab',
+                    transition:   'background 0.15s, border-color 0.15s',
+                  }}
+                />
+                {/* Resize handle (on top of overlay) */}
                 <div title="Drag to resize" onMouseDown={e => startResize(e, w)}
-                  style={{ position: 'absolute', bottom: 0, right: 0, width: 16, height: 16, cursor: 'se-resize', background: C.bg(0.55), borderTopLeftRadius: 3, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2 }}
+                  style={{ position: 'absolute', bottom: 0, right: 0, width: 18, height: 18, cursor: 'se-resize', background: C.bg(0.7), borderTopLeftRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3 }}
                 >
                   <svg width="8" height="8" viewBox="0 0 9 9" fill="none" style={{ pointerEvents: 'none' }}>
-                    <line x1="2" y1="8" x2="8" y2="2" stroke="rgba(255,255,255,0.8)" strokeWidth="1.5" strokeLinecap="round"/>
-                    <line x1="5.5" y1="8" x2="8" y2="5.5" stroke="rgba(255,255,255,0.8)" strokeWidth="1.5" strokeLinecap="round"/>
+                    <line x1="2" y1="8" x2="8" y2="2" stroke="rgba(255,255,255,0.9)" strokeWidth="1.5" strokeLinecap="round"/>
+                    <line x1="5.5" y1="8" x2="8" y2="5.5" stroke="rgba(255,255,255,0.9)" strokeWidth="1.5" strokeLinecap="round"/>
                   </svg>
                 </div>
               </div>
@@ -459,9 +492,21 @@ export default function BoardEditor({ board: init, datasets }: Props) {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {widgets.map(w => (
                 <div key={w.id} onClick={() => selectWidget(w)}
-                  style={{ padding: '8px 10px', borderRadius: 8, background: selected?.id === w.id ? C.bg(0.12) : 'rgba(255,255,255,0.03)', border: `1px solid ${selected?.id === w.id ? C.bg(0.3) : 'rgba(255,255,255,0.06)'}`, cursor: 'pointer' }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: '#e2e8f0' }}>{w.title}</div>
-                  <div style={{ fontSize: 11, color: '#475569' }}>{w.type} · col {w.col_start} row {w.row_start} · {w.col_span}w×{w.row_span}h</div>
+                  style={{ padding: '8px 10px', borderRadius: 8, background: selected?.id === w.id ? C.bg(0.12) : 'rgba(255,255,255,0.03)', border: `1px solid ${selected?.id === w.id ? C.bg(0.3) : 'rgba(255,255,255,0.06)'}`, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: '#e2e8f0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{w.title}</div>
+                    <div style={{ fontSize: 11, color: '#475569' }}>{w.type} · col {w.col_start} row {w.row_start} · {w.col_span}w×{w.row_span}h</div>
+                  </div>
+                  <button
+                    title="Duplicate widget"
+                    onClick={e => { e.stopPropagation(); duplicateWidget(w); }}
+                    style={{ flexShrink: 0, width: 24, height: 24, borderRadius: 5, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#94a3b8', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                  >
+                    <svg width="11" height="11" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="4" y="4" width="8" height="8" rx="1.5" />
+                      <path d="M10 4V3a1 1 0 0 0-1-1H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h1" />
+                    </svg>
+                  </button>
                 </div>
               ))}
               {widgets.length === 0 && <div style={{ fontSize: 12, color: '#334155', textAlign: 'center', padding: '12px 0' }}>No widgets yet</div>}
@@ -520,7 +565,7 @@ export default function BoardEditor({ board: init, datasets }: Props) {
 
               ) : activePreset === 'desktop' ? (
                 /* ── Monitor frame ─────────────────────────────────────── */
-                <div style={{ width: '100%' }}>
+                <div style={{ width: '100%', maxWidth: 1100, margin: '0 auto' }}>
                   {/* Bezel */}
                   <div style={{
                     background: 'linear-gradient(180deg, #191e30 0%, #10141f 100%)',
@@ -533,9 +578,9 @@ export default function BoardEditor({ board: init, datasets }: Props) {
                   }}>
                     {/* Camera dot */}
                     <div style={{ position: 'absolute', top: 9, left: '50%', transform: 'translateX(-50%)', width: 7, height: 7, background: '#1a2038', borderRadius: '50%', border: '1px solid rgba(255,255,255,0.07)' }} />
-                    {/* Screen */}
-                    <div style={{ background: board.background || '#0a0f1c', borderRadius: 3, overflow: 'hidden' }}>
-                      <div ref={gridRef} style={{ position: 'relative', height: 296, padding: 8, userSelect: 'none' }}>
+                    {/* Screen — 16:9 aspect, like a real widescreen TV */}
+                    <div style={{ background: board.background || '#0a0f1c', borderRadius: 3, overflow: 'hidden', aspectRatio: '16 / 9' }}>
+                      <div ref={gridRef} style={{ position: 'relative', width: '100%', height: '100%', padding: 8, userSelect: 'none', boxSizing: 'border-box' }}>
                         {renderGridLayers(8, 4)}
                       </div>
                     </div>
@@ -549,7 +594,7 @@ export default function BoardEditor({ board: init, datasets }: Props) {
 
               ) : (
                 /* ── Custom / plain grid ───────────────────────────────── */
-                <div ref={gridRef} style={{ width: '100%', position: 'relative', height: 320, padding: 8, userSelect: 'none' }}>
+                <div ref={gridRef} style={{ width: '100%', position: 'relative', aspectRatio: '16 / 9', maxWidth: 1100, margin: '0 auto', padding: 8, userSelect: 'none', boxSizing: 'border-box' }}>
                   {renderGridLayers(8, 4)}
                 </div>
               )}
@@ -950,10 +995,16 @@ export default function BoardEditor({ board: init, datasets }: Props) {
                   Cancel
                 </button>
                 {selected && (
-                  <button onClick={() => deleteWidget(selected.id)}
-                    style={{ marginLeft: 'auto', padding: '9px 16px', background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.25)', borderRadius: 8, color: '#f87171', fontSize: 13, cursor: 'pointer' }}>
-                    Delete
-                  </button>
+                  <>
+                    <button onClick={() => duplicateWidget(selected)}
+                      style={{ marginLeft: 'auto', padding: '9px 16px', background: C.bg(0.1), border: `1px solid ${C.bg(0.3)}`, borderRadius: 8, color: C.primaryLight, fontSize: 13, cursor: 'pointer', fontWeight: 600 }}>
+                      Duplicate
+                    </button>
+                    <button onClick={() => deleteWidget(selected.id)}
+                      style={{ padding: '9px 16px', background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.25)', borderRadius: 8, color: '#f87171', fontSize: 13, cursor: 'pointer' }}>
+                      Delete
+                    </button>
+                  </>
                 )}
               </div>
             </div>
