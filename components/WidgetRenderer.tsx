@@ -72,12 +72,18 @@ export default function WidgetRenderer({ widget }: Props) {
 
   const childProps = { widget, data };
 
+  // Charts render edge-to-edge with tiny padding so the drawable area is
+  // as large as possible. Non-chart widgets (numbers, tables, leaderboards)
+  // get slightly more breathing room for readability.
+  const isChart = widget.type === 'line' || widget.type === 'bar' || widget.type === 'hbar';
+  const bodyPadding = isChart ? '2px 6px 6px' : '2px 10px 8px';
+
   return (
     <div style={wrapper}>
-      <div style={{ padding: '10px 14px 4px', fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.07em', flexShrink: 0 }}>
+      <div style={{ padding: '7px 10px 2px', fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.06em', flexShrink: 0 }}>
         {widget.title}
       </div>
-      <div style={{ flex: 1, minHeight: 0, padding: '4px 14px 12px', fontFamily, fontSize }}>
+      <div style={{ flex: 1, minHeight: 0, padding: bodyPadding, fontFamily, fontSize }}>
         {widget.type === 'number'      && <NumberWidget      {...childProps} />}
         {widget.type === 'table'       && <TableWidget       {...childProps} />}
         {widget.type === 'leaderboard' && <LeaderboardWidget {...childProps} />}

@@ -29,8 +29,10 @@ const C = {
 };
 
 const PRESETS = {
-  desktop: { cols: 8, rows: 5, label: 'Desktop', desc: '8 × 5  —  widescreen TV / monitor (16:9)' },
-  mobile:  { cols: 4,  rows: 8, label: 'Mobile',  desc: '4 × 8  —  portrait / phone display' },
+  desktop: { cols: 8,  rows: 5, label: 'Desktop',    desc: '8 × 5  —  widescreen TV / monitor (16:9)' },
+  wide:    { cols: 12, rows: 7, label: 'Wide TV',    desc: '12 × 7  —  more widgets per board' },
+  ultra:   { cols: 16, rows: 9, label: 'Ultra Wide', desc: '16 × 9  —  maximum density for large screens' },
+  mobile:  { cols: 4,  rows: 8, label: 'Mobile',     desc: '4 × 8  —  portrait / phone display' },
 } as const;
 
 const FONT_FAMILIES = [
@@ -474,8 +476,13 @@ export default function BoardEditor({ board: init, datasets }: Props) {
     }} />
   );
 
-  const activePreset = (board.cols === 8 && board.rows === 5) ? 'desktop'
-    : (board.cols === 4 && board.rows === 8) ? 'mobile' : null;
+  const activePreset: keyof typeof PRESETS | null = (() => {
+    const entry = Object.entries(PRESETS).find(([, p]) => p.cols === board.cols && p.rows === board.rows);
+    return (entry ? entry[0] : null) as keyof typeof PRESETS | null;
+  })();
+  // All non-mobile landscape presets (and custom landscapes) get the monitor frame
+  const isLandscape = board.cols >= board.rows;
+  const showMonitor = activePreset !== 'mobile' && isLandscape;
 
   const dcfg = getDisplayCfg();
 
@@ -524,6 +531,27 @@ export default function BoardEditor({ board: init, datasets }: Props) {
                   </button>
                 );
               })}
+              <div style={{ marginTop: 4 }}>
+                <div style={lbl}>Grid Size <span style={{ fontWeight: 400, textTransform: 'none', color: '#475569' }}>(custom)</span></div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6 }}>
+                  <input type="number" min={2} max={32} style={{ ...inp, marginTop: 0, width: 60, textAlign: 'center', padding: '6px 4px' }}
+                    value={board.cols}
+                    onChange={e => {
+                      const cols = Math.max(2, Math.min(32, parseInt(e.target.value) || board.cols));
+                      setBoard(b => ({ ...b, cols }));
+                    }}
+                    onBlur={() => saveBoardSettings({ cols: board.cols })} />
+                  <span style={{ fontSize: 12, color: '#475569' }}>cols ×</span>
+                  <input type="number" min={2} max={20} style={{ ...inp, marginTop: 0, width: 60, textAlign: 'center', padding: '6px 4px' }}
+                    value={board.rows}
+                    onChange={e => {
+                      const rows = Math.max(2, Math.min(20, parseInt(e.target.value) || board.rows));
+                      setBoard(b => ({ ...b, rows }));
+                    }}
+                    onBlur={() => saveBoardSettings({ rows: board.rows })} />
+                  <span style={{ fontSize: 12, color: '#475569' }}>rows</span>
+                </div>
+              </div>
               <div style={{ marginTop: 4 }}>
                 <div style={lbl}>Background</div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
@@ -611,9 +639,9 @@ export default function BoardEditor({ board: init, datasets }: Props) {
             </div>
 
             {/* Device frame area */}
-            <div style={{ background: '#04060e', display: 'flex', justifyContent: 'center', alignItems: 'flex-start', padding: activePreset === 'mobile' ? '32px 20px 24px' : '20px 16px 0' }}>
+            <div style={{ background: '#04060e', display: 'flex', justifyContent: 'center', alignItems: 'flex-start', padding: !isLandscape ? '32px 20px 24px' : '20px 16px 0' }}>
 
-              {activePreset === 'mobile' ? (
+              {!isLandscape ? (
                 /* ── iPhone frame ─────────────────────────────────────── */
                 <div style={{
                   position: 'relative', width: 244, flexShrink: 0,
@@ -645,7 +673,7 @@ export default function BoardEditor({ board: init, datasets }: Props) {
                   <div style={{ height: 4, width: 80, background: 'rgba(255,255,255,0.22)', borderRadius: 2, margin: '14px auto 0' }} />
                 </div>
 
-              ) : activePreset === 'desktop' ? (
+              ) : showMonitor ? (
                 /* ── Monitor frame ─────────────────────────────────────── */
                 <div style={{ width: '100%', maxWidth: 1100, margin: '0 auto' }}>
                   {/* Bezel */}
