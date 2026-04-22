@@ -18,21 +18,45 @@ export default function LeaderboardWidget({ widget, data }: Props) {
 
   const sorted = [...rows].sort((a, b) => Number(b[valueCol] || 0) - Number(a[valueCol] || 0));
 
+  // Compact by default so 15-20 entries fit comfortably. User can enlarge
+  // with the Text Style font-size field if they want fewer, larger rows.
   return (
-    <div style={{ height: '100%', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 4 }}>
-      {sorted.map((row, i) => (
-        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '5px 8px', borderRadius: 8, background: i < 3 ? `rgba(99,102,241,${0.1 - i * 0.02})` : 'rgba(255,255,255,0.02)', border: `1px solid ${i === 0 ? 'rgba(99,102,241,0.3)' : 'rgba(255,255,255,0.04)'}` }}>
-          <span style={{ fontSize: i < 3 ? '1.2em' : '0.9em', width: 24, textAlign: 'center', flexShrink: 0, color: '#475569', fontWeight: 700 }}>
-            {i < 3 ? MEDALS[i] : `${i + 1}`}
-          </span>
-          <span style={{ flex: 1, fontSize: 'inherit', fontWeight: i < 3 ? 700 : 500, color: i < 3 ? '#f1f5f9' : '#94a3b8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {String(row[nameCol] ?? '—')}
-          </span>
-          <span style={{ fontSize: '1.1em', fontWeight: 800, color: i === 0 ? '#a5b4fc' : '#64748b', flexShrink: 0 }}>
-            {valueCol ? formatNumber(Number(row[valueCol] || 0), cfg) : ''}
-          </span>
-        </div>
-      ))}
+    <div style={{ height: '100%', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+      {sorted.map((row, i) => {
+        const isTop = i < 3;
+        return (
+          <div key={i} style={{
+            display: 'flex', alignItems: 'center', gap: 10,
+            padding: '3px 2px',
+            borderBottom: i < sorted.length - 1 ? '1px solid rgba(255,255,255,0.045)' : undefined,
+          }}>
+            <span style={{
+              width: 22, textAlign: 'center', flexShrink: 0,
+              fontSize: isTop ? '1em' : '0.82em',
+              color: isTop ? undefined : '#475569',
+              fontWeight: 700, lineHeight: 1,
+            }}>
+              {isTop ? MEDALS[i] : `${i + 1}`}
+            </span>
+            <span style={{
+              flex: 1, minWidth: 0,
+              fontSize: '0.95em',
+              fontWeight: isTop ? 600 : 500,
+              color: isTop ? '#f1f5f9' : '#cbd5e1',
+              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            }}>
+              {String(row[nameCol] ?? '—')}
+            </span>
+            <span style={{
+              fontSize: '0.95em', fontWeight: 700,
+              color: isTop ? '#a5b4fc' : '#94a3b8',
+              flexShrink: 0, lineHeight: 1,
+            }}>
+              {valueCol ? formatNumber(Number(row[valueCol] || 0), cfg) : ''}
+            </span>
+          </div>
+        );
+      })}
     </div>
   );
 }

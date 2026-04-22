@@ -823,7 +823,7 @@ export default function BoardEditor({ board: init, datasets }: Props) {
                               <div>
                                 <div style={lbl}>Show top</div>
                                 <input type="number" min={3} max={100} style={inp}
-                                  value={getDisplayCfg().limit ?? 10}
+                                  value={getDisplayCfg().limit ?? 25}
                                   onChange={e => setDisplayCfgField('limit', parseInt(e.target.value) || undefined)} />
                               </div>
                             </div>

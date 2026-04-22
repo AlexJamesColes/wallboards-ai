@@ -15,7 +15,7 @@ export default function TableWidget({ widget, data }: Props) {
         <thead>
           <tr>
             {columns.map(col => (
-              <th key={col} style={{ padding: '6px 8px', textAlign: 'left', color: '#64748b', fontWeight: 700, fontSize: '0.9em', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid rgba(255,255,255,0.07)', whiteSpace: 'nowrap' }}>
+              <th key={col} style={{ padding: '4px 6px', textAlign: 'left', color: '#64748b', fontWeight: 700, fontSize: '0.82em', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid rgba(255,255,255,0.06)', whiteSpace: 'nowrap' }}>
                 {col}
               </th>
             ))}
@@ -23,9 +23,9 @@ export default function TableWidget({ widget, data }: Props) {
         </thead>
         <tbody>
           {rows.map((row, i) => (
-            <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+            <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.035)' }}>
               {columns.map(col => (
-                <td key={col} style={{ padding: '5px 8px', color: '#cbd5e1', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <td key={col} style={{ padding: '3px 6px', color: '#cbd5e1', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {row[col] !== null && row[col] !== undefined ? String(row[col]) : '—'}
                 </td>
               ))}
