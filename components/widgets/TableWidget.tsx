@@ -1,6 +1,7 @@
 'use client';
 import type { WbWidget } from '@/lib/db';
 import { formatNumber } from '@/lib/formatNumber';
+import NoDataPlaceholder from '@/components/NoDataPlaceholder';
 
 interface Props { widget: WbWidget; data: any; }
 
@@ -38,7 +39,7 @@ export default function TableWidget({ widget, data }: Props) {
     return `${prefix}${formatted}${suffix}`;
   }
 
-  if (columns.length === 0) return <div style={{ color: '#475569', fontSize: 12, paddingTop: 8 }}>No data</div>;
+  if (columns.length === 0) return <NoDataPlaceholder />;
 
   // Rows auto-size to fill available vertical space when there are few rows,
   // and squish to a compact minimum when many rows must fit. CSS `height: 1px`

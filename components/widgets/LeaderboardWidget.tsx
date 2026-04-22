@@ -1,6 +1,7 @@
 'use client';
 import type { WbWidget } from '@/lib/db';
 import { formatNumber } from '@/lib/formatNumber';
+import NoDataPlaceholder from '@/components/NoDataPlaceholder';
 
 interface Props { widget: WbWidget; data: any; }
 
@@ -11,7 +12,7 @@ export default function LeaderboardWidget({ widget, data }: Props) {
   const columns: string[] = data?.columns || [];
   const cfg = (widget.display_config as any) || {};
 
-  if (rows.length === 0) return <div style={{ color: '#475569', fontSize: 12, paddingTop: 8 }}>No data</div>;
+  if (rows.length === 0) return <NoDataPlaceholder />;
 
   const nameCol  = columns[0] || '';
   const valueCol = columns.find(c => c !== nameCol && !isNaN(Number(rows[0]?.[c]))) || columns[1] || '';

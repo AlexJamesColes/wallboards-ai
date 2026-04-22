@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import type { WbBoard, WbWidget, WbDataset } from '@/lib/db';
 import { WB_DEPARTMENTS } from '@/lib/departments';
+import { WIDGET_TYPES } from '@/lib/widget-types';
 import { ZD_METRICS, ZD_TIMES, ZD_FILTER_FIELDS, ZD_GROUP_BY } from '@/lib/zendesk';
 import CustomSelect from '@/components/CustomSelect';
 import SourcePicker from '@/components/SourcePicker';
@@ -777,15 +778,7 @@ export default function BoardEditor({ board: init, datasets }: Props) {
                   <CustomSelect
                     value={form.type || 'number'}
                     onChange={v => setForm(f => ({ ...f, type: v as any }))}
-                    options={[
-                      { value: 'number',      label: 'Number' },
-                      { value: 'gauge',       label: 'Gauge (Geck-O-Meter)' },
-                      { value: 'line',        label: 'Line chart' },
-                      { value: 'bar',         label: 'Column chart (vertical bars)' },
-                      { value: 'hbar',        label: 'Bar chart (horizontal bars)' },
-                      { value: 'leaderboard', label: 'Leaderboard' },
-                      { value: 'table',       label: 'Table' },
-                    ]}
+                    options={WIDGET_TYPES.map(t => ({ value: t.value, label: t.label }))}
                   />
                 </div>
                 <div>

@@ -2,13 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import type { WbWidget } from '@/lib/db';
-import NumberWidget from './widgets/NumberWidget';
-import TableWidget from './widgets/TableWidget';
-import LeaderboardWidget from './widgets/LeaderboardWidget';
-import LineChartWidget from './widgets/LineChartWidget';
-import BarChartWidget from './widgets/BarChartWidget';
-import HBarChartWidget from './widgets/HBarChartWidget';
-import GaugeWidget from './widgets/GaugeWidget';
+import { WIDGET_COMPONENTS } from './widget-registry';
 
 interface Props { widget: WbWidget; }
 
@@ -84,13 +78,10 @@ export default function WidgetRenderer({ widget }: Props) {
         {widget.title}
       </div>
       <div style={{ flex: 1, minHeight: 0, padding: bodyPadding, fontFamily, fontSize }}>
-        {widget.type === 'number'      && <NumberWidget      {...childProps} />}
-        {widget.type === 'table'       && <TableWidget       {...childProps} />}
-        {widget.type === 'leaderboard' && <LeaderboardWidget {...childProps} />}
-        {widget.type === 'line'        && <LineChartWidget   {...childProps} />}
-        {widget.type === 'bar'         && <BarChartWidget    {...childProps} />}
-        {widget.type === 'hbar'        && <HBarChartWidget   {...childProps} />}
-        {widget.type === 'gauge'       && <GaugeWidget       {...childProps} />}
+        {(() => {
+          const Component = WIDGET_COMPONENTS[widget.type];
+          return Component ? <Component {...childProps} /> : null;
+        })()}
       </div>
     </div>
   );

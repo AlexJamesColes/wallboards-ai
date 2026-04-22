@@ -19,10 +19,12 @@ export function ensureDbReady(): Promise<void> {
   return readyPromise;
 }
 
+import type { WbWidgetType } from './widget-types';
+
 export interface WbWidget {
   id: string;
   board_id: string;
-  type: 'number' | 'table' | 'leaderboard' | 'line' | 'bar' | 'hbar' | 'gauge';
+  type: WbWidgetType;
   title: string;
   data_source_type: 'sql' | 'dataset' | 'zendesk';
   data_source_config: Record<string, any>;

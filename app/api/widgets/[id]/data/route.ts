@@ -2,84 +2,9 @@ import { NextResponse } from 'next/server';
 import { ensureDbReady, getWidget, getDatasetData, listDatasets } from '@/lib/db';
 import { runQuery } from '@/lib/mssql';
 import { fetchZendesk, fetchZendeskMetric, fetchZendeskDailyCounts, groupTickets } from '@/lib/zendesk';
+import { finalisePayload } from '@/lib/dataProcessor';
 
-// No auth — called by the public kiosk view
-
-type Filter = { field: string; op: string; value: string };
-
-/** Apply display_config filters to a row array */
-function applyFilters(rows: any[], filters: Filter[]): any[] {
-  if (!filters?.length) return rows;
-  return rows.filter(row =>
-    filters.every(f => {
-      if (!f.field || !f.op) return true;
-      const rowVal = String(row[f.field] ?? '');
-      const v      = String(f.value ?? '');
-      switch (f.op) {
-        case '=':        return rowVal.toLowerCase() === v.toLowerCase();
-        case '!=':       return rowVal.toLowerCase() !== v.toLowerCase();
-        case 'in':       return v.split(',').map(x => x.trim().toLowerCase()).includes(rowVal.toLowerCase());
-        case 'not in':   return !v.split(',').map(x => x.trim().toLowerCase()).includes(rowVal.toLowerCase());
-        case '>':        return Number(row[f.field]) >  Number(v);
-        case '<':        return Number(row[f.field]) <  Number(v);
-        case '>=':       return Number(row[f.field]) >= Number(v);
-        case '<=':       return Number(row[f.field]) <= Number(v);
-        case 'contains': return rowVal.toLowerCase().includes(v.toLowerCase());
-        default:         return true;
-      }
-    })
-  );
-}
-
-/** Restrict to selected columns (in order) */
-function selectColumns(rows: any[], allCols: string[], showCols?: string[]): { columns: string[]; rows: any[] } {
-  if (!showCols?.length) return { columns: allCols, rows };
-  const cols = showCols.map(c => c.trim()).filter(c => allCols.includes(c));
-  if (!cols.length) return { columns: allCols, rows };
-  return {
-    columns: cols,
-    rows: rows.map(row => {
-      const r: Record<string, any> = {};
-      cols.forEach(c => { r[c] = row[c]; });
-      return r;
-    }),
-  };
-}
-
-/** Apply all display_config post-processing: filters → column selection */
-function processRows(rows: any[], allCols: string[], displayConfig: any, type: string) {
-  const filters:  Filter[]  = displayConfig?.filters      || [];
-  const showCols: string[]  = displayConfig?.show_columns || [];
-  const countRows: boolean  = !!displayConfig?.count_rows;
-
-  const filtered = applyFilters(rows, filters);
-  const { columns, rows: finalRows } = selectColumns(filtered, allCols, showCols);
-
-  if (type === 'number') {
-    if (countRows) {
-      return NextResponse.json({ value: finalRows.length, columns, rows: finalRows });
-    }
-    const row0 = finalRows[0] || {};
-    // Auto-pick the first numeric column if no value_key set — so a query
-    // like "SELECT name, amount" works regardless of column order.
-    const numericCol = columns.find(c => {
-      const v = row0[c];
-      return v !== null && v !== undefined && v !== '' && !isNaN(Number(v));
-    });
-    const valueKey  = displayConfig?.value_key || numericCol || columns[0];
-    // Use the first non-numeric column as a subtitle (e.g. the name that
-    // goes with the value) so "SELECT top_earner, total" renders as
-    // "3892" with "Fuad Olaiya" below.
-    const subtitleCol = columns.find(c => c !== valueKey && typeof row0[c] === 'string');
-    const subtitle    = displayConfig?.subtitle || (subtitleCol ? row0[subtitleCol] : undefined);
-    return NextResponse.json({
-      value:    Number(row0[valueKey]) || 0,
-      subtitle: subtitle || undefined,
-      columns, rows: finalRows,
-    });
-  }
-  return NextResponse.json({ columns, rows: finalRows });
-}
+// No auth — called by the public kiosk view at /view/:token
 
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   try {
@@ -95,7 +20,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
       const query = (data_source_config as any)?.query;
       if (!query) return NextResponse.json({ columns: [], rows: [], value: null });
       const result = await runQuery(query);
-      return processRows(result.rows, result.columns, dcfg, type);
+      return NextResponse.json(finalisePayload(result.rows, result.columns, dcfg, type));
     }
 
     // ── Dataset (Noetica push) ────────────────────────────────────────────────
@@ -108,7 +33,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
       const dataRow = await getDatasetData(ds.id);
       const rows: any[] = dataRow?.data || [];
       const columns = rows.length > 0 ? Object.keys(rows[0]) : [];
-      return processRows(rows, columns, dcfg, type);
+      return NextResponse.json(finalisePayload(rows, columns, dcfg, type));
     }
 
     // ── Zendesk ───────────────────────────────────────────────────────────────
@@ -121,7 +46,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
         const key   = dsc?.key || Object.keys(data).find((k: string) => Array.isArray(data[k]));
         const rows: any[] = key ? data[key] : [data];
         const columns = rows.length > 0 ? Object.keys(rows[0]) : [];
-        return processRows(rows, columns, dcfg, type);
+        return NextResponse.json(finalisePayload(rows, columns, dcfg, type));
       }
 
       const isChart       = type === 'line' || type === 'bar' || type === 'hbar';
@@ -134,12 +59,12 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
         zd_filters: dsc?.zd_filters || [],
       };
 
-      // Charts: use per-day count queries — accurate at any volume, avoids
+      // Charts: per-day count queries — accurate at any volume, avoids
       // Zendesk's 1000-result search cap that would silently drop older days.
       if (isChart) {
         const series = await fetchZendeskDailyCounts(commonCfg);
         const chartCfg = { ...dcfg, x_key: dcfg?.x_key || 'date', y_key: dcfg?.y_key || 'count' };
-        return processRows(series, ['date', 'count'], chartCfg, type);
+        return NextResponse.json(finalisePayload(series, ['date', 'count'], chartCfg, type));
       }
 
       // Leaderboards and tables need ticket rows (with user/group/etc names)
@@ -150,7 +75,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
       });
 
       if (type === 'number' && !dcfg?.count_rows && !dcfg?.value_key) {
-        return processRows([{ count: result.count }], ['count'], { ...dcfg, value_key: 'count' }, type);
+        return NextResponse.json(finalisePayload([{ count: result.count }], ['count'], { ...dcfg, value_key: 'count' }, type));
       }
 
       if (isLeaderboard && groupBy) {
@@ -159,7 +84,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
         return NextResponse.json({ columns: ['label', 'count'], rows: bucket });
       }
 
-      return processRows(result.rows, result.columns, dcfg, type);
+      return NextResponse.json(finalisePayload(result.rows, result.columns, dcfg, type));
     }
 
     return NextResponse.json({ columns: [], rows: [] });
