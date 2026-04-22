@@ -330,8 +330,8 @@ export default function BoardEditor({ board: init, datasets }: Props) {
     <span style={{ width: 7, height: 7, borderRadius: '50%', background: ok ? C.primary : ok === false ? '#f87171' : '#475569', display: 'inline-block', marginRight: 6, boxShadow: ok ? `0 0 6px ${C.glow}` : undefined }} />
   );
 
-  const activePreset = (board.cols === 12 && board.rows === 6) ? 'desktop'
-    : (board.cols === 4  && board.rows === 8) ? 'mobile' : null;
+  const activePreset = (board.cols === 8 && board.rows === 5) ? 'desktop'
+    : (board.cols === 4 && board.rows === 8) ? 'mobile' : null;
 
   const dcfg = getDisplayCfg();
 
