@@ -22,7 +22,7 @@ export default function LineChartWidget({ widget, data }: Props) {
           <XAxis dataKey={xKey} tick={{ fill: '#475569', fontSize: 10 }} axisLine={false} tickLine={false} />
           <YAxis tick={{ fill: '#475569', fontSize: 10 }} axisLine={false} tickLine={false} />
           <Tooltip contentStyle={{ background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: '#f1f5f9', fontSize: 12 }} />
-          <Line type="monotone" dataKey={yKey} stroke="#10b981" strokeWidth={2} dot={false} activeDot={{ r: 4, fill: '#10b981' }} />
+          <Line type="monotone" dataKey={yKey} stroke="#6366f1" strokeWidth={2} dot={false} activeDot={{ r: 4, fill: '#a5b4fc' }} />
         </LineChart>
       </ResponsiveContainer>
     </div>

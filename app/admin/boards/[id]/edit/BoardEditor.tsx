@@ -14,17 +14,26 @@ const card = { background: 'rgba(20,26,42,0.7)', border: '1px solid rgba(255,255
 const inp: React.CSSProperties = { width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, padding: '8px 10px', color: '#f1f5f9', fontSize: 13, outline: 'none', marginTop: 6 };
 const lbl: React.CSSProperties = { fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.07em' };
 
+// InsureTec indigo/purple palette
+const C = {
+  primary:      '#6366f1',
+  primaryDark:  '#4f46e5',
+  primaryLight: '#a5b4fc',
+  bg:     (a: number) => `rgba(99,102,241,${a})`,
+  glow:   'rgba(99,102,241,0.5)',
+};
+
 const PRESETS = {
   desktop: { cols: 12, rows: 6, label: 'Desktop', desc: '12 × 6  —  widescreen TV / monitor' },
   mobile:  { cols: 4,  rows: 8, label: 'Mobile',  desc: '4 × 8  —  portrait / phone display' },
 } as const;
 
 const FONT_FAMILIES = [
-  { value: '',                        label: 'Default (Raleway)' },
-  { value: 'Arial, sans-serif',       label: 'Arial' },
-  { value: 'Tahoma, sans-serif',      label: 'Tahoma' },
-  { value: 'Verdana, sans-serif',     label: 'Verdana' },
-  { value: 'Georgia, serif',          label: 'Georgia' },
+  { value: '',                         label: 'Default (Raleway)' },
+  { value: 'Arial, sans-serif',        label: 'Arial' },
+  { value: 'Tahoma, sans-serif',       label: 'Tahoma' },
+  { value: 'Verdana, sans-serif',      label: 'Verdana' },
+  { value: 'Georgia, serif',           label: 'Georgia' },
   { value: "'Courier New', monospace", label: 'Courier New' },
 ];
 
@@ -34,21 +43,31 @@ const DEFAULT: Partial<WbWidget> = {
   col_start: 1, col_span: 1, row_start: 1, row_span: 1, refresh_interval: 60,
 };
 
+// Drag preview state covers both move and resize
+type DragPreview = {
+  widgetId:    string;
+  colStart:    number;
+  rowStart:    number;
+  colSpan:     number;
+  rowSpan:     number;
+} | null;
+
+const DRAG_THRESHOLD = 6; // px — below this is treated as a click
+
 export default function BoardEditor({ board: init, datasets }: Props) {
   const router = useRouter();
-  const [board, setBoard] = useState(init);
-  const [widgets, setWidgets] = useState<WbWidget[]>(init.widgets || []);
+  const [board,    setBoard]    = useState(init);
+  const [widgets,  setWidgets]  = useState<WbWidget[]>(init.widgets || []);
   const [selected, setSelected] = useState<WbWidget | null>(null);
-  const [adding, setAdding] = useState(false);
-  const [form, setForm] = useState<Partial<WbWidget>>({});
+  const [adding,   setAdding]   = useState(false);
+  const [form,     setForm]     = useState<Partial<WbWidget>>({});
   const [boardName, setBoardName] = useState(init.name);
-  const [saving, setSaving] = useState(false);
+  const [saving,   setSaving]   = useState(false);
   const [connections, setConnections] = useState<any>(null);
 
-  // Resize drag
-  const [resizePreview, setResizePreview] = useState<{ widgetId: string; colSpan: number; rowSpan: number } | null>(null);
-  const resizeFinalRef = useRef<{ widgetId: string; colSpan: number; rowSpan: number } | null>(null);
-  const gridRef = useRef<HTMLDivElement>(null);
+  const [dragPreview, setDragPreview] = useState<DragPreview>(null);
+  const dragFinalRef = useRef<DragPreview>(null);
+  const gridRef      = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     fetch('/api/connections').then(r => r.json()).then(setConnections).catch(() => {});
@@ -79,9 +98,9 @@ export default function BoardEditor({ board: init, datasets }: Props) {
     router.push('/admin');
   }
 
-  function startAdd() { setSelected(null); setAdding(true); setForm({ ...DEFAULT }); }
-  function selectWidget(w: WbWidget) { setSelected(w); setAdding(false); setForm({ ...w }); }
-  function cancelEdit() { setSelected(null); setAdding(false); setForm({}); }
+  function startAdd()                      { setSelected(null); setAdding(true);  setForm({ ...DEFAULT }); }
+  function selectWidget(w: WbWidget)       { setSelected(w);    setAdding(false); setForm({ ...w });       }
+  function cancelEdit()                    { setSelected(null); setAdding(false); setForm({});             }
 
   function parseJson(v: any) {
     if (typeof v === 'object' && v !== null) return v;
@@ -97,20 +116,13 @@ export default function BoardEditor({ board: init, datasets }: Props) {
         display_config:     parseJson(form.display_config),
       };
       if (adding) {
-        const res = await fetch(`/api/boards/${board.id}/widgets`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
-        });
+        const res  = await fetch(`/api/boards/${board.id}/widgets`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
         const data = await res.json();
         if (data.widget) { setWidgets(ws => [...ws, data.widget]); setAdding(false); setForm({}); }
       } else if (selected) {
-        const res = await fetch(`/api/widgets/${selected.id}`, {
-          method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
-        });
+        const res  = await fetch(`/api/widgets/${selected.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
         const data = await res.json();
-        if (data.widget) {
-          setWidgets(ws => ws.map(w => w.id === data.widget.id ? data.widget : w));
-          setSelected(data.widget);
-        }
+        if (data.widget) { setWidgets(ws => ws.map(w => w.id === data.widget.id ? data.widget : w)); setSelected(data.widget); }
       }
     } finally { setSaving(false); }
   }
@@ -122,66 +134,114 @@ export default function BoardEditor({ board: init, datasets }: Props) {
     if (selected?.id === id) cancelEdit();
   }
 
-  // ── Resize drag ─────────────────────────────────────────────────────────
-  function startResize(e: React.MouseEvent, widget: WbWidget) {
+  // ── Grid helpers ─────────────────────────────────────────────────────────
+  function getGridCellSize() {
+    const rect = gridRef.current?.getBoundingClientRect();
+    if (!rect) return { cellW: 1, cellH: 1 };
+    return {
+      cellW: (rect.width  - 16) / board.cols,
+      cellH: (rect.height - 16) / board.rows,
+    };
+  }
+
+  // ── Drag-to-MOVE (drag anywhere on widget body) ──────────────────────────
+  function startMove(e: React.MouseEvent, widget: WbWidget) {
     e.preventDefault();
-    e.stopPropagation();
-    const gridEl = gridRef.current;
-    if (!gridEl) return;
+    const { cellW, cellH } = getGridCellSize();
+    const startX = e.clientX, startY = e.clientY;
+    let hasDragged = false;
 
-    const rect = gridEl.getBoundingClientRect();
-    // Grid inner area (inset: 8px each side)
-    const innerW = rect.width  - 16;
-    const innerH = rect.height - 16;
-    const cellW  = innerW / board.cols;
-    const cellH  = innerH / board.rows;
-
-    const startX     = e.clientX;
-    const startY     = e.clientY;
-    const origColSpan = widget.col_span;
-    const origRowSpan = widget.row_span;
-
-    resizeFinalRef.current = { widgetId: widget.id, colSpan: origColSpan, rowSpan: origRowSpan };
-    setResizePreview({ widgetId: widget.id, colSpan: origColSpan, rowSpan: origRowSpan });
+    const initial: DragPreview = {
+      widgetId: widget.id,
+      colStart: widget.col_start, rowStart: widget.row_start,
+      colSpan:  widget.col_span,  rowSpan:  widget.row_span,
+    };
+    dragFinalRef.current = initial;
 
     function onMouseMove(ev: MouseEvent) {
-      const dx = ev.clientX - startX;
-      const dy = ev.clientY - startY;
-      const maxCol = board.cols - widget.col_start + 1;
-      const maxRow = board.rows - widget.row_start + 1;
-      const colSpan = Math.max(1, Math.min(maxCol, origColSpan + Math.round(dx / cellW)));
-      const rowSpan = Math.max(1, Math.min(maxRow, origRowSpan + Math.round(dy / cellH)));
-      resizeFinalRef.current = { widgetId: widget.id, colSpan, rowSpan };
-      setResizePreview({ widgetId: widget.id, colSpan, rowSpan });
+      const dx = ev.clientX - startX, dy = ev.clientY - startY;
+      if (Math.abs(dx) > DRAG_THRESHOLD || Math.abs(dy) > DRAG_THRESHOLD) hasDragged = true;
+      if (!hasDragged) return;
+      const dCols = Math.round(dx / cellW);
+      const dRows = Math.round(dy / cellH);
+      const colStart = Math.max(1, Math.min(board.cols - widget.col_span + 1, widget.col_start + dCols));
+      const rowStart = Math.max(1, Math.min(board.rows - widget.row_span + 1, widget.row_start + dRows));
+      const next: DragPreview = { ...initial, colStart, rowStart };
+      dragFinalRef.current = next;
+      setDragPreview(next);
     }
 
     async function onMouseUp() {
       document.removeEventListener('mousemove', onMouseMove);
       document.removeEventListener('mouseup',   onMouseUp);
-      setResizePreview(null);
-      const final = resizeFinalRef.current;
-      resizeFinalRef.current = null;
-      if (!final) return;
-      const res = await fetch(`/api/widgets/${widget.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ col_span: final.colSpan, row_span: final.rowSpan }),
-      });
+      document.body.style.cursor = '';
+      const final = dragFinalRef.current;
+      setDragPreview(null);
+      dragFinalRef.current = null;
+
+      if (!hasDragged) { selectWidget(widget); return; } // it was a click
+
+      if (!final || (final.colStart === widget.col_start && final.rowStart === widget.row_start)) return;
+      const res  = await fetch(`/api/widgets/${widget.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ col_start: final.colStart, row_start: final.rowStart }) });
       const data = await res.json();
       if (data.widget) {
         setWidgets(ws => ws.map(w => w.id === data.widget.id ? data.widget : w));
-        if (selected?.id === widget.id) {
-          setSelected(data.widget);
-          setForm(f => ({ ...f, col_span: data.widget.col_span, row_span: data.widget.row_span }));
-        }
+        if (selected?.id === widget.id) { setSelected(data.widget); setForm(f => ({ ...f, col_start: data.widget.col_start, row_start: data.widget.row_start })); }
       }
     }
 
+    document.body.style.cursor = 'grabbing';
     document.addEventListener('mousemove', onMouseMove);
     document.addEventListener('mouseup',   onMouseUp);
   }
 
-  // ── display_config helpers ───────────────────────────────────────────────
+  // ── Drag-to-RESIZE (corner handle) ───────────────────────────────────────
+  function startResize(e: React.MouseEvent, widget: WbWidget) {
+    e.preventDefault();
+    e.stopPropagation();
+    const { cellW, cellH } = getGridCellSize();
+    const startX = e.clientX, startY = e.clientY;
+
+    const initial: DragPreview = {
+      widgetId: widget.id,
+      colStart: widget.col_start, rowStart: widget.row_start,
+      colSpan:  widget.col_span,  rowSpan:  widget.row_span,
+    };
+    dragFinalRef.current = initial;
+    setDragPreview(initial);
+
+    function onMouseMove(ev: MouseEvent) {
+      const dx = ev.clientX - startX, dy = ev.clientY - startY;
+      const colSpan = Math.max(1, Math.min(board.cols - widget.col_start + 1, widget.col_span + Math.round(dx / cellW)));
+      const rowSpan = Math.max(1, Math.min(board.rows - widget.row_start + 1, widget.row_span + Math.round(dy / cellH)));
+      const next: DragPreview = { ...initial, colSpan, rowSpan };
+      dragFinalRef.current = next;
+      setDragPreview(next);
+    }
+
+    async function onMouseUp() {
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup',   onMouseUp);
+      document.body.style.cursor = '';
+      const final = dragFinalRef.current;
+      setDragPreview(null);
+      dragFinalRef.current = null;
+
+      if (!final || (final.colSpan === widget.col_span && final.rowSpan === widget.row_span)) return;
+      const res  = await fetch(`/api/widgets/${widget.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ col_span: final.colSpan, row_span: final.rowSpan }) });
+      const data = await res.json();
+      if (data.widget) {
+        setWidgets(ws => ws.map(w => w.id === data.widget.id ? data.widget : w));
+        if (selected?.id === widget.id) { setSelected(data.widget); setForm(f => ({ ...f, col_span: data.widget.col_span, row_span: data.widget.row_span })); }
+      }
+    }
+
+    document.body.style.cursor = 'se-resize';
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup',   onMouseUp);
+  }
+
+  // ── display_config helpers ────────────────────────────────────────────────
   function getDisplayCfg(): Record<string, any> {
     const raw = form.display_config;
     if (!raw) return {};
@@ -195,17 +255,13 @@ export default function BoardEditor({ board: init, datasets }: Props) {
         ? (() => { try { return JSON.parse(f.display_config as any); } catch { return {}; } })()
         : (f.display_config || {});
       const next = { ...cur };
-      if (value === undefined || value === '' || value === null) {
-        delete next[key];
-      } else {
-        next[key] = value;
-      }
+      if (value === undefined || value === '' || value === null) delete next[key]; else next[key] = value;
       return { ...f, display_config: next as any };
     });
   }
 
   const connDot = (ok?: boolean) => (
-    <span style={{ width: 7, height: 7, borderRadius: '50%', background: ok ? '#10b981' : ok === false ? '#f87171' : '#475569', display: 'inline-block', marginRight: 6, boxShadow: ok ? '0 0 6px rgba(16,185,129,0.6)' : undefined }} />
+    <span style={{ width: 7, height: 7, borderRadius: '50%', background: ok ? C.primary : ok === false ? '#f87171' : '#475569', display: 'inline-block', marginRight: 6, boxShadow: ok ? `0 0 6px ${C.glow}` : undefined }} />
   );
 
   const activePreset = (board.cols === 12 && board.rows === 6) ? 'desktop'
@@ -221,15 +277,12 @@ export default function BoardEditor({ board: init, datasets }: Props) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <Link href="/admin" style={{ color: '#64748b', fontSize: 13 }}>← Boards</Link>
           <span style={{ color: '#334155' }}>/</span>
-          <input
-            value={boardName}
-            onChange={e => setBoardName(e.target.value)}
-            onBlur={() => saveBoardSettings()}
-            style={{ background: 'transparent', border: 'none', borderBottom: '1px solid rgba(255,255,255,0.15)', color: '#f1f5f9', fontSize: 15, fontWeight: 700, padding: '2px 4px', width: 220, outline: 'none' }}
-          />
+          <input value={boardName} onChange={e => setBoardName(e.target.value)} onBlur={() => saveBoardSettings()}
+            style={{ background: 'transparent', border: 'none', borderBottom: '1px solid rgba(255,255,255,0.15)', color: '#f1f5f9', fontSize: 15, fontWeight: 700, padding: '2px 4px', width: 220, outline: 'none' }} />
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <Link href={`/view/${board.slug_token}`} target="_blank" style={{ padding: '8px 16px', background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: 8, color: '#6ee7b7', fontSize: 13, fontWeight: 600 }}>
+          <Link href={`/view/${board.slug_token}`} target="_blank"
+            style={{ padding: '8px 16px', background: C.bg(0.1), border: `1px solid ${C.bg(0.3)}`, borderRadius: 8, color: C.primaryLight, fontSize: 13, fontWeight: 600 }}>
             View Wallboard ↗
           </Link>
           <button onClick={deleteBoard} style={{ padding: '8px 16px', background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.3)', borderRadius: 8, color: '#f87171', fontSize: 13, cursor: 'pointer' }}>
@@ -240,19 +293,20 @@ export default function BoardEditor({ board: init, datasets }: Props) {
 
       <div style={{ display: 'flex', height: 'calc(100vh - 57px)' }}>
 
-        {/* ── Sidebar ──────────────────────────────────────────────────── */}
+        {/* ── Sidebar ─────────────────────────────────────────────────── */}
         <div style={{ width: 280, flexShrink: 0, borderRight: '1px solid rgba(255,255,255,0.06)', padding: 16, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
 
           {/* Board layout presets */}
           <div style={card}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: '#10b981', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12 }}>Board Layout</div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: C.primary, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12 }}>Board Layout</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {(Object.entries(PRESETS) as [keyof typeof PRESETS, (typeof PRESETS)[keyof typeof PRESETS]][]).map(([key, p]) => {
                 const active = activePreset === key;
                 return (
-                  <button key={key} onClick={() => applyPreset(key)} style={{ padding: '10px 14px', background: active ? 'rgba(16,185,129,0.15)' : 'rgba(255,255,255,0.03)', border: `1px solid ${active ? 'rgba(16,185,129,0.4)' : 'rgba(255,255,255,0.08)'}`, borderRadius: 10, color: active ? '#6ee7b7' : '#94a3b8', cursor: 'pointer', textAlign: 'left' }}>
+                  <button key={key} onClick={() => applyPreset(key)}
+                    style={{ padding: '10px 14px', background: active ? C.bg(0.15) : 'rgba(255,255,255,0.03)', border: `1px solid ${active ? C.bg(0.4) : 'rgba(255,255,255,0.08)'}`, borderRadius: 10, color: active ? C.primaryLight : '#94a3b8', cursor: 'pointer', textAlign: 'left' }}>
                     <div style={{ fontSize: 13, fontWeight: 700 }}>{p.label}</div>
-                    <div style={{ fontSize: 11, color: active ? '#4ade80' : '#475569', marginTop: 2 }}>{p.desc}</div>
+                    <div style={{ fontSize: 11, color: active ? '#818cf8' : '#475569', marginTop: 2 }}>{p.desc}</div>
                   </button>
                 );
               })}
@@ -274,11 +328,11 @@ export default function BoardEditor({ board: init, datasets }: Props) {
             <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12 }}>Connections</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {[
-                { label: 'SQL Server',    ok: connections?.mssql?.ok,    err: connections?.mssql?.error },
-                { label: 'Zendesk',       ok: connections?.zendesk?.ok,  err: connections?.zendesk?.error },
-                { label: 'Noetica (push)',ok: connections?.noetica?.ok,  err: connections?.noetica?.error },
+                { label: 'SQL Server',     ok: connections?.mssql?.ok,   err: connections?.mssql?.error   },
+                { label: 'Zendesk',        ok: connections?.zendesk?.ok, err: connections?.zendesk?.error  },
+                { label: 'Noetica (push)', ok: connections?.noetica?.ok, err: connections?.noetica?.error  },
               ].map(c => (
-                <div key={c.label} style={{ fontSize: 12, color: c.ok ? '#6ee7b7' : c.ok === false ? '#f87171' : '#64748b', display: 'flex', alignItems: 'center' }}>
+                <div key={c.label} style={{ fontSize: 12, color: c.ok ? C.primaryLight : c.ok === false ? '#f87171' : '#64748b', display: 'flex', alignItems: 'center' }}>
                   {connDot(c.ok)}{c.label}
                   {c.err && !c.ok && <span style={{ marginLeft: 6, color: '#475569', fontSize: 11 }}>({c.err})</span>}
                 </div>
@@ -290,13 +344,17 @@ export default function BoardEditor({ board: init, datasets }: Props) {
           <div style={{ ...card, flex: 1 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Widgets ({widgets.length})</div>
-              <button onClick={startAdd} style={{ padding: '4px 10px', background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.25)', borderRadius: 6, color: '#6ee7b7', fontSize: 12, cursor: 'pointer' }}>+ Add</button>
+              <button onClick={startAdd}
+                style={{ padding: '4px 10px', background: C.bg(0.1), border: `1px solid ${C.bg(0.25)}`, borderRadius: 6, color: C.primaryLight, fontSize: 12, cursor: 'pointer' }}>
+                + Add
+              </button>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {widgets.map(w => (
-                <div key={w.id} onClick={() => selectWidget(w)} style={{ padding: '8px 10px', borderRadius: 8, background: selected?.id === w.id ? 'rgba(16,185,129,0.12)' : 'rgba(255,255,255,0.03)', border: `1px solid ${selected?.id === w.id ? 'rgba(16,185,129,0.3)' : 'rgba(255,255,255,0.06)'}`, cursor: 'pointer' }}>
+                <div key={w.id} onClick={() => selectWidget(w)}
+                  style={{ padding: '8px 10px', borderRadius: 8, background: selected?.id === w.id ? C.bg(0.12) : 'rgba(255,255,255,0.03)', border: `1px solid ${selected?.id === w.id ? C.bg(0.3) : 'rgba(255,255,255,0.06)'}`, cursor: 'pointer' }}>
                   <div style={{ fontSize: 13, fontWeight: 600, color: '#e2e8f0' }}>{w.title}</div>
-                  <div style={{ fontSize: 11, color: '#475569' }}>{w.type} · col {w.col_start} row {w.row_start} · {w.col_span}w × {w.row_span}h</div>
+                  <div style={{ fontSize: 11, color: '#475569' }}>{w.type} · col {w.col_start} row {w.row_start} · {w.col_span}w×{w.row_span}h</div>
                 </div>
               ))}
               {widgets.length === 0 && <div style={{ fontSize: 12, color: '#334155', textAlign: 'center', padding: '12px 0' }}>No widgets yet</div>}
@@ -309,72 +367,76 @@ export default function BoardEditor({ board: init, datasets }: Props) {
 
           {/* Grid preview */}
           <div style={{ ...card, padding: 0, overflow: 'hidden' }}>
-            <div style={{ padding: '10px 14px', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: 11, color: '#475569', display: 'flex', gap: 8, alignItems: 'center' }}>
+            <div style={{ padding: '10px 14px', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: 11, color: '#475569', display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
               <span style={{ fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Layout Preview</span>
               <span style={{ color: '#334155' }}>·</span>
               <span>{board.cols} cols × {board.rows} rows</span>
               <span style={{ color: '#334155' }}>·</span>
-              <span>Drag the <strong style={{ color: '#6ee7b7' }}>⤡</strong> corner handle to resize a widget</span>
+              <span style={{ color: '#334155' }}>
+                <strong style={{ color: C.primaryLight }}>Drag</strong> a widget to move it &nbsp;·&nbsp;
+                <strong style={{ color: C.primaryLight }}>Drag ⤡</strong> corner to resize
+              </span>
             </div>
 
-            {/* Two-layer grid — background cells + widget overlay */}
-            <div
-              ref={gridRef}
-              style={{ position: 'relative', height: 320, padding: 8, userSelect: 'none' }}
-            >
-              {/* Layer 1: background cells */}
+            {/* Two-layer grid */}
+            <div ref={gridRef} style={{ position: 'relative', height: 320, padding: 8, userSelect: 'none' }}>
+
+              {/* Layer 1 — background cells */}
               <div style={{ position: 'absolute', inset: 8, display: 'grid', gridTemplateColumns: `repeat(${board.cols}, 1fr)`, gridTemplateRows: `repeat(${board.rows}, 1fr)`, gap: 4 }}>
                 {Array.from({ length: board.cols * board.rows }).map((_, i) => (
                   <div key={i} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)', borderRadius: 3 }} />
                 ))}
               </div>
 
-              {/* Layer 2: widgets */}
+              {/* Layer 2 — widgets */}
               <div style={{ position: 'absolute', inset: 8, display: 'grid', gridTemplateColumns: `repeat(${board.cols}, 1fr)`, gridTemplateRows: `repeat(${board.rows}, 1fr)`, gap: 4 }}>
                 {widgets.map(w => {
-                  const rp = resizePreview?.widgetId === w.id ? resizePreview : null;
-                  const colSpan = rp?.colSpan ?? w.col_span;
-                  const rowSpan = rp?.rowSpan ?? w.row_span;
-                  const isSel   = selected?.id === w.id;
+                  const dp      = dragPreview?.widgetId === w.id ? dragPreview : null;
+                  const colStart = dp?.colStart ?? w.col_start;
+                  const rowStart = dp?.rowStart ?? w.row_start;
+                  const colSpan  = dp?.colSpan  ?? w.col_span;
+                  const rowSpan  = dp?.rowSpan  ?? w.row_span;
+                  const isSel    = selected?.id === w.id;
+                  const isDragging = dragPreview?.widgetId === w.id;
+
                   return (
-                    <div
-                      key={w.id}
-                      onClick={() => selectWidget(w)}
+                    <div key={w.id}
+                      onMouseDown={e => startMove(e, w)}
                       style={{
-                        gridColumn:  `${w.col_start} / span ${colSpan}`,
-                        gridRow:     `${w.row_start} / span ${rowSpan}`,
-                        background:  isSel ? 'rgba(16,185,129,0.22)' : 'rgba(16,185,129,0.1)',
-                        border:      `1px solid ${isSel ? 'rgba(16,185,129,0.55)' : 'rgba(16,185,129,0.25)'}`,
+                        gridColumn:   `${colStart} / span ${colSpan}`,
+                        gridRow:      `${rowStart} / span ${rowSpan}`,
+                        background:   isDragging ? C.bg(0.28) : isSel ? C.bg(0.2) : C.bg(0.1),
+                        border:       `1px solid ${isDragging ? C.bg(0.7) : isSel ? C.bg(0.5) : C.bg(0.25)}`,
                         borderRadius: 5,
-                        display:     'flex', alignItems: 'center', justifyContent: 'center',
-                        position:    'relative',
-                        cursor:      'pointer',
-                        zIndex:      1,
-                        overflow:    'hidden',
-                        fontSize:    11, color: '#6ee7b7', fontWeight: 600,
-                        padding:     4, textAlign: 'center',
+                        display:      'flex', alignItems: 'center', justifyContent: 'center',
+                        position:     'relative',
+                        cursor:       'grab',
+                        zIndex:       isDragging ? 10 : 1,
+                        overflow:     'hidden',
+                        fontSize:     11, color: C.primaryLight, fontWeight: 600,
+                        padding:      4,  textAlign: 'center',
+                        boxShadow:    isDragging ? `0 4px 20px ${C.bg(0.35)}` : undefined,
                       }}
                     >
                       <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 'calc(100% - 22px)', pointerEvents: 'none' }}>
                         {w.title}
                       </span>
 
-                      {/* Resize handle */}
-                      <div
-                        title="Drag to resize"
+                      {/* ⤡ Resize handle */}
+                      <div title="Drag to resize"
                         onMouseDown={e => startResize(e, w)}
                         style={{
-                          position: 'absolute', bottom: 2, right: 2,
-                          width: 16, height: 16, cursor: 'se-resize',
-                          background: 'rgba(16,185,129,0.4)', borderRadius: 3,
+                          position: 'absolute', bottom: 0, right: 0,
+                          width: 18, height: 18, cursor: 'se-resize',
+                          background: C.bg(0.5),
+                          borderTopLeftRadius: 4,
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
                           zIndex: 2,
                         }}
                       >
-                        {/* Two-line resize icon */}
-                        <svg width="8" height="8" viewBox="0 0 8 8" fill="none" style={{ pointerEvents: 'none' }}>
-                          <line x1="2" y1="7" x2="7" y2="2" stroke="rgba(255,255,255,0.65)" strokeWidth="1.5" strokeLinecap="round"/>
-                          <line x1="5" y1="7" x2="7" y2="5" stroke="rgba(255,255,255,0.65)" strokeWidth="1.5" strokeLinecap="round"/>
+                        <svg width="9" height="9" viewBox="0 0 9 9" fill="none" style={{ pointerEvents: 'none' }}>
+                          <line x1="2" y1="8" x2="8" y2="2" stroke="rgba(255,255,255,0.8)" strokeWidth="1.5" strokeLinecap="round"/>
+                          <line x1="5.5" y1="8" x2="8" y2="5.5" stroke="rgba(255,255,255,0.8)" strokeWidth="1.5" strokeLinecap="round"/>
                         </svg>
                       </div>
                     </div>
@@ -393,13 +455,11 @@ export default function BoardEditor({ board: init, datasets }: Props) {
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
 
-                {/* Title */}
                 <div style={{ gridColumn: '1/-1' }}>
                   <div style={lbl}>Title</div>
                   <input style={inp} value={form.title || ''} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} />
                 </div>
 
-                {/* Type + data source */}
                 <div>
                   <div style={lbl}>Widget Type</div>
                   <select style={inp} value={form.type || 'number'} onChange={e => setForm(f => ({ ...f, type: e.target.value as any }))}>
@@ -425,7 +485,6 @@ export default function BoardEditor({ board: init, datasets }: Props) {
                   </div>
                 )}
 
-                {/* Data source config */}
                 <div style={{ gridColumn: '1/-1' }}>
                   <div style={lbl}>Data Source Config (JSON)</div>
                   <textarea style={{ ...inp, height: 80, resize: 'vertical', fontFamily: 'monospace', fontSize: 12 }}
@@ -433,7 +492,6 @@ export default function BoardEditor({ board: init, datasets }: Props) {
                     onChange={e => setForm(f => ({ ...f, data_source_config: e.target.value as any }))} />
                 </div>
 
-                {/* Display config */}
                 <div style={{ gridColumn: '1/-1' }}>
                   <div style={lbl}>Display Config (JSON)</div>
                   <textarea style={{ ...inp, height: 60, resize: 'vertical', fontFamily: 'monospace', fontSize: 12 }}
@@ -442,71 +500,64 @@ export default function BoardEditor({ board: init, datasets }: Props) {
                   <div style={{ fontSize: 11, color: '#475569', marginTop: 4 }}>For number widgets: {'{ "goal": 100, "value_key": "count" }'}</div>
                 </div>
 
-                {/* ── Text style ── */}
+                {/* Text style */}
                 <div style={{ gridColumn: '1/-1', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 10, padding: '12px 14px' }}>
                   <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 10 }}>Text Style</div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 120px', gap: 10 }}>
                     <div>
                       <div style={lbl}>Font Family</div>
-                      <select style={inp} value={dcfg.font_family || ''}
-                        onChange={e => setDisplayCfgField('font_family', e.target.value || undefined)}>
+                      <select style={inp} value={dcfg.font_family || ''} onChange={e => setDisplayCfgField('font_family', e.target.value || undefined)}>
                         {FONT_FAMILIES.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
                       </select>
                     </div>
                     <div>
                       <div style={lbl}>Font Size (px)</div>
-                      <input type="number" min={8} max={48} style={inp}
-                        value={dcfg.font_size ?? ''}
-                        placeholder="auto"
+                      <input type="number" min={8} max={48} style={inp} value={dcfg.font_size ?? ''} placeholder="auto"
                         onChange={e => setDisplayCfgField('font_size', e.target.value ? parseInt(e.target.value) : undefined)} />
                     </div>
                   </div>
-                  <div style={{ fontSize: 11, color: '#334155', marginTop: 8 }}>Font size affects the widget body — useful for cramming more rows into table/leaderboard widgets on large screens.</div>
+                  <div style={{ fontSize: 11, color: '#334155', marginTop: 8 }}>
+                    Controls body text size — great for fitting more rows into table/leaderboard widgets on large screens.
+                  </div>
                 </div>
 
-                {/* ── Position ── */}
+                {/* Position & size */}
                 <div style={{ gridColumn: '1/-1', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 12, marginTop: 4 }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 10 }}>Position &amp; Size <span style={{ fontWeight: 400, textTransform: 'none', color: '#334155' }}>(or drag ⤡ handle in preview above)</span></div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 10 }}>
+                    Position &amp; Size <span style={{ fontWeight: 400, textTransform: 'none', color: '#334155' }}>(or drag in preview above)</span>
+                  </div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8 }}>
-                    <div>
-                      <div style={lbl}>Col</div>
-                      <input type="number" min={1} max={board.cols} style={inp} value={form.col_start ?? 1}
-                        onChange={e => setForm(f => ({ ...f, col_start: parseInt(e.target.value) || 1 }))} />
-                    </div>
-                    <div>
-                      <div style={lbl}>Row</div>
-                      <input type="number" min={1} max={board.rows} style={inp} value={form.row_start ?? 1}
-                        onChange={e => setForm(f => ({ ...f, row_start: parseInt(e.target.value) || 1 }))} />
-                    </div>
-                    <div>
-                      <div style={lbl}>Width</div>
-                      <input type="number" min={1} max={board.cols} style={inp} value={form.col_span ?? 1}
-                        onChange={e => setForm(f => ({ ...f, col_span: parseInt(e.target.value) || 1 }))} />
-                    </div>
-                    <div>
-                      <div style={lbl}>Height</div>
-                      <input type="number" min={1} max={board.rows} style={inp} value={form.row_span ?? 1}
-                        onChange={e => setForm(f => ({ ...f, row_span: parseInt(e.target.value) || 1 }))} />
-                    </div>
-                    <div>
-                      <div style={lbl}>Refresh (s)</div>
-                      <input type="number" min={5} style={inp} value={form.refresh_interval ?? 60}
-                        onChange={e => setForm(f => ({ ...f, refresh_interval: parseInt(e.target.value) || 60 }))} />
-                    </div>
+                    {[
+                      { l: 'Col',       k: 'col_start' as const, max: board.cols },
+                      { l: 'Row',       k: 'row_start' as const, max: board.rows },
+                      { l: 'Width',     k: 'col_span'  as const, max: board.cols },
+                      { l: 'Height',    k: 'row_span'  as const, max: board.rows },
+                      { l: 'Refresh s', k: 'refresh_interval' as const, max: 86400 },
+                    ].map(({ l, k, max }) => (
+                      <div key={k}>
+                        <div style={lbl}>{l}</div>
+                        <input type="number" min={1} max={max} style={inp}
+                          value={(form as any)[k] ?? 1}
+                          onChange={e => setForm(f => ({ ...f, [k]: parseInt(e.target.value) || 1 }))} />
+                      </div>
+                    ))}
                   </div>
                 </div>
 
               </div>
 
               <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
-                <button onClick={saveWidget} disabled={saving} style={{ padding: '9px 20px', background: 'linear-gradient(135deg, #10b981, #059669)', border: 'none', borderRadius: 8, color: '#fff', fontSize: 13, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer' }}>
+                <button onClick={saveWidget} disabled={saving}
+                  style={{ padding: '9px 20px', background: `linear-gradient(135deg, #a855f7, ${C.primary})`, border: 'none', borderRadius: 8, color: '#fff', fontSize: 13, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer' }}>
                   {saving ? 'Saving…' : 'Save Widget'}
                 </button>
-                <button onClick={cancelEdit} style={{ padding: '9px 16px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: '#94a3b8', fontSize: 13, cursor: 'pointer' }}>
+                <button onClick={cancelEdit}
+                  style={{ padding: '9px 16px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: '#94a3b8', fontSize: 13, cursor: 'pointer' }}>
                   Cancel
                 </button>
                 {selected && (
-                  <button onClick={() => deleteWidget(selected.id)} style={{ marginLeft: 'auto', padding: '9px 16px', background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.25)', borderRadius: 8, color: '#f87171', fontSize: 13, cursor: 'pointer' }}>
+                  <button onClick={() => deleteWidget(selected.id)}
+                    style={{ marginLeft: 'auto', padding: '9px 16px', background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.25)', borderRadius: 8, color: '#f87171', fontSize: 13, cursor: 'pointer' }}>
                     Delete
                   </button>
                 )}

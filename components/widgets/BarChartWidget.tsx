@@ -22,7 +22,7 @@ export default function BarChartWidget({ widget, data }: Props) {
           <XAxis dataKey={xKey} tick={{ fill: '#475569', fontSize: 10 }} axisLine={false} tickLine={false} />
           <YAxis tick={{ fill: '#475569', fontSize: 10 }} axisLine={false} tickLine={false} />
           <Tooltip contentStyle={{ background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: '#f1f5f9', fontSize: 12 }} />
-          <Bar dataKey={yKey} fill="#10b981" radius={[4, 4, 0, 0]} />
+          <Bar dataKey={yKey} fill="#6366f1" radius={[4, 4, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>
     </div>
