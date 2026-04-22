@@ -65,33 +65,35 @@ function buildTimeQuery(timeField: string, time: string): string {
   const now   = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
+  // Zendesk search `>` is strictly-after on dates, so "tickets created today"
+  // needs `created>=today` (or equivalently `created>yesterday`). We use `>=`.
   switch (time) {
     case 'today':
-      return `${timeField}>${toDateStr(today)}`;
+      return `${timeField}>=${toDateStr(today)}`;
     case 'yesterday': {
       const yd = new Date(today);
       yd.setDate(yd.getDate() - 1);
-      return `${timeField}>${toDateStr(yd)} ${timeField}<${toDateStr(today)}`;
+      return `${timeField}>=${toDateStr(yd)} ${timeField}<${toDateStr(today)}`;
     }
     case 'last_7_days': {
       const d = new Date(today);
-      d.setDate(d.getDate() - 7);
-      return `${timeField}>${toDateStr(d)}`;
+      d.setDate(d.getDate() - 6); // last 7 days inclusive of today
+      return `${timeField}>=${toDateStr(d)}`;
     }
     case 'last_30_days': {
       const d = new Date(today);
-      d.setDate(d.getDate() - 30);
-      return `${timeField}>${toDateStr(d)}`;
+      d.setDate(d.getDate() - 29);
+      return `${timeField}>=${toDateStr(d)}`;
     }
     case 'this_week': {
       const d = new Date(today);
       const day = d.getDay();
       d.setDate(d.getDate() - (day === 0 ? 6 : day - 1)); // back to Monday
-      return `${timeField}>${toDateStr(d)}`;
+      return `${timeField}>=${toDateStr(d)}`;
     }
     case 'this_month': {
       const d = new Date(today.getFullYear(), today.getMonth(), 1);
-      return `${timeField}>${toDateStr(d)}`;
+      return `${timeField}>=${toDateStr(d)}`;
     }
     default:
       return '';
