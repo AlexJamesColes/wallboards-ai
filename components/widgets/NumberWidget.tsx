@@ -1,12 +1,13 @@
 'use client';
 import type { WbWidget } from '@/lib/db';
+import { formatNumber } from '@/lib/formatNumber';
 
 interface Props { widget: WbWidget; data: any; }
 
 export default function NumberWidget({ widget, data }: Props) {
   const value = data?.value ?? (Array.isArray(data?.rows) && data.rows.length > 0 ? Object.values(data.rows[0])[0] : null);
   const num = value !== null && value !== undefined ? Number(value) : null;
-  const cfg = widget.display_config || {};
+  const cfg = (widget.display_config as any) || {};
   const goal = cfg.goal !== undefined ? Number(cfg.goal) : null;
   const subtitle = cfg.subtitle || '';
 
@@ -21,11 +22,11 @@ export default function NumberWidget({ widget, data }: Props) {
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', border: `2px solid ${borderColor}`, borderRadius: 10, boxShadow: goal !== null ? `0 0 20px ${glowColor}` : undefined, transition: 'border-color 0.3s, box-shadow 0.3s', padding: 8 }}>
       <div style={{ fontSize: 'clamp(28px, 5vw, 56px)', fontWeight: 800, color: '#f1f5f9', lineHeight: 1, letterSpacing: '-0.02em' }}>
-        {num !== null ? num.toLocaleString() : '—'}
+        {formatNumber(num, cfg)}
       </div>
       {goal !== null && (
         <div style={{ fontSize: 12, color: '#475569', marginTop: 4 }}>
-          Goal: {Number(goal).toLocaleString()}
+          Goal: {formatNumber(goal, cfg)}
         </div>
       )}
       {subtitle && <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>{subtitle}</div>}

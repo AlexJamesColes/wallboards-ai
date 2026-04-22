@@ -681,6 +681,77 @@ export default function BoardEditor({ board: init, datasets }: Props) {
                   </div>
                 )}
 
+                {/* ── Number format ── */}
+                {['number', 'gauge', 'leaderboard', 'hbar', 'bar'].includes(form.type || '') && (() => {
+                  const fmt = getDisplayCfg();
+                  const abbr    = fmt.num_abbreviation ?? 'auto';
+                  const decMode = fmt.num_decimals === 'auto' || fmt.num_decimals === undefined ? 'auto' : 'fixed';
+                  const decVal  = typeof fmt.num_decimals === 'number' ? fmt.num_decimals : 0;
+                  const unitType = fmt.num_unit_type ?? 'auto';
+
+                  const btnBase: React.CSSProperties = { padding: '5px 12px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.1)', cursor: 'pointer', fontSize: 12, fontWeight: 600, transition: 'all 0.15s' };
+                  const btnOn:  React.CSSProperties = { ...btnBase, background: '#6366f1', color: '#fff', borderColor: '#6366f1' };
+                  const btnOff: React.CSSProperties = { ...btnBase, background: 'rgba(255,255,255,0.04)', color: '#94a3b8' };
+
+                  return (
+                    <div style={{ gridColumn: '1/-1', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 10, padding: '12px 14px' }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 12 }}>Number Format</div>
+
+                      {/* Abbreviation */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
+                        <div style={{ width: 100, fontSize: 12, color: '#94a3b8', flexShrink: 0 }}>Abbreviation</div>
+                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                          {(['auto', 'none', 'K', 'M', 'B'] as const).map(v => (
+                            <button key={v} style={abbr === v ? btnOn : btnOff}
+                              onClick={() => setDisplayCfgField('num_abbreviation', v)}>
+                              {v === 'auto' ? 'Auto' : v === 'none' ? 'None' : v}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Decimal places */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
+                        <div style={{ width: 100, fontSize: 12, color: '#94a3b8', flexShrink: 0 }}>Decimal places</div>
+                        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                          <button style={decMode === 'auto' ? btnOn : btnOff}
+                            onClick={() => setDisplayCfgField('num_decimals', 'auto')}>Auto</button>
+                          <button style={decMode === 'fixed' ? btnOn : btnOff}
+                            onClick={() => setDisplayCfgField('num_decimals', decVal)}>Fixed</button>
+                          {decMode === 'fixed' && (
+                            <>
+                              <button style={{ ...btnOff, padding: '5px 10px' }}
+                                onClick={() => setDisplayCfgField('num_decimals', Math.max(0, decVal - 1))}>−</button>
+                              <span style={{ minWidth: 20, textAlign: 'center', fontSize: 13, color: '#f1f5f9', fontWeight: 700 }}>{decVal}</span>
+                              <button style={{ ...btnOff, padding: '5px 10px' }}
+                                onClick={() => setDisplayCfgField('num_decimals', Math.min(8, decVal + 1))}>+</button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Unit */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <div style={{ width: 100, fontSize: 12, color: '#94a3b8', flexShrink: 0 }}>Unit</div>
+                        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                          {(['auto', 'prefix', 'suffix'] as const).map(v => (
+                            <button key={v} style={unitType === v ? btnOn : btnOff}
+                              onClick={() => setDisplayCfgField('num_unit_type', v)}>
+                              {v.charAt(0).toUpperCase() + v.slice(1)}
+                            </button>
+                          ))}
+                          {unitType !== 'auto' && (
+                            <input type="text" maxLength={6} style={{ ...inp, width: 64, marginTop: 0, textAlign: 'center', fontSize: 14 }}
+                              value={fmt.num_unit ?? ''}
+                              placeholder="£ % …"
+                              onChange={e => setDisplayCfgField('num_unit', e.target.value || undefined)} />
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
+
                 {/* Text style */}
                 <div style={{ gridColumn: '1/-1', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 10, padding: '12px 14px' }}>
                   <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 10 }}>Text Style</div>

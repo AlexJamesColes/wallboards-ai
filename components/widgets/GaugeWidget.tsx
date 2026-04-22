@@ -1,6 +1,7 @@
 'use client';
 import { PieChart, Pie, Cell } from 'recharts';
 import type { WbWidget } from '@/lib/db';
+import { formatNumber } from '@/lib/formatNumber';
 
 interface Props { widget: WbWidget; data: any; }
 
@@ -40,7 +41,7 @@ export default function GaugeWidget({ widget, data }: Props) {
     { name: 'base',   value: 180        }, // invisible bottom half
   ];
 
-  const formatted = value.toLocaleString();
+  const formatted = formatNumber(value, cfg);
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2 }}>
