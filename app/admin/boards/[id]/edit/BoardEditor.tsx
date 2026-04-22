@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import type { WbBoard, WbWidget, WbDataset } from '@/lib/db';
-import { WB_DEPARTMENTS } from '@/lib/db';
+import { WB_DEPARTMENTS } from '@/lib/departments';
 import { ZD_METRICS, ZD_TIMES, ZD_FILTER_FIELDS, ZD_GROUP_BY } from '@/lib/zendesk';
 import CustomSelect from '@/components/CustomSelect';
 import SourcePicker from '@/components/SourcePicker';

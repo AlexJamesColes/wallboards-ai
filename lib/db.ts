@@ -46,17 +46,10 @@ export interface WbBoard {
   widgets: WbWidget[];
 }
 
-export const WB_DEPARTMENTS = [
-  'Operations',
-  'Sales',
-  'Renewals',
-  'Customer Services',
-  'Internal Audit',
-  'SME',
-  'Fleet',
-  'Ancillary',
-] as const;
-export type WbDepartment = typeof WB_DEPARTMENTS[number];
+// Re-export from lib/departments so server code can import from either place,
+// but client components must import directly from @/lib/departments.
+export { WB_DEPARTMENTS } from './departments';
+export type { WbDepartment } from './departments';
 
 export interface WbDataset {
   id: string;
