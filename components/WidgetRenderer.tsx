@@ -39,16 +39,22 @@ export default function WidgetRenderer({ widget }: Props) {
 
   const wrapper: React.CSSProperties = {
     width: '100%', height: '100%',
-    background: 'rgba(20,26,42,0.75)',
-    border: '1px solid rgba(255,255,255,0.07)',
+    // Solid card with a subtle indigo-tinted gradient (from the InsureTec
+    // palette) to give depth without the blur softness that used to wash
+    // edges out on TVs. Much punchier from across a room.
+    background: 'linear-gradient(180deg, #1a2038 0%, #121629 100%)',
+    border: '1px solid rgba(99,102,241,0.12)',
     borderRadius: 12,
-    backdropFilter: 'blur(12px)',
     display: 'flex', flexDirection: 'column',
     overflow: 'hidden',
     position: 'relative',
     // Establish a containment context so children using cqi/cqh/cqmin units
     // size relative to this widget's box rather than the page viewport.
     containerType: 'size',
+    // Tabular figures across the whole widget — any number (leaderboard
+    // values, table cells, big number) renders with equal-width digits so
+    // stacked values line up cleanly.
+    fontVariantNumeric: 'tabular-nums',
   };
 
   if (loading) return (
@@ -77,7 +83,10 @@ export default function WidgetRenderer({ widget }: Props) {
 
   return (
     <div style={wrapper}>
-      <div style={{ padding: '7px 10px 2px', fontSize: 12, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', flexShrink: 0 }}>
+      {/* Mixed-case, larger title — anchors the widget the way Gecko's
+          titles do. letterSpacing and uppercase removed; the user's own
+          capitalisation (e.g. "🔥 Top earner today") reads faster. */}
+      <div style={{ padding: '10px 14px 0', fontSize: 14, fontWeight: 600, color: '#cbd5e1', flexShrink: 0, letterSpacing: '-0.005em' }}>
         {widget.title}
       </div>
       <div style={{ flex: 1, minHeight: 0, padding: bodyPadding, fontFamily, fontSize }}>

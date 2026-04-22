@@ -22,23 +22,52 @@ export default function NumberWidget({ widget, data }: Props) {
     else { borderColor = '#f87171'; glowColor = 'rgba(248,113,113,0.3)'; }
   }
 
-  // Sizes scale with the widget's own box (set via container-type: size on
-  // WidgetRenderer). Use cqmin (the smaller of inline/block) so a wide-but-short
-  // cell doesn't blow up vertically — the digits fit comfortably either way.
-  const valueFontSize    = 'clamp(20px, 22cqmin, 96px)';
-  const subtitleFontSize = 'clamp(11px, 5cqmin,  20px)';
+  // Sizes scale with the widget's own box (via container-type: size on
+  // WidgetRenderer). cqmin = the smaller of inline/block so wide-but-short
+  // cells don't blow up vertically.
+  const valueFontSize    = 'clamp(24px, 26cqmin, 112px)';
+  const subtitleFontSize = 'clamp(11px,  6cqmin,  22px)';
 
+  // Gecko puts the subtitle (agent name) directly above the big number, not
+  // below — the value is always the anchor. Left-aligned so everything
+  // lines up flush to the card edge and the widget fills its space instead
+  // of floating in the middle.
   return (
-    <div style={{ height: '100%', width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', border: `2px solid ${borderColor}`, borderRadius: 10, boxShadow: goal !== null ? `0 0 20px ${glowColor}` : undefined, transition: 'border-color 0.3s, box-shadow 0.3s', padding: 8, overflow: 'hidden' }}>
-      <div style={{ fontSize: valueFontSize, fontWeight: 800, color: '#f1f5f9', lineHeight: 1, letterSpacing: '-0.02em', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+    <div style={{
+      height: '100%', width: '100%',
+      display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'stretch',
+      padding: '0 2cqw',
+      gap: '2cqh',
+      border: `2px solid ${borderColor}`,
+      borderRadius: 10,
+      boxShadow: goal !== null ? `0 0 20px ${glowColor}` : undefined,
+      transition: 'border-color 0.3s, box-shadow 0.3s',
+      overflow: 'hidden',
+    }}>
+      {subtitle && (
+        <div style={{
+          fontSize: subtitleFontSize,
+          color: '#e2e8f0', fontWeight: 500,
+          maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          lineHeight: 1.1,
+          letterSpacing: '-0.005em',
+        }}>{subtitle}</div>
+      )}
+      <div style={{
+        fontSize: valueFontSize, fontWeight: 800, color: '#f8fafc',
+        lineHeight: 1, letterSpacing: '-0.025em',
+        maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+      }}>
         {formatNumber(num, cfg)}
       </div>
       {goal !== null && (
-        <div style={{ fontSize: subtitleFontSize, color: '#475569', marginTop: 4 }}>
+        <div style={{
+          fontSize: subtitleFontSize, color: '#64748b', fontWeight: 500,
+          lineHeight: 1.2,
+        }}>
           Goal: {formatNumber(goal, cfg)}
         </div>
       )}
-      {subtitle && <div style={{ fontSize: subtitleFontSize, color: '#94a3b8', marginTop: 4, maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{subtitle}</div>}
     </div>
   );
 }
