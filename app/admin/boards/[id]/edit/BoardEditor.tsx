@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import type { WbBoard, WbWidget, WbDataset } from '@/lib/db';
-import { ZD_METRICS, ZD_TIMES, ZD_FILTER_FIELDS } from '@/lib/zendesk';
+import { ZD_METRICS, ZD_TIMES, ZD_FILTER_FIELDS, ZD_GROUP_BY } from '@/lib/zendesk';
 import CustomSelect from '@/components/CustomSelect';
 import SourcePicker from '@/components/SourcePicker';
 import WidgetRenderer from '@/components/WidgetRenderer';
@@ -771,10 +771,50 @@ export default function BoardEditor({ board: init, datasets }: Props) {
                               <CustomSelect
                                 value={dsc.time || 'today'}
                                 onChange={v => setDscField('time', v)}
-                                options={Object.entries(ZD_TIMES).map(([k, v]) => ({ value: k, label: v as string }))}
+                                options={[
+                                  // Rolling
+                                  { value: 'past_7_days',  label: 'Past 7 days'  },
+                                  { value: 'past_14_days', label: 'Past 14 days' },
+                                  { value: 'past_28_days', label: 'Past 28 days' },
+                                  { value: 'past_30_days', label: 'Past 30 days' },
+                                  { value: 'past_90_days', label: 'Past 90 days' },
+                                  // Current
+                                  { value: 'today',        label: 'Today'        },
+                                  { value: 'this_week',    label: 'This week'    },
+                                  { value: 'this_month',   label: 'This month'   },
+                                  { value: 'this_quarter', label: 'This quarter' },
+                                  { value: 'this_year',    label: 'This year'    },
+                                  // Previous
+                                  { value: 'yesterday',    label: 'Yesterday'    },
+                                  { value: 'last_week',    label: 'Last week'    },
+                                  { value: 'last_month',   label: 'Last month'   },
+                                  { value: 'last_quarter', label: 'Last quarter' },
+                                  { value: 'last_year',    label: 'Last year'    },
+                                  { value: 'all_time',     label: 'All time'     },
+                                ]}
                               />
                             </div>
                           </div>
+
+                          {/* Group by — leaderboard widgets only */}
+                          {form.type === 'leaderboard' && (
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                              <div>
+                                <div style={lbl}>Group by</div>
+                                <CustomSelect
+                                  value={dsc.group_by || 'assignee'}
+                                  onChange={v => setDscField('group_by', v)}
+                                  options={Object.entries(ZD_GROUP_BY).map(([k, v]) => ({ value: k, label: v.label }))}
+                                />
+                              </div>
+                              <div>
+                                <div style={lbl}>Show top</div>
+                                <input type="number" min={3} max={100} style={inp}
+                                  value={getDisplayCfg().limit ?? 10}
+                                  onChange={e => setDisplayCfgField('limit', parseInt(e.target.value) || undefined)} />
+                              </div>
+                            </div>
+                          )}
 
                           {/* Zendesk filters */}
                           <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 8, padding: '10px 12px' }}>

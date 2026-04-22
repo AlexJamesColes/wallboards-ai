@@ -36,14 +36,43 @@ export const ZD_METRICS: Record<string, { label: string; baseQuery: string; time
   all_tickets:      { label: 'All tickets',       baseQuery: 'type:ticket',               timeField: 'created' },
 };
 
+// ── Timeframe presets (matches Geckoboard's structure) ─────────────────────
+export type ZdTimeGroup = 'rolling' | 'current' | 'previous' | 'custom';
+
+export interface ZdTimePreset {
+  value: string;
+  label: string;
+  group: ZdTimeGroup;
+}
+
+export const ZD_TIME_PRESETS: ZdTimePreset[] = [
+  // Rolling (past N days up to today)
+  { value: 'past_7_days',   label: 'Past 7 days',   group: 'rolling' },
+  { value: 'past_14_days',  label: 'Past 14 days',  group: 'rolling' },
+  { value: 'past_28_days',  label: 'Past 28 days',  group: 'rolling' },
+  { value: 'past_30_days',  label: 'Past 30 days',  group: 'rolling' },
+  { value: 'past_90_days',  label: 'Past 90 days',  group: 'rolling' },
+  // Current (the calendar period we're in, up to today)
+  { value: 'today',         label: 'Today',         group: 'current' },
+  { value: 'this_week',     label: 'This week',     group: 'current' },
+  { value: 'this_month',    label: 'This month',    group: 'current' },
+  { value: 'this_quarter',  label: 'This quarter',  group: 'current' },
+  { value: 'this_year',     label: 'This year',     group: 'current' },
+  // Previous (the calendar period before this one)
+  { value: 'yesterday',     label: 'Yesterday',     group: 'previous' },
+  { value: 'last_week',     label: 'Last week',     group: 'previous' },
+  { value: 'last_month',    label: 'Last month',    group: 'previous' },
+  { value: 'last_quarter',  label: 'Last quarter',  group: 'previous' },
+  { value: 'last_year',     label: 'Last year',     group: 'previous' },
+];
+
+// Flat label lookup (kept for backward compatibility, plus legacy keys)
 export const ZD_TIMES: Record<string, string> = {
-  today:       'Today',
-  yesterday:   'Yesterday',
-  last_7_days: 'Last 7 days',
-  last_30_days:'Last 30 days',
-  this_week:   'This week',
-  this_month:  'This month',
-  all_time:    'All time',
+  ...Object.fromEntries(ZD_TIME_PRESETS.map(p => [p.value, p.label])),
+  // Legacy keys used by existing widgets — map to new equivalents
+  last_7_days:  'Past 7 days',
+  last_30_days: 'Past 30 days',
+  all_time:     'All time',
 };
 
 export const ZD_FILTER_FIELDS: Record<string, { label: string; zdKey: string }> = {
@@ -61,43 +90,91 @@ function toDateStr(d: Date): string {
   return d.toISOString().split('T')[0]; // YYYY-MM-DD
 }
 
-function buildTimeQuery(timeField: string, time: string): string {
+/**
+ * Resolve a time preset (or a custom range like "custom:YYYY-MM-DD:YYYY-MM-DD")
+ * into a concrete { start, end } date range. Returns null for "all_time" /
+ * unknown values.
+ */
+export function getDateRange(time: string): { start: Date; end: Date } | null {
   const now   = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
-  // Zendesk search `>` is strictly-after on dates, so "tickets created today"
-  // needs `created>=today` (or equivalently `created>yesterday`). We use `>=`.
-  switch (time) {
-    case 'today':
-      return `${timeField}>=${toDateStr(today)}`;
-    case 'yesterday': {
-      const yd = new Date(today);
-      yd.setDate(yd.getDate() - 1);
-      return `${timeField}>=${toDateStr(yd)} ${timeField}<${toDateStr(today)}`;
-    }
-    case 'last_7_days': {
-      const d = new Date(today);
-      d.setDate(d.getDate() - 6); // last 7 days inclusive of today
-      return `${timeField}>=${toDateStr(d)}`;
-    }
-    case 'last_30_days': {
-      const d = new Date(today);
-      d.setDate(d.getDate() - 29);
-      return `${timeField}>=${toDateStr(d)}`;
-    }
-    case 'this_week': {
-      const d = new Date(today);
-      const day = d.getDay();
-      d.setDate(d.getDate() - (day === 0 ? 6 : day - 1)); // back to Monday
-      return `${timeField}>=${toDateStr(d)}`;
-    }
-    case 'this_month': {
-      const d = new Date(today.getFullYear(), today.getMonth(), 1);
-      return `${timeField}>=${toDateStr(d)}`;
-    }
-    default:
-      return '';
+  // Custom range
+  if (time.startsWith('custom:')) {
+    const [, s, e] = time.split(':');
+    const start = new Date(s);
+    const end   = new Date(e);
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) return null;
+    return { start, end };
   }
+
+  switch (time) {
+    case 'today':        return { start: today, end: today };
+    case 'yesterday': {
+      const d = new Date(today); d.setDate(d.getDate() - 1);
+      return { start: d, end: d };
+    }
+    // Rolling (inclusive of today)
+    case 'past_7_days':
+    case 'last_7_days': { const d = new Date(today); d.setDate(d.getDate() - 6);  return { start: d, end: today }; }
+    case 'past_14_days': { const d = new Date(today); d.setDate(d.getDate() - 13); return { start: d, end: today }; }
+    case 'past_28_days': { const d = new Date(today); d.setDate(d.getDate() - 27); return { start: d, end: today }; }
+    case 'past_30_days':
+    case 'last_30_days': { const d = new Date(today); d.setDate(d.getDate() - 29); return { start: d, end: today }; }
+    case 'past_90_days': { const d = new Date(today); d.setDate(d.getDate() - 89); return { start: d, end: today }; }
+    // Current calendar period, up to today
+    case 'this_week': {
+      const d = new Date(today); const day = d.getDay();
+      d.setDate(d.getDate() - (day === 0 ? 6 : day - 1));
+      return { start: d, end: today };
+    }
+    case 'this_month':   return { start: new Date(today.getFullYear(), today.getMonth(), 1), end: today };
+    case 'this_quarter': {
+      const q = Math.floor(today.getMonth() / 3);
+      return { start: new Date(today.getFullYear(), q * 3, 1), end: today };
+    }
+    case 'this_year':    return { start: new Date(today.getFullYear(), 0, 1), end: today };
+    // Previous calendar period (full range)
+    case 'last_week': {
+      const d = new Date(today); const day = d.getDay();
+      d.setDate(d.getDate() - (day === 0 ? 6 : day - 1) - 7);      // previous Monday
+      const e = new Date(d); e.setDate(e.getDate() + 6);           // previous Sunday
+      return { start: d, end: e };
+    }
+    case 'last_month': {
+      const s = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+      const e = new Date(today.getFullYear(), today.getMonth(), 0); // last day of prev month
+      return { start: s, end: e };
+    }
+    case 'last_quarter': {
+      const q = Math.floor(today.getMonth() / 3);
+      const s = new Date(today.getFullYear(), (q - 1) * 3, 1);
+      const e = new Date(today.getFullYear(),  q      * 3, 0);
+      return { start: s, end: e };
+    }
+    case 'last_year': {
+      return {
+        start: new Date(today.getFullYear() - 1, 0, 1),
+        end:   new Date(today.getFullYear() - 1, 11, 31),
+      };
+    }
+    case 'all_time':
+    default:
+      return null;
+  }
+}
+
+function buildTimeQuery(timeField: string, time: string): string {
+  const range = getDateRange(time);
+  if (!range) return '';
+  const { start, end } = range;
+  // Zendesk `>` is strictly-after on dates, so use `>=` for start and `<`
+  // against (end + 1 day) to include the full end date.
+  const startStr = toDateStr(start);
+  const endExclusive = new Date(end); endExclusive.setDate(endExclusive.getDate() + 1);
+  const endStr = toDateStr(endExclusive);
+  if (start.getTime() === end.getTime()) return `${timeField}>=${startStr} ${timeField}<${endStr}`;
+  return `${timeField}>=${startStr} ${timeField}<${endStr}`;
 }
 
 function buildZdFilterQuery(filters: Array<{ field: string; value: string }>): string {
@@ -119,7 +196,18 @@ export async function fetchZendeskMetric(config: {
   zd_filters?: Array<{ field: string; value: string }>;
   /** For charts: fetch enough pages to produce a meaningful time series. */
   maxPages?:   number;
-}): Promise<{ count: number; rows: any[]; columns: string[]; timeField: 'created' | 'solved' | 'updated' }> {
+  /** For leaderboards: sideload users/groups/brands/orgs so we can resolve IDs to names. */
+  sideload?:   boolean;
+}): Promise<{
+  count:     number;
+  rows:      any[];
+  columns:   string[];
+  timeField: 'created' | 'solved' | 'updated';
+  users:     Record<string, string>;
+  groups:    Record<string, string>;
+  brands:    Record<string, string>;
+  orgs:      Record<string, string>;
+}> {
   const def = ZD_METRICS[config.metric || 'created_tickets'] || ZD_METRICS.created_tickets;
 
   const parts: string[] = [def.baseQuery];
@@ -132,35 +220,127 @@ export async function fetchZendeskMetric(config: {
 
   const query    = parts.join(' ');
   const maxPages = Math.max(1, config.maxPages || 1);
+  const include  = config.sideload ? '&include=users,groups,brands,organizations' : '';
 
   let rawRows: any[] = [];
   let count   = 0;
-  let pagePath: string | null = `search.json?query=${encodeURIComponent(query)}&per_page=100`;
+  const users:  Record<string, string> = {};
+  const groups: Record<string, string> = {};
+  const brands: Record<string, string> = {};
+  const orgs:   Record<string, string> = {};
+
+  let pagePath: string | null = `search.json?query=${encodeURIComponent(query)}&per_page=100${include}`;
   for (let i = 0; i < maxPages && pagePath; i++) {
     const data: any = await fetchZendesk(pagePath);
     rawRows = rawRows.concat(data.results || []);
     if (i === 0) count = data.count ?? rawRows.length;
+    // Merge sideloaded lookups
+    for (const u of data.users  || []) if (u?.id) users[u.id]  = u.name  || u.email || String(u.id);
+    for (const g of data.groups || []) if (g?.id) groups[g.id] = g.name  || String(g.id);
+    for (const b of data.brands || []) if (b?.id) brands[b.id] = b.name  || String(b.id);
+    for (const o of data.organizations || []) if (o?.id) orgs[o.id] = o.name || String(o.id);
     // Zendesk returns a full URL in next_page — strip to a relative path
     pagePath = data.next_page ? data.next_page.replace(/^https?:\/\/[^/]+\/api\/v2\//, '') : null;
   }
 
   const rows = rawRows.map(t => ({
-    id:          t.id,
-    subject:     t.subject   || '',
-    status:      t.status    || '',
-    priority:    t.priority  || '',
-    assignee_id: t.assignee_id ?? '',
-    group_id:    t.group_id    ?? '',
-    created_at:  t.created_at  ? new Date(t.created_at).toLocaleDateString('en-GB') : '',
-    updated_at:  t.updated_at  ? new Date(t.updated_at).toLocaleDateString('en-GB') : '',
-    tags:        Array.isArray(t.tags) ? t.tags.join(', ') : '',
+    id:             t.id,
+    subject:        t.subject   || '',
+    status:         t.status    || '',
+    priority:       t.priority  || '',
+    assignee_id:    t.assignee_id ?? '',
+    requester_id:   t.requester_id ?? '',
+    group_id:       t.group_id    ?? '',
+    brand_id:       t.brand_id    ?? '',
+    organization_id:t.organization_id ?? '',
+    created_at:     t.created_at  ? new Date(t.created_at).toLocaleDateString('en-GB') : '',
+    updated_at:     t.updated_at  ? new Date(t.updated_at).toLocaleDateString('en-GB') : '',
+    tags:           Array.isArray(t.tags) ? t.tags.join(', ') : '',
+    _tags_arr:      Array.isArray(t.tags) ? t.tags : [],
     // raw ISO timestamps for downstream bucketing (not shown in tables)
-    _created_iso: t.created_at || null,
-    _solved_iso:  t.solved_at  || null,
-    _updated_iso: t.updated_at || null,
+    _created_iso:   t.created_at || null,
+    _solved_iso:    t.solved_at  || null,
+    _updated_iso:   t.updated_at || null,
   }));
 
-  return { count, rows, columns: TICKET_COLUMNS, timeField: def.timeField };
+  return { count, rows, columns: TICKET_COLUMNS, timeField: def.timeField, users, groups, brands, orgs };
+}
+
+// ── Leaderboard / group-by ────────────────────────────────────────────────
+export const ZD_GROUP_BY: Record<string, { label: string }> = {
+  assignee:     { label: 'Assignee'     },
+  requester:    { label: 'Requester'    },
+  group:        { label: 'Ticket Group' },
+  brand:        { label: 'Brand'        },
+  organization: { label: 'Organization' },
+  status:       { label: 'Status'       },
+  priority:     { label: 'Priority'     },
+  tag:          { label: 'Tag'          },
+};
+
+/**
+ * Group Zendesk ticket rows by a chosen dimension and count. Returns a
+ * leaderboard-ready array sorted descending by count. For ID-based dimensions
+ * (assignee/requester/group/brand/organization) resolves IDs to names using
+ * the sideloaded lookups.
+ */
+export function groupTickets(
+  rows: any[],
+  lookups: {
+    users:  Record<string, string>;
+    groups: Record<string, string>;
+    brands: Record<string, string>;
+    orgs:   Record<string, string>;
+  },
+  groupBy: string,
+  limit = 25,
+): Array<{ label: string; count: number }> {
+  const counts = new Map<string, number>();
+  const bump = (k: string) => counts.set(k, (counts.get(k) || 0) + 1);
+
+  for (const r of rows) {
+    switch (groupBy) {
+      case 'assignee': {
+        const id = r.assignee_id;
+        const name = id ? (lookups.users[String(id)] || `User ${id}`) : 'Unassigned';
+        bump(name);
+        break;
+      }
+      case 'requester': {
+        const id = r.requester_id;
+        const name = id ? (lookups.users[String(id)] || `User ${id}`) : 'Unknown';
+        bump(name);
+        break;
+      }
+      case 'group': {
+        const id = r.group_id;
+        bump(id ? (lookups.groups[String(id)] || `Group ${id}`) : 'No group');
+        break;
+      }
+      case 'brand': {
+        const id = r.brand_id;
+        bump(id ? (lookups.brands[String(id)] || `Brand ${id}`) : 'No brand');
+        break;
+      }
+      case 'organization': {
+        const id = r.organization_id;
+        bump(id ? (lookups.orgs[String(id)] || `Org ${id}`) : 'No organization');
+        break;
+      }
+      case 'status':   bump(r.status   || 'unknown'); break;
+      case 'priority': bump(r.priority || 'unset');   break;
+      case 'tag': {
+        for (const t of r._tags_arr || []) bump(t);
+        break;
+      }
+      default: bump(String(r[groupBy] ?? '—'));
+    }
+  }
+
+  return Array.from(counts.entries())
+    .map(([label, count]) => ({ label, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, limit);
 }
 
 /**
@@ -187,25 +367,16 @@ export function bucketTicketsByDay(
   // Determine the date range to render (zero-fill missing days)
   const now   = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  let start = new Date(today);
-  let end   = new Date(today);
-  switch (time) {
-    case 'today':        start = today; break;
-    case 'yesterday':    start = new Date(today); start.setDate(start.getDate() - 1); end = start; break;
-    case 'last_7_days':  start = new Date(today); start.setDate(start.getDate() - 6); break;
-    case 'last_30_days': start = new Date(today); start.setDate(start.getDate() - 29); break;
-    case 'this_week': {
-      const d = new Date(today); const day = d.getDay();
-      d.setDate(d.getDate() - (day === 0 ? 6 : day - 1));
-      start = d;
-      break;
-    }
-    case 'this_month':   start = new Date(today.getFullYear(), today.getMonth(), 1); break;
-    default: {
-      // no predefined range — infer from data
-      const keys = Array.from(counts.keys()).sort();
-      if (keys.length) { start = new Date(keys[0]); end = new Date(keys[keys.length - 1]); }
-    }
+  let start: Date; let end: Date;
+  const range = getDateRange(time);
+  if (range) {
+    start = range.start;
+    end   = range.end;
+  } else {
+    // no predefined range — infer from data
+    const keys = Array.from(counts.keys()).sort();
+    if (keys.length) { start = new Date(keys[0]); end = new Date(keys[keys.length - 1]); }
+    else              { start = today; end = today; }
   }
 
   const series: Array<{ date: string; count: number }> = [];

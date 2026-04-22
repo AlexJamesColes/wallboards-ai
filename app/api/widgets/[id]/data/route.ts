@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { ensureDbReady, getWidget, getDatasetData, listDatasets } from '@/lib/db';
 import { runQuery } from '@/lib/mssql';
-import { fetchZendesk, fetchZendeskMetric, bucketTicketsByDay } from '@/lib/zendesk';
+import { fetchZendesk, fetchZendeskMetric, bucketTicketsByDay, groupTickets } from '@/lib/zendesk';
 
 // No auth — called by the public kiosk view
 
@@ -110,13 +110,17 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
 
       // Default: metric mode with sensible defaults so a newly-saved Zendesk
       // widget renders something even if the user didn't touch the dropdowns.
-      const isChart = type === 'line' || type === 'bar' || type === 'hbar';
+      const isChart       = type === 'line' || type === 'bar' || type === 'hbar';
+      const isLeaderboard = type === 'leaderboard';
+      const groupBy       = dsc?.group_by as string | undefined;
+
       const metricCfg = {
         metric:     dsc?.metric     || 'created_tickets',
         time:       dsc?.time       || 'today',
         zd_filters: dsc?.zd_filters || [],
-        // Charts need more rows to build an accurate time series
-        maxPages:   isChart ? 5 : 1,
+        // Charts and leaderboards need more rows for accurate aggregates
+        maxPages:   isChart || isLeaderboard ? 5 : 1,
+        sideload:   isLeaderboard,
       };
       const result = await fetchZendeskMetric(metricCfg);
 
@@ -129,6 +133,12 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
         const series = bucketTicketsByDay(result.rows, result.timeField, metricCfg.time);
         const chartCfg = { ...dcfg, x_key: dcfg?.x_key || 'date', y_key: dcfg?.y_key || 'count' };
         return processRows(series, ['date', 'count'], chartCfg, type);
+      }
+
+      if (isLeaderboard && groupBy) {
+        const limit  = Number(dcfg?.limit || 25);
+        const bucket = groupTickets(result.rows, { users: result.users, groups: result.groups, brands: result.brands, orgs: result.orgs }, groupBy, limit);
+        return NextResponse.json({ columns: ['label', 'count'], rows: bucket });
       }
 
       return processRows(result.rows, result.columns, dcfg, type);
