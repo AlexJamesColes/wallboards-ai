@@ -270,6 +270,62 @@ export default function BoardEditor({ board: init, datasets }: Props) {
     const f = [...getFilters()]; f[i] = { ...f[i], [k]: v }; setFilters(f);
   }
 
+  // ── Grid layer renderer — shared between device frames ───────────────────
+  function renderGridLayers(inset: number, gap: number) {
+    return (
+      <>
+        {/* Background cells */}
+        <div style={{ position: 'absolute', inset, display: 'grid', gridTemplateColumns: `repeat(${board.cols}, 1fr)`, gridTemplateRows: `repeat(${board.rows}, 1fr)`, gap }}>
+          {Array.from({ length: board.cols * board.rows }).map((_, i) => (
+            <div key={i} style={{ background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.04)', borderRadius: 2 }} />
+          ))}
+        </div>
+        {/* Widget overlay */}
+        <div style={{ position: 'absolute', inset, display: 'grid', gridTemplateColumns: `repeat(${board.cols}, 1fr)`, gridTemplateRows: `repeat(${board.rows}, 1fr)`, gap }}>
+          {widgets.map(w => {
+            const dp         = dragPreview?.widgetId === w.id ? dragPreview : null;
+            const colStart   = dp?.colStart ?? w.col_start;
+            const rowStart   = dp?.rowStart ?? w.row_start;
+            const colSpan    = dp?.colSpan  ?? w.col_span;
+            const rowSpan    = dp?.rowSpan  ?? w.row_span;
+            const isSel      = selected?.id  === w.id;
+            const isDragging = !!dp;
+            return (
+              <div key={w.id} onMouseDown={e => startMove(e, w)}
+                style={{
+                  gridColumn:   `${colStart} / span ${colSpan}`,
+                  gridRow:      `${rowStart} / span ${rowSpan}`,
+                  background:   isDragging ? C.bg(0.3) : isSel ? C.bg(0.2) : C.bg(0.1),
+                  border:       `1px solid ${isDragging ? C.bg(0.75) : isSel ? C.bg(0.55) : C.bg(0.28)}`,
+                  borderRadius: 4,
+                  display:      'flex', alignItems: 'center', justifyContent: 'center',
+                  position:     'relative', cursor: 'grab',
+                  zIndex:       isDragging ? 10 : 1,
+                  overflow:     'hidden',
+                  fontSize:     10, color: C.primaryLight, fontWeight: 600,
+                  padding:      3, textAlign: 'center',
+                  boxShadow:    isDragging ? `0 4px 24px ${C.bg(0.4)}` : undefined,
+                }}
+              >
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 'calc(100% - 18px)', pointerEvents: 'none' }}>
+                  {w.title}
+                </span>
+                <div title="Drag to resize" onMouseDown={e => startResize(e, w)}
+                  style={{ position: 'absolute', bottom: 0, right: 0, width: 16, height: 16, cursor: 'se-resize', background: C.bg(0.55), borderTopLeftRadius: 3, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2 }}
+                >
+                  <svg width="8" height="8" viewBox="0 0 9 9" fill="none" style={{ pointerEvents: 'none' }}>
+                    <line x1="2" y1="8" x2="8" y2="2" stroke="rgba(255,255,255,0.8)" strokeWidth="1.5" strokeLinecap="round"/>
+                    <line x1="5.5" y1="8" x2="8" y2="5.5" stroke="rgba(255,255,255,0.8)" strokeWidth="1.5" strokeLinecap="round"/>
+                  </svg>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </>
+    );
+  }
+
   const connDot = (ok?: boolean) => (
     <span style={{ width: 7, height: 7, borderRadius: '50%', background: ok ? C.primary : ok === false ? '#f87171' : '#475569', display: 'inline-block', marginRight: 6, boxShadow: ok ? `0 0 6px ${C.glow}` : undefined }} />
   );
@@ -377,82 +433,86 @@ export default function BoardEditor({ board: init, datasets }: Props) {
 
           {/* Grid preview */}
           <div style={{ ...card, padding: 0, overflow: 'hidden' }}>
+            {/* Header */}
             <div style={{ padding: '10px 14px', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: 11, color: '#475569', display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-              <span style={{ fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Layout Preview</span>
-              <span style={{ color: '#334155' }}>·</span>
+              <span style={{ fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Preview</span>
+              <span style={{ color: '#1e2a40' }}>·</span>
               <span>{board.cols} cols × {board.rows} rows</span>
-              <span style={{ color: '#334155' }}>·</span>
-              <span style={{ color: '#334155' }}>
-                <strong style={{ color: C.primaryLight }}>Drag</strong> a widget to move it &nbsp;·&nbsp;
-                <strong style={{ color: C.primaryLight }}>Drag ⤡</strong> corner to resize
-              </span>
+              <span style={{ color: '#1e2a40' }}>·</span>
+              <span><strong style={{ color: C.primaryLight }}>Drag</strong> to move · <strong style={{ color: C.primaryLight }}>⤡</strong> corner to resize</span>
             </div>
 
-            {/* Two-layer grid */}
-            <div ref={gridRef} style={{ position: 'relative', height: 320, padding: 8, userSelect: 'none' }}>
+            {/* Device frame area */}
+            <div style={{ background: '#04060e', display: 'flex', justifyContent: 'center', alignItems: 'flex-start', padding: activePreset === 'mobile' ? '32px 20px 24px' : '20px 16px 0' }}>
 
-              {/* Layer 1 — background cells */}
-              <div style={{ position: 'absolute', inset: 8, display: 'grid', gridTemplateColumns: `repeat(${board.cols}, 1fr)`, gridTemplateRows: `repeat(${board.rows}, 1fr)`, gap: 4 }}>
-                {Array.from({ length: board.cols * board.rows }).map((_, i) => (
-                  <div key={i} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)', borderRadius: 3 }} />
-                ))}
-              </div>
+              {activePreset === 'mobile' ? (
+                /* ── iPhone frame ─────────────────────────────────────── */
+                <div style={{
+                  position: 'relative', width: 244, flexShrink: 0,
+                  background: 'linear-gradient(160deg, #1d2236 0%, #10141f 100%)',
+                  borderRadius: 46,
+                  border: '2px solid rgba(255,255,255,0.1)',
+                  boxShadow: '0 0 0 1px rgba(0,0,0,0.7), 0 32px 72px rgba(0,0,0,0.8), inset 0 1px 0 rgba(255,255,255,0.07)',
+                  padding: '54px 11px 32px',
+                }}>
+                  {/* Dynamic island */}
+                  <div style={{ position: 'absolute', top: 17, left: '50%', transform: 'translateX(-50%)', width: 90, height: 24, background: '#000', borderRadius: 12 }} />
+                  {/* Power button (right) */}
+                  <div style={{ position: 'absolute', top: 98, right: -4, width: 4, height: 46, background: '#181d2e', borderRadius: '0 3px 3px 0' }} />
+                  {/* Silent switch (left) */}
+                  <div style={{ position: 'absolute', top: 58, left: -4, width: 4, height: 18, background: '#181d2e', borderRadius: '3px 0 0 3px' }} />
+                  {/* Volume up (left) */}
+                  <div style={{ position: 'absolute', top: 86, left: -4, width: 4, height: 34, background: '#181d2e', borderRadius: '3px 0 0 3px' }} />
+                  {/* Volume down (left) */}
+                  <div style={{ position: 'absolute', top: 128, left: -4, width: 4, height: 34, background: '#181d2e', borderRadius: '3px 0 0 3px' }} />
 
-              {/* Layer 2 — widgets */}
-              <div style={{ position: 'absolute', inset: 8, display: 'grid', gridTemplateColumns: `repeat(${board.cols}, 1fr)`, gridTemplateRows: `repeat(${board.rows}, 1fr)`, gap: 4 }}>
-                {widgets.map(w => {
-                  const dp      = dragPreview?.widgetId === w.id ? dragPreview : null;
-                  const colStart = dp?.colStart ?? w.col_start;
-                  const rowStart = dp?.rowStart ?? w.row_start;
-                  const colSpan  = dp?.colSpan  ?? w.col_span;
-                  const rowSpan  = dp?.rowSpan  ?? w.row_span;
-                  const isSel    = selected?.id === w.id;
-                  const isDragging = dragPreview?.widgetId === w.id;
+                  {/* Screen */}
+                  <div style={{ background: board.background || '#0a0f1c', borderRadius: 28, overflow: 'hidden', height: 430 }}>
+                    <div ref={gridRef} style={{ position: 'relative', height: '100%', padding: 5, userSelect: 'none' }}>
+                      {renderGridLayers(5, 3)}
+                    </div>
+                  </div>
 
-                  return (
-                    <div key={w.id}
-                      onMouseDown={e => startMove(e, w)}
-                      style={{
-                        gridColumn:   `${colStart} / span ${colSpan}`,
-                        gridRow:      `${rowStart} / span ${rowSpan}`,
-                        background:   isDragging ? C.bg(0.28) : isSel ? C.bg(0.2) : C.bg(0.1),
-                        border:       `1px solid ${isDragging ? C.bg(0.7) : isSel ? C.bg(0.5) : C.bg(0.25)}`,
-                        borderRadius: 5,
-                        display:      'flex', alignItems: 'center', justifyContent: 'center',
-                        position:     'relative',
-                        cursor:       'grab',
-                        zIndex:       isDragging ? 10 : 1,
-                        overflow:     'hidden',
-                        fontSize:     11, color: C.primaryLight, fontWeight: 600,
-                        padding:      4,  textAlign: 'center',
-                        boxShadow:    isDragging ? `0 4px 20px ${C.bg(0.35)}` : undefined,
-                      }}
-                    >
-                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 'calc(100% - 22px)', pointerEvents: 'none' }}>
-                        {w.title}
-                      </span>
+                  {/* Home indicator */}
+                  <div style={{ height: 4, width: 80, background: 'rgba(255,255,255,0.22)', borderRadius: 2, margin: '14px auto 0' }} />
+                </div>
 
-                      {/* ⤡ Resize handle */}
-                      <div title="Drag to resize"
-                        onMouseDown={e => startResize(e, w)}
-                        style={{
-                          position: 'absolute', bottom: 0, right: 0,
-                          width: 18, height: 18, cursor: 'se-resize',
-                          background: C.bg(0.5),
-                          borderTopLeftRadius: 4,
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          zIndex: 2,
-                        }}
-                      >
-                        <svg width="9" height="9" viewBox="0 0 9 9" fill="none" style={{ pointerEvents: 'none' }}>
-                          <line x1="2" y1="8" x2="8" y2="2" stroke="rgba(255,255,255,0.8)" strokeWidth="1.5" strokeLinecap="round"/>
-                          <line x1="5.5" y1="8" x2="8" y2="5.5" stroke="rgba(255,255,255,0.8)" strokeWidth="1.5" strokeLinecap="round"/>
-                        </svg>
+              ) : activePreset === 'desktop' ? (
+                /* ── Monitor frame ─────────────────────────────────────── */
+                <div style={{ width: '100%' }}>
+                  {/* Bezel */}
+                  <div style={{
+                    background: 'linear-gradient(180deg, #191e30 0%, #10141f 100%)',
+                    borderRadius: '14px 14px 3px 3px',
+                    border: '2px solid rgba(255,255,255,0.08)',
+                    borderBottom: '3px solid rgba(255,255,255,0.04)',
+                    padding: '24px 10px 10px',
+                    position: 'relative',
+                    boxShadow: '0 10px 48px rgba(0,0,0,0.7)',
+                  }}>
+                    {/* Camera dot */}
+                    <div style={{ position: 'absolute', top: 9, left: '50%', transform: 'translateX(-50%)', width: 7, height: 7, background: '#1a2038', borderRadius: '50%', border: '1px solid rgba(255,255,255,0.07)' }} />
+                    {/* Screen */}
+                    <div style={{ background: board.background || '#0a0f1c', borderRadius: 3, overflow: 'hidden' }}>
+                      <div ref={gridRef} style={{ position: 'relative', height: 296, padding: 8, userSelect: 'none' }}>
+                        {renderGridLayers(8, 4)}
                       </div>
                     </div>
-                  );
-                })}
-              </div>
+                  </div>
+                  {/* Stand neck */}
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                    <div style={{ width: 46, height: 20, background: '#10141f', border: '2px solid rgba(255,255,255,0.06)', borderTop: 'none', borderRadius: '0 0 3px 3px' }} />
+                    <div style={{ width: 112, height: 7, background: '#0c1018', borderRadius: '0 0 6px 6px', border: '2px solid rgba(255,255,255,0.05)', borderTop: 'none', marginTop: -1 }} />
+                  </div>
+                </div>
+
+              ) : (
+                /* ── Custom / plain grid ───────────────────────────────── */
+                <div ref={gridRef} style={{ width: '100%', position: 'relative', height: 320, padding: 8, userSelect: 'none' }}>
+                  {renderGridLayers(8, 4)}
+                </div>
+              )}
+
             </div>
           </div>
 
