@@ -105,6 +105,22 @@ export default function BoardEditor({ board: init, datasets }: Props) {
     fetch('/api/connections').then(r => r.json()).then(setConnections).catch(() => {});
   }, []);
 
+  // Available columns for the currently-edited widget — used to populate
+  // the Column Formats dropdown instead of free-typing a column name.
+  // Fetched from the widget's live data endpoint, which is fast and already
+  // returns the column list. Empty when creating a new (unsaved) widget —
+  // we fall back to a text input in that case.
+  const [availableColumns, setAvailableColumns] = useState<string[]>([]);
+  useEffect(() => {
+    if (!selected?.id) { setAvailableColumns([]); return; }
+    let cancelled = false;
+    fetch(`/api/widgets/${selected.id}/data`)
+      .then(r => r.json())
+      .then(d => { if (!cancelled) setAvailableColumns(Array.isArray(d.columns) ? d.columns : []); })
+      .catch(() => { if (!cancelled) setAvailableColumns([]); });
+    return () => { cancelled = true; };
+  }, [selected?.id]);
+
   async function saveBoardSettings(opts: { name?: string; department?: string | null; cols?: number; rows?: number; background?: string } = {}) {
     await fetch(`/api/boards/${board.id}`, {
       method: 'PATCH',
@@ -1104,11 +1120,22 @@ export default function BoardEditor({ board: init, datasets }: Props) {
                     )}
                     {getColumnFormats().map((f, i) => (
                       <div key={i} style={{ display: 'grid', gridTemplateColumns: '1.4fr 70px 70px 80px 32px', gap: 6, marginBottom: 6, alignItems: 'start' }}>
-                        <input
-                          placeholder="Column name (e.g. Actual Earn MTD)"
-                          value={f.column}
-                          onChange={e => updateColumnFormat(i, 'column', e.target.value)}
-                          style={{ ...inp, marginTop: 0 }} />
+                        {availableColumns.length > 0 ? (
+                          <div style={{ marginTop: -6 }}>
+                            <CustomSelect
+                              value={f.column}
+                              onChange={v => updateColumnFormat(i, 'column', v)}
+                              placeholder="Pick a column…"
+                              options={availableColumns.map(c => ({ value: c, label: c }))}
+                            />
+                          </div>
+                        ) : (
+                          <input
+                            placeholder="Column name (save widget first to pick)"
+                            value={f.column}
+                            onChange={e => updateColumnFormat(i, 'column', e.target.value)}
+                            style={{ ...inp, marginTop: 0 }} />
+                        )}
                         <input
                           placeholder="Prefix"
                           value={f.prefix || ''}
