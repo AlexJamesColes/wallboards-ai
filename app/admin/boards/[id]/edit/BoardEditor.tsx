@@ -8,6 +8,7 @@ import { ZD_METRICS, ZD_TIMES, ZD_FILTER_FIELDS } from '@/lib/zendesk';
 import CustomSelect from '@/components/CustomSelect';
 import SourcePicker from '@/components/SourcePicker';
 import WidgetRenderer from '@/components/WidgetRenderer';
+import Combobox, { ComboOption } from '@/components/Combobox';
 
 interface Props {
   board: WbBoard & { widgets: WbWidget[] };
@@ -74,6 +75,21 @@ export default function BoardEditor({ board: init, datasets }: Props) {
   const dragFinalRef = useRef<DragPreview>(null);
   const gridRef      = useRef<HTMLDivElement>(null);
 
+  // Zendesk filter-value autocomplete options, cached by field
+  const [zdOptions, setZdOptions] = useState<Record<string, ComboOption[]>>({});
+  const [zdLoading, setZdLoading] = useState<Record<string, boolean>>({});
+  function loadZdOptions(field: string) {
+    if (!field) return;
+    if (zdOptions[field] || zdLoading[field]) return;
+    setZdLoading(l => ({ ...l, [field]: true }));
+    fetch(`/api/zendesk/options?field=${encodeURIComponent(field)}`)
+      .then(r => r.json())
+      .then(d => setZdOptions(o => ({ ...o, [field]: d.options || [] })))
+      .catch(() => setZdOptions(o => ({ ...o, [field]: [] })))
+      .finally(() => setZdLoading(l => ({ ...l, [field]: false })));
+  }
+  const AUTOCOMPLETE_FIELDS = new Set(['tag', 'assignee', 'group', 'brand', 'status', 'priority']);
+
   useEffect(() => {
     fetch('/api/connections').then(r => r.json()).then(setConnections).catch(() => {});
   }, []);
@@ -107,7 +123,11 @@ export default function BoardEditor({ board: init, datasets }: Props) {
   function pickSource(src: 'sql' | 'zendesk' | 'dataset') {
     setPickingSource(false);
     setAdding(true);
-    setForm({ ...DEFAULT, data_source_type: src });
+    const defaultConfig: Record<string, any> =
+      src === 'zendesk' ? { mode: 'metric', metric: 'created_tickets', time: 'today' } :
+      src === 'sql'     ? { query: '' } :
+                          {};
+    setForm({ ...DEFAULT, data_source_type: src, data_source_config: defaultConfig });
   }
   function selectWidget(w: WbWidget)       { setSelected(w);    setAdding(false); setPickingSource(false); setForm({ ...w }); }
   function cancelEdit()                    { setSelected(null); setAdding(false); setPickingSource(false); setForm({});       }
@@ -716,19 +736,33 @@ export default function BoardEditor({ board: init, datasets }: Props) {
                             {getZdFilters().length === 0 && (
                               <div style={{ fontSize: 11, color: '#334155' }}>No filters — showing all tickets matching the metric &amp; time period.</div>
                             )}
-                            {getZdFilters().map((f, i) => (
-                              <div key={i} style={{ display: 'grid', gridTemplateColumns: '160px 1fr 28px', gap: 6, marginBottom: 6 }}>
-                                <div style={{ marginTop: -6 }}>
-                                  <CustomSelect
-                                    value={f.field}
-                                    onChange={v => updateZdFilter(i, 'field', v)}
-                                    options={Object.entries(ZD_FILTER_FIELDS).map(([k, v]) => ({ value: k, label: v.label }))}
-                                  />
+                            {getZdFilters().map((f, i) => {
+                              const supportsAutocomplete = AUTOCOMPLETE_FIELDS.has(f.field);
+                              if (supportsAutocomplete) loadZdOptions(f.field);
+                              return (
+                                <div key={i} style={{ display: 'grid', gridTemplateColumns: '160px 1fr 28px', gap: 6, marginBottom: 6, alignItems: 'start' }}>
+                                  <div style={{ marginTop: -6 }}>
+                                    <CustomSelect
+                                      value={f.field}
+                                      onChange={v => { updateZdFilter(i, 'field', v); if (AUTOCOMPLETE_FIELDS.has(v)) loadZdOptions(v); }}
+                                      options={Object.entries(ZD_FILTER_FIELDS).map(([k, v]) => ({ value: k, label: v.label }))}
+                                    />
+                                  </div>
+                                  {supportsAutocomplete ? (
+                                    <Combobox
+                                      value={f.value}
+                                      onChange={v => updateZdFilter(i, 'value', v)}
+                                      options={zdOptions[f.field] || []}
+                                      loading={zdLoading[f.field]}
+                                      placeholder={`Search ${ZD_FILTER_FIELDS[f.field]?.label.toLowerCase() || f.field}s…`}
+                                    />
+                                  ) : (
+                                    <input placeholder="value" value={f.value} onChange={e => updateZdFilter(i, 'value', e.target.value)} style={{ ...inp, marginTop: 0 }} />
+                                  )}
+                                  <button onClick={() => removeZdFilter(i)} style={{ background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.2)', borderRadius: 6, color: '#f87171', fontSize: 14, cursor: 'pointer' }}>×</button>
                                 </div>
-                                <input placeholder="value" value={f.value} onChange={e => updateZdFilter(i, 'value', e.target.value)} style={{ ...inp, marginTop: 0 }} />
-                                <button onClick={() => removeZdFilter(i)} style={{ background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.2)', borderRadius: 6, color: '#f87171', fontSize: 14, cursor: 'pointer' }}>×</button>
-                              </div>
-                            ))}
+                              );
+                            })}
                           </div>
                         </>
                       ) : (

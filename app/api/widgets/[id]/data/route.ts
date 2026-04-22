@@ -99,24 +99,27 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     if (data_source_type === 'zendesk') {
       const dsc = data_source_config as any;
 
-      // Metric mode (friendly UI)
-      if (dsc?.mode === 'metric' || dsc?.metric) {
-        const result = await fetchZendeskMetric(dsc);
-        // For number widgets without an explicit value_key, surface the total count
-        if (type === 'number' && !dcfg?.count_rows && !dcfg?.value_key) {
-          return processRows([{ count: result.count }], ['count'], { ...dcfg, value_key: 'count' }, type);
-        }
-        return processRows(result.rows, result.columns, dcfg, type);
+      // Raw mode: only when explicitly chosen AND a path is given
+      if (dsc?.mode === 'raw' && dsc?.path) {
+        const data  = await fetchZendesk(dsc.path);
+        const key   = dsc?.key || Object.keys(data).find((k: string) => Array.isArray(data[k]));
+        const rows: any[] = key ? data[key] : [data];
+        const columns = rows.length > 0 ? Object.keys(rows[0]) : [];
+        return processRows(rows, columns, dcfg, type);
       }
 
-      // Raw mode (legacy / advanced)
-      const path = dsc?.path;
-      if (!path) return NextResponse.json({ columns: [], rows: [] });
-      const data  = await fetchZendesk(path);
-      const key   = dsc?.key || Object.keys(data).find((k: string) => Array.isArray(data[k]));
-      const rows: any[] = key ? data[key] : [data];
-      const columns = rows.length > 0 ? Object.keys(rows[0]) : [];
-      return processRows(rows, columns, dcfg, type);
+      // Default: metric mode with sensible defaults so a newly-saved Zendesk
+      // widget renders something even if the user didn't touch the dropdowns.
+      const metricCfg = {
+        metric:     dsc?.metric     || 'created_tickets',
+        time:       dsc?.time       || 'today',
+        zd_filters: dsc?.zd_filters || [],
+      };
+      const result = await fetchZendeskMetric(metricCfg);
+      if (type === 'number' && !dcfg?.count_rows && !dcfg?.value_key) {
+        return processRows([{ count: result.count }], ['count'], { ...dcfg, value_key: 'count' }, type);
+      }
+      return processRows(result.rows, result.columns, dcfg, type);
     }
 
     return NextResponse.json({ columns: [], rows: [] });
