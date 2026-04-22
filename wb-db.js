@@ -1,169 +1,271 @@
-const Sequelize = require('sequelize');
+const { Pool } = require('pg');
 
-let WbBoard = null;
-let WbWidget = null;
-let WbDataset = null;
-let WbDatasetData = null;
+let pool = null;
 
-function defineWbModels(sql) {
-  WbBoard = sql.define('WbBoard', {
-    id: { type: Sequelize.UUID, defaultValue: Sequelize.UUIDV4, primaryKey: true },
-    slug_token: { type: Sequelize.UUID, allowNull: false, unique: true, defaultValue: Sequelize.UUIDV4 },
-    name: { type: Sequelize.STRING(200), allowNull: false, defaultValue: 'New Board' },
-    cols: { type: Sequelize.INTEGER, allowNull: false, defaultValue: 4 },
-    rows: { type: Sequelize.INTEGER, allowNull: false, defaultValue: 3 },
-    background: { type: Sequelize.STRING(20), allowNull: false, defaultValue: '#0a0f1c' },
-    created_by: { type: Sequelize.STRING(200), allowNull: true, defaultValue: null },
-  }, { tableName: 'wb_boards', timestamps: true, createdAt: 'created_at', updatedAt: 'updated_at' });
-
-  WbWidget = sql.define('WbWidget', {
-    id: { type: Sequelize.UUID, defaultValue: Sequelize.UUIDV4, primaryKey: true },
-    board_id: { type: Sequelize.UUID, allowNull: false },
-    type: { type: Sequelize.STRING(20), allowNull: false, defaultValue: 'number' },
-    title: { type: Sequelize.STRING(200), allowNull: false, defaultValue: 'Widget' },
-    data_source_type: { type: Sequelize.STRING(20), allowNull: false, defaultValue: 'sql' },
-    data_source_config: { type: Sequelize.JSONB, allowNull: false, defaultValue: {} },
-    display_config: { type: Sequelize.JSONB, allowNull: false, defaultValue: {} },
-    col_start: { type: Sequelize.INTEGER, allowNull: false, defaultValue: 1 },
-    col_span: { type: Sequelize.INTEGER, allowNull: false, defaultValue: 1 },
-    row_start: { type: Sequelize.INTEGER, allowNull: false, defaultValue: 1 },
-    row_span: { type: Sequelize.INTEGER, allowNull: false, defaultValue: 1 },
-    refresh_interval: { type: Sequelize.INTEGER, allowNull: false, defaultValue: 60 },
-  }, { tableName: 'wb_widgets', timestamps: true, createdAt: 'created_at', updatedAt: 'updated_at' });
-
-  WbDataset = sql.define('WbDataset', {
-    id: { type: Sequelize.UUID, defaultValue: Sequelize.UUIDV4, primaryKey: true },
-    name: { type: Sequelize.STRING(200), allowNull: false, unique: true },
-    schema: { type: Sequelize.JSONB, allowNull: false, defaultValue: [] },
-  }, { tableName: 'wb_datasets', timestamps: true, createdAt: 'created_at', updatedAt: 'updated_at' });
-
-  WbDatasetData = sql.define('WbDatasetData', {
-    id: { type: Sequelize.UUID, defaultValue: Sequelize.UUIDV4, primaryKey: true },
-    dataset_id: { type: Sequelize.UUID, allowNull: false, unique: true },
-    data: { type: Sequelize.JSONB, allowNull: false, defaultValue: [] },
-  }, { tableName: 'wb_dataset_data', timestamps: true, createdAt: 'created_at', updatedAt: 'updated_at' });
+function getPool() {
+  if (!pool) throw new Error('DB pool not initialised — call initPool() first');
+  return pool;
 }
 
-async function getBoard(id) {
-  if (!WbBoard) return null;
-  const board = await WbBoard.findByPk(id);
-  if (!board) return null;
-  const widgets = await WbWidget.findAll({
-    where: { board_id: id },
-    order: [['row_start', 'ASC'], ['col_start', 'ASC']],
+async function initPool(databaseUrl) {
+  if (pool) return; // already initialised
+  pool = new Pool({
+    connectionString: databaseUrl,
+    ssl: { require: true, rejectUnauthorized: false },
+    max: 5,
+    idleTimeoutMillis: 10000,
   });
-  return { ...board.get({ plain: true }), widgets: widgets.map(w => w.get({ plain: true })) };
+
+  // Create tables if they don't exist
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS wb_boards (
+        id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        slug_token  UUID NOT NULL UNIQUE DEFAULT gen_random_uuid(),
+        name        VARCHAR(200) NOT NULL DEFAULT 'New Board',
+        cols        INTEGER NOT NULL DEFAULT 4,
+        rows        INTEGER NOT NULL DEFAULT 3,
+        background  VARCHAR(20) NOT NULL DEFAULT '#0a0f1c',
+        created_by  VARCHAR(200),
+        created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS wb_widgets (
+        id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        board_id            UUID NOT NULL,
+        type                VARCHAR(20) NOT NULL DEFAULT 'number',
+        title               VARCHAR(200) NOT NULL DEFAULT 'Widget',
+        data_source_type    VARCHAR(20) NOT NULL DEFAULT 'sql',
+        data_source_config  JSONB NOT NULL DEFAULT '{}',
+        display_config      JSONB NOT NULL DEFAULT '{}',
+        col_start           INTEGER NOT NULL DEFAULT 1,
+        col_span            INTEGER NOT NULL DEFAULT 1,
+        row_start           INTEGER NOT NULL DEFAULT 1,
+        row_span            INTEGER NOT NULL DEFAULT 1,
+        refresh_interval    INTEGER NOT NULL DEFAULT 60,
+        created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS wb_datasets (
+        id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        name        VARCHAR(200) NOT NULL UNIQUE,
+        schema      JSONB NOT NULL DEFAULT '[]',
+        created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS wb_dataset_data (
+        id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        dataset_id  UUID NOT NULL UNIQUE,
+        data        JSONB NOT NULL DEFAULT '[]',
+        created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    await client.query('COMMIT');
+    console.log('[wb-db] tables ready');
+  } catch (e) {
+    await client.query('ROLLBACK');
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+
+// ─── Boards ────────────────────────────────────────────────────────────────
+
+async function getBoard(id) {
+  const p = getPool();
+  const { rows } = await p.query('SELECT * FROM wb_boards WHERE id = $1', [id]);
+  if (!rows[0]) return null;
+  const board = rows[0];
+  const { rows: widgets } = await p.query(
+    'SELECT * FROM wb_widgets WHERE board_id = $1 ORDER BY row_start, col_start',
+    [id]
+  );
+  return { ...board, widgets };
 }
 
 async function getBoardByToken(token) {
-  if (!WbBoard) return null;
-  const board = await WbBoard.findOne({ where: { slug_token: token } });
-  if (!board) return null;
-  const widgets = await WbWidget.findAll({
-    where: { board_id: board.id },
-    order: [['row_start', 'ASC'], ['col_start', 'ASC']],
-  });
-  return { ...board.get({ plain: true }), widgets: widgets.map(w => w.get({ plain: true })) };
+  const p = getPool();
+  const { rows } = await p.query('SELECT * FROM wb_boards WHERE slug_token = $1', [token]);
+  if (!rows[0]) return null;
+  const board = rows[0];
+  const { rows: widgets } = await p.query(
+    'SELECT * FROM wb_widgets WHERE board_id = $1 ORDER BY row_start, col_start',
+    [board.id]
+  );
+  return { ...board, widgets };
 }
 
 async function listBoards() {
-  if (!WbBoard) return [];
-  const boards = await WbBoard.findAll({ order: [['created_at', 'DESC']] });
+  const p = getPool();
+  const { rows: boards } = await p.query('SELECT * FROM wb_boards ORDER BY created_at DESC');
   const result = [];
   for (const b of boards) {
-    const plain = b.get({ plain: true });
-    const count = await WbWidget.count({ where: { board_id: b.id } });
-    result.push({ ...plain, widget_count: count });
+    const { rows: [{ count }] } = await p.query(
+      'SELECT COUNT(*) FROM wb_widgets WHERE board_id = $1',
+      [b.id]
+    );
+    result.push({ ...b, widget_count: parseInt(count, 10) });
   }
   return result;
 }
 
 async function createBoard(name) {
-  if (!WbBoard) throw new Error('Models not initialised');
-  const board = await WbBoard.create({ name: name || 'New Board' });
-  return board.get({ plain: true });
+  const p = getPool();
+  const { rows } = await p.query(
+    `INSERT INTO wb_boards (name) VALUES ($1) RETURNING *`,
+    [name || 'New Board']
+  );
+  return { ...rows[0], widgets: [] };
 }
 
 async function updateBoard(id, fields) {
-  if (!WbBoard) throw new Error('Models not initialised');
+  const p = getPool();
   const allowed = ['name', 'cols', 'rows', 'background'];
-  const update = {};
-  for (const k of allowed) { if (fields[k] !== undefined) update[k] = fields[k]; }
-  await WbBoard.update(update, { where: { id } });
+  const sets = [];
+  const vals = [];
+  for (const k of allowed) {
+    if (fields[k] !== undefined) {
+      vals.push(fields[k]);
+      sets.push(`${k} = $${vals.length}`);
+    }
+  }
+  if (sets.length === 0) return getBoard(id);
+  vals.push(id);
+  sets.push(`updated_at = NOW()`);
+  await p.query(
+    `UPDATE wb_boards SET ${sets.join(', ')} WHERE id = $${vals.length}`,
+    vals
+  );
   return getBoard(id);
 }
 
 async function deleteBoard(id) {
-  if (!WbBoard) throw new Error('Models not initialised');
-  await WbWidget.destroy({ where: { board_id: id } });
-  await WbBoard.destroy({ where: { id } });
+  const p = getPool();
+  await p.query('DELETE FROM wb_widgets WHERE board_id = $1', [id]);
+  await p.query('DELETE FROM wb_boards WHERE id = $1', [id]);
 }
 
+// ─── Widgets ───────────────────────────────────────────────────────────────
+
 async function getWidget(id) {
-  if (!WbWidget) return null;
-  const row = await WbWidget.findByPk(id);
-  return row ? row.get({ plain: true }) : null;
+  const { rows } = await getPool().query('SELECT * FROM wb_widgets WHERE id = $1', [id]);
+  return rows[0] || null;
 }
 
 async function createWidget(boardId, fields) {
-  if (!WbWidget) throw new Error('Models not initialised');
-  const widget = await WbWidget.create({ board_id: boardId, ...fields });
-  return widget.get({ plain: true });
+  const p = getPool();
+  const cols = ['board_id', 'type', 'title', 'data_source_type', 'data_source_config',
+    'display_config', 'col_start', 'col_span', 'row_start', 'row_span', 'refresh_interval'];
+  const vals = [
+    boardId,
+    fields.type || 'number',
+    fields.title || 'Widget',
+    fields.data_source_type || 'sql',
+    JSON.stringify(fields.data_source_config || {}),
+    JSON.stringify(fields.display_config || {}),
+    fields.col_start || 1,
+    fields.col_span || 1,
+    fields.row_start || 1,
+    fields.row_span || 1,
+    fields.refresh_interval || 60,
+  ];
+  const placeholders = vals.map((_, i) => `$${i + 1}`).join(', ');
+  const { rows } = await p.query(
+    `INSERT INTO wb_widgets (${cols.join(', ')}) VALUES (${placeholders}) RETURNING *`,
+    vals
+  );
+  return rows[0];
 }
 
 async function updateWidget(id, fields) {
-  if (!WbWidget) throw new Error('Models not initialised');
+  const p = getPool();
   const allowed = ['type', 'title', 'data_source_type', 'data_source_config', 'display_config',
     'col_start', 'col_span', 'row_start', 'row_span', 'refresh_interval'];
-  const update = {};
-  for (const k of allowed) { if (fields[k] !== undefined) update[k] = fields[k]; }
-  await WbWidget.update(update, { where: { id } });
-  const row = await WbWidget.findByPk(id);
-  return row ? row.get({ plain: true }) : null;
+  const sets = [];
+  const vals = [];
+  for (const k of allowed) {
+    if (fields[k] !== undefined) {
+      vals.push(typeof fields[k] === 'object' ? JSON.stringify(fields[k]) : fields[k]);
+      sets.push(`${k} = $${vals.length}`);
+    }
+  }
+  if (sets.length === 0) return getWidget(id);
+  vals.push(id);
+  sets.push(`updated_at = NOW()`);
+  await p.query(
+    `UPDATE wb_widgets SET ${sets.join(', ')} WHERE id = $${vals.length}`,
+    vals
+  );
+  const { rows } = await p.query('SELECT * FROM wb_widgets WHERE id = $1', [id]);
+  return rows[0] || null;
 }
 
 async function deleteWidget(id) {
-  if (!WbWidget) throw new Error('Models not initialised');
-  await WbWidget.destroy({ where: { id } });
+  await getPool().query('DELETE FROM wb_widgets WHERE id = $1', [id]);
 }
 
+// ─── Datasets ──────────────────────────────────────────────────────────────
+
 async function upsertDataset(name, schema) {
-  if (!WbDataset) throw new Error('Models not initialised');
-  const [ds] = await WbDataset.findOrCreate({ where: { name }, defaults: { name, schema: schema || [] } });
-  if (schema) await ds.update({ schema });
-  return ds.get({ plain: true });
+  const p = getPool();
+  const { rows } = await p.query(
+    `INSERT INTO wb_datasets (name, schema) VALUES ($1, $2)
+     ON CONFLICT (name) DO UPDATE SET schema = $2, updated_at = NOW()
+     RETURNING *`,
+    [name, JSON.stringify(schema || [])]
+  );
+  return rows[0];
 }
 
 async function setDatasetData(datasetId, rows) {
-  if (!WbDatasetData) throw new Error('Models not initialised');
-  const existing = await WbDatasetData.findOne({ where: { dataset_id: datasetId } });
-  if (existing) { await existing.update({ data: rows }); return existing.get({ plain: true }); }
-  const created = await WbDatasetData.create({ dataset_id: datasetId, data: rows });
-  return created.get({ plain: true });
+  const p = getPool();
+  const { rows: result } = await p.query(
+    `INSERT INTO wb_dataset_data (dataset_id, data) VALUES ($1, $2)
+     ON CONFLICT (dataset_id) DO UPDATE SET data = $2, updated_at = NOW()
+     RETURNING *`,
+    [datasetId, JSON.stringify(rows)]
+  );
+  return result[0];
 }
 
 async function getDatasetData(datasetId) {
-  if (!WbDatasetData) return null;
-  const row = await WbDatasetData.findOne({ where: { dataset_id: datasetId } });
-  return row ? row.get({ plain: true }) : null;
+  const { rows } = await getPool().query(
+    'SELECT * FROM wb_dataset_data WHERE dataset_id = $1',
+    [datasetId]
+  );
+  return rows[0] || null;
 }
 
 async function listDatasets() {
-  if (!WbDataset) return [];
-  const rows = await WbDataset.findAll({ order: [['name', 'ASC']] });
-  return rows.map(r => r.get({ plain: true }));
+  const { rows } = await getPool().query('SELECT * FROM wb_datasets ORDER BY name');
+  return rows;
 }
 
 async function deleteDataset(name) {
-  if (!WbDataset) return;
-  const ds = await WbDataset.findOne({ where: { name } });
-  if (!ds) return;
-  await WbDatasetData.destroy({ where: { dataset_id: ds.id } });
-  await ds.destroy();
+  const p = getPool();
+  const { rows } = await p.query('SELECT id FROM wb_datasets WHERE name = $1', [name]);
+  if (!rows[0]) return;
+  await p.query('DELETE FROM wb_dataset_data WHERE dataset_id = $1', [rows[0].id]);
+  await p.query('DELETE FROM wb_datasets WHERE id = $1', [rows[0].id]);
 }
 
 module.exports = {
-  defineWbModels,
+  initPool,
   getBoard, getBoardByToken, listBoards, createBoard, updateBoard, deleteBoard,
   getWidget, createWidget, updateWidget, deleteWidget,
   upsertDataset, setDatasetData, getDatasetData, listDatasets, deleteDataset,

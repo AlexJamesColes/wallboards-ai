@@ -1,4 +1,3 @@
-const Sequelize = require('sequelize');
 const wbDb = require('../wb-db');
 
 let readyPromise: Promise<void> | null = null;
@@ -9,14 +8,7 @@ export function ensureDbReady(): Promise<void> {
     const url = process.env.DATABASE_URL;
     if (!url) { console.warn('[db] DATABASE_URL not set'); return; }
     try {
-      const sql = new Sequelize(url, {
-        dialect: 'postgres',
-        dialectOptions: { ssl: { require: true, rejectUnauthorized: false } },
-        logging: false,
-        pool: { max: 5, min: 0, idle: 10000 },
-      });
-      wbDb.defineWbModels(sql);
-      await sql.sync({ alter: true });
+      await wbDb.initPool(url);
       console.log('[db] ready');
     } catch (e) {
       console.error('[db] init failed:', e);
