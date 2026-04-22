@@ -22,7 +22,7 @@ export function ensureDbReady(): Promise<void> {
 export interface WbWidget {
   id: string;
   board_id: string;
-  type: 'number' | 'table' | 'leaderboard' | 'line' | 'bar';
+  type: 'number' | 'table' | 'leaderboard' | 'line' | 'bar' | 'hbar' | 'gauge';
   title: string;
   data_source_type: 'sql' | 'dataset' | 'zendesk';
   data_source_config: Record<string, any>;
