@@ -64,6 +64,10 @@ export default function WidgetRenderer({ widget }: Props) {
     </div>
   );
 
+  const cfg = (widget.display_config as any) || {};
+  const fontFamily = cfg.font_family || undefined;
+  const fontSize   = cfg.font_size   ? `${cfg.font_size}px` : undefined;
+
   const childProps = { widget, data };
 
   return (
@@ -71,12 +75,12 @@ export default function WidgetRenderer({ widget }: Props) {
       <div style={{ padding: '10px 14px 4px', fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.07em', flexShrink: 0 }}>
         {widget.title}
       </div>
-      <div style={{ flex: 1, minHeight: 0, padding: '4px 14px 12px' }}>
-        {widget.type === 'number' && <NumberWidget {...childProps} />}
-        {widget.type === 'table' && <TableWidget {...childProps} />}
+      <div style={{ flex: 1, minHeight: 0, padding: '4px 14px 12px', fontFamily, fontSize }}>
+        {widget.type === 'number'      && <NumberWidget      {...childProps} />}
+        {widget.type === 'table'       && <TableWidget       {...childProps} />}
         {widget.type === 'leaderboard' && <LeaderboardWidget {...childProps} />}
-        {widget.type === 'line' && <LineChartWidget {...childProps} />}
-        {widget.type === 'bar' && <BarChartWidget {...childProps} />}
+        {widget.type === 'line'        && <LineChartWidget   {...childProps} />}
+        {widget.type === 'bar'         && <BarChartWidget    {...childProps} />}
       </div>
     </div>
   );
