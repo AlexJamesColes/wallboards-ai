@@ -137,7 +137,48 @@ export default function BoardEditor({ board: init, datasets }: Props) {
     try { return JSON.parse(v); } catch { return v; }
   }
 
+  /** Returns a list of problems that must be fixed before saving. Empty = valid. */
+  function validateForm(): string[] {
+    const errors: string[] = [];
+    const title = (form.title || '').trim();
+    if (!title) errors.push('Title is required.');
+    if (!form.type) errors.push('Widget type is required.');
+    if (!form.data_source_type) errors.push('Data source is required.');
+
+    const dsc: any = typeof form.data_source_config === 'string'
+      ? (() => { try { return JSON.parse(form.data_source_config as any); } catch { return {}; } })()
+      : (form.data_source_config || {});
+
+    if (form.data_source_type === 'sql' && !(dsc.query || '').trim()) {
+      errors.push('SQL query is required.');
+    }
+    if (form.data_source_type === 'dataset' && !(dsc.dataset || '').trim()) {
+      errors.push('A Noetica dataset must be selected.');
+    }
+    if (form.data_source_type === 'zendesk') {
+      if (dsc.mode === 'raw') {
+        if (!(dsc.path || '').trim()) errors.push('Zendesk API path is required in Raw mode.');
+      } else if (!(dsc.metric || '').trim()) {
+        errors.push('Zendesk metric is required.');
+      }
+    }
+
+    // Gauge needs a sensible range
+    const d: any = typeof form.display_config === 'string'
+      ? (() => { try { return JSON.parse(form.display_config as any); } catch { return {}; } })()
+      : (form.display_config || {});
+    if (form.type === 'gauge') {
+      const min = Number(d.gauge_min ?? 0);
+      const max = Number(d.gauge_max ?? 100);
+      if (!(max > min)) errors.push('Gauge max must be greater than min.');
+    }
+
+    return errors;
+  }
+
   async function saveWidget() {
+    const errors = validateForm();
+    if (errors.length) return; // button is disabled, but guard anyway
     setSaving(true);
     try {
       const payload = {
@@ -148,11 +189,19 @@ export default function BoardEditor({ board: init, datasets }: Props) {
       if (adding) {
         const res  = await fetch(`/api/boards/${board.id}/widgets`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
         const data = await res.json();
-        if (data.widget) { setWidgets(ws => [...ws, data.widget]); setAdding(false); setForm({}); }
+        if (data.widget) {
+          setWidgets(ws => [...ws, data.widget]);
+          // Close the form after a successful save
+          setAdding(false); setSelected(null); setForm({});
+        }
       } else if (selected) {
         const res  = await fetch(`/api/widgets/${selected.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
         const data = await res.json();
-        if (data.widget) { setWidgets(ws => ws.map(w => w.id === data.widget.id ? data.widget : w)); setSelected(data.widget); }
+        if (data.widget) {
+          setWidgets(ws => ws.map(w => w.id === data.widget.id ? data.widget : w));
+          // Close the form after a successful save
+          setSelected(null); setForm({});
+        }
       }
     } finally { setSaving(false); }
   }
@@ -1019,11 +1068,31 @@ export default function BoardEditor({ board: init, datasets }: Props) {
 
               </div>
 
+              {(() => {
+                const errors = validateForm();
+                if (!errors.length) return null;
+                return (
+                  <div style={{ marginTop: 14, padding: '10px 12px', background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.25)', borderRadius: 8, color: '#f87171', fontSize: 12 }}>
+                    <div style={{ fontWeight: 700, marginBottom: 4 }}>Fix the following before saving:</div>
+                    <ul style={{ margin: 0, paddingLeft: 18 }}>
+                      {errors.map((e, i) => <li key={i}>{e}</li>)}
+                    </ul>
+                  </div>
+                );
+              })()}
+
               <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
-                <button onClick={saveWidget} disabled={saving}
-                  style={{ padding: '9px 20px', background: `linear-gradient(135deg, #a855f7, ${C.primary})`, border: 'none', borderRadius: 8, color: '#fff', fontSize: 13, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer' }}>
-                  {saving ? 'Saving…' : 'Save Widget'}
-                </button>
+                {(() => {
+                  const invalid = validateForm().length > 0;
+                  const disabled = saving || invalid;
+                  return (
+                    <button onClick={saveWidget} disabled={disabled}
+                      title={invalid ? 'Fill in the required fields above' : undefined}
+                      style={{ padding: '9px 20px', background: disabled ? 'rgba(255,255,255,0.06)' : `linear-gradient(135deg, #a855f7, ${C.primary})`, border: disabled ? '1px solid rgba(255,255,255,0.1)' : 'none', borderRadius: 8, color: disabled ? '#64748b' : '#fff', fontSize: 13, fontWeight: 700, cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.7 : 1 }}>
+                      {saving ? 'Saving…' : 'Save Widget'}
+                    </button>
+                  );
+                })()}
                 <button onClick={cancelEdit}
                   style={{ padding: '9px 16px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: '#94a3b8', fontSize: 13, cursor: 'pointer' }}>
                   Cancel
