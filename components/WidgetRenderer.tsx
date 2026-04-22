@@ -7,6 +7,8 @@ import TableWidget from './widgets/TableWidget';
 import LeaderboardWidget from './widgets/LeaderboardWidget';
 import LineChartWidget from './widgets/LineChartWidget';
 import BarChartWidget from './widgets/BarChartWidget';
+import HBarChartWidget from './widgets/HBarChartWidget';
+import GaugeWidget from './widgets/GaugeWidget';
 
 interface Props { widget: WbWidget; }
 
@@ -81,6 +83,8 @@ export default function WidgetRenderer({ widget }: Props) {
         {widget.type === 'leaderboard' && <LeaderboardWidget {...childProps} />}
         {widget.type === 'line'        && <LineChartWidget   {...childProps} />}
         {widget.type === 'bar'         && <BarChartWidget    {...childProps} />}
+        {widget.type === 'hbar'        && <HBarChartWidget   {...childProps} />}
+        {widget.type === 'gauge'       && <GaugeWidget       {...childProps} />}
       </div>
     </div>
   );

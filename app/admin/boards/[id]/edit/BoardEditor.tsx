@@ -533,7 +533,15 @@ export default function BoardEditor({ board: init, datasets }: Props) {
                 <div>
                   <div style={lbl}>Widget Type</div>
                   <select style={inp} value={form.type || 'number'} onChange={e => setForm(f => ({ ...f, type: e.target.value as any }))}>
-                    {['number', 'table', 'leaderboard', 'line', 'bar'].map(t => <option key={t} value={t}>{t}</option>)}
+                    {[
+                      { value: 'number',      label: 'Number' },
+                      { value: 'gauge',       label: 'Gauge (Geck-O-Meter)' },
+                      { value: 'line',        label: 'Line chart' },
+                      { value: 'bar',         label: 'Column chart (vertical bars)' },
+                      { value: 'hbar',        label: 'Bar chart (horizontal bars)' },
+                      { value: 'leaderboard', label: 'Leaderboard' },
+                      { value: 'table',       label: 'Table' },
+                    ].map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
                   </select>
                 </div>
                 <div>
@@ -567,7 +575,7 @@ export default function BoardEditor({ board: init, datasets }: Props) {
                   <textarea style={{ ...inp, height: 60, resize: 'vertical', fontFamily: 'monospace', fontSize: 12 }}
                     value={typeof form.display_config === 'string' ? form.display_config : JSON.stringify(form.display_config || {}, null, 2)}
                     onChange={e => setForm(f => ({ ...f, display_config: e.target.value as any }))} />
-                  <div style={{ fontSize: 11, color: '#475569', marginTop: 4 }}>For number widgets: {'{ "goal": 100, "value_key": "count" }'}</div>
+                  <div style={{ fontSize: 11, color: '#475569', marginTop: 4 }}>Number: {'{ "goal": 100, "value_key": "count" }'}  ·  Gauge: {'{ "gauge_min": 0, "gauge_max": 50 }'}  ·  Charts: {'{ "x_key": "name", "y_key": "total" }'}</div>
                 </div>
 
                 {/* ── Filters ── */}
@@ -638,6 +646,38 @@ export default function BoardEditor({ board: init, datasets }: Props) {
                       <strong style={{ color: '#f1f5f9' }}>Count matching rows</strong>
                       <span style={{ color: '#475569' }}> — e.g. "how many calls are waiting?" (counts rows after filters)</span>
                     </label>
+                  </div>
+                )}
+
+                {/* ── Gauge config ── */}
+                {form.type === 'gauge' && (
+                  <div style={{ gridColumn: '1/-1', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 10, padding: '12px 14px' }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 10 }}>Gauge Settings</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+                      <div>
+                        <div style={lbl}>Min value</div>
+                        <input type="number" style={inp} value={getDisplayCfg().gauge_min ?? 0}
+                          onChange={e => setDisplayCfgField('gauge_min', Number(e.target.value))} />
+                      </div>
+                      <div>
+                        <div style={lbl}>Max value</div>
+                        <input type="number" style={inp} value={getDisplayCfg().gauge_max ?? 100}
+                          onChange={e => setDisplayCfgField('gauge_max', Number(e.target.value))} />
+                      </div>
+                      <div>
+                        <div style={lbl}>Value column</div>
+                        <input type="text" style={inp} value={getDisplayCfg().value_key ?? ''} placeholder="auto"
+                          onChange={e => setDisplayCfgField('value_key', e.target.value || undefined)} />
+                      </div>
+                    </div>
+                    <div style={{ marginTop: 10 }}>
+                      <div style={lbl}>Label (optional)</div>
+                      <input type="text" style={inp} value={getDisplayCfg().gauge_label ?? ''} placeholder="e.g. Calls waiting"
+                        onChange={e => setDisplayCfgField('gauge_label', e.target.value || undefined)} />
+                    </div>
+                    <div style={{ fontSize: 11, color: '#334155', marginTop: 8 }}>
+                      Dial goes green → amber → red as the value approaches max. Colour zones: 0–60% green, 60–80% amber, 80–100% red.
+                    </div>
                   </div>
                 )}
 
