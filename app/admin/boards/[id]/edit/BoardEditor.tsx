@@ -260,6 +260,16 @@ export default function BoardEditor({ board: init, datasets }: Props) {
     });
   }
 
+  // ── Filter helpers ────────────────────────────────────────────────────────
+  type FilterRow = { field: string; op: string; value: string };
+  function getFilters(): FilterRow[] { return getDisplayCfg().filters || []; }
+  function setFilters(filters: FilterRow[]) { setDisplayCfgField('filters', filters.length ? filters : undefined); }
+  function addFilter()                      { setFilters([...getFilters(), { field: '', op: '=', value: '' }]); }
+  function removeFilter(i: number)          { setFilters(getFilters().filter((_, j) => j !== i)); }
+  function updateFilter(i: number, k: keyof FilterRow, v: string) {
+    const f = [...getFilters()]; f[i] = { ...f[i], [k]: v }; setFilters(f);
+  }
+
   const connDot = (ok?: boolean) => (
     <span style={{ width: 7, height: 7, borderRadius: '50%', background: ok ? C.primary : ok === false ? '#f87171' : '#475569', display: 'inline-block', marginRight: 6, boxShadow: ok ? `0 0 6px ${C.glow}` : undefined }} />
   );
@@ -499,6 +509,77 @@ export default function BoardEditor({ board: init, datasets }: Props) {
                     onChange={e => setForm(f => ({ ...f, display_config: e.target.value as any }))} />
                   <div style={{ fontSize: 11, color: '#475569', marginTop: 4 }}>For number widgets: {'{ "goal": 100, "value_key": "count" }'}</div>
                 </div>
+
+                {/* ── Filters ── */}
+                <div style={{ gridColumn: '1/-1', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 10, padding: '12px 14px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase' as const, letterSpacing: '0.07em' }}>
+                      Filters <span style={{ fontWeight: 400, textTransform: 'none' as const, color: '#334155' }}>— slice this widget from a shared dataset</span>
+                    </div>
+                    <button onClick={addFilter}
+                      style={{ padding: '3px 10px', background: C.bg(0.1), border: `1px solid ${C.bg(0.25)}`, borderRadius: 6, color: C.primaryLight, fontSize: 12, cursor: 'pointer' }}>
+                      + Add Filter
+                    </button>
+                  </div>
+                  {getFilters().map((f, i) => (
+                    <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 130px 1fr 32px', gap: 6, marginBottom: 6 }}>
+                      <input
+                        placeholder="Field name (e.g. Status)"
+                        value={f.field}
+                        onChange={e => updateFilter(i, 'field', e.target.value)}
+                        style={{ ...inp, marginTop: 0 }} />
+                      <select value={f.op} onChange={e => updateFilter(i, 'op', e.target.value)}
+                        style={{ ...inp, marginTop: 0 }}>
+                        <option value="=">= equals</option>
+                        <option value="!=">≠ not equals</option>
+                        <option value="in">is one of</option>
+                        <option value="not in">not one of</option>
+                        <option value=">">{'>'} greater than</option>
+                        <option value="<">{'<'} less than</option>
+                        <option value=">=">≥ at least</option>
+                        <option value="<=">≤ at most</option>
+                        <option value="contains">contains</option>
+                      </select>
+                      <input
+                        placeholder={f.op === 'in' || f.op === 'not in' ? '15, 23, 24 (comma-sep)' : 'value'}
+                        value={f.value}
+                        onChange={e => updateFilter(i, 'value', e.target.value)}
+                        style={{ ...inp, marginTop: 0 }} />
+                      <button onClick={() => removeFilter(i)}
+                        style={{ background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.2)', borderRadius: 6, color: '#f87171', cursor: 'pointer', fontSize: 16, lineHeight: 1 }}>
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                  {getFilters().length === 0 && (
+                    <div style={{ fontSize: 12, color: '#334155' }}>No filters — widget shows all rows from the dataset.</div>
+                  )}
+                </div>
+
+                {/* ── Column selection ── */}
+                <div style={{ gridColumn: '1/-1' }}>
+                  <div style={lbl}>Show Columns <span style={{ fontWeight: 400, textTransform: 'none' as const, color: '#475569' }}>(comma-separated — blank = all)</span></div>
+                  <input style={inp}
+                    placeholder="e.g. Agent Name, Status, Time In State"
+                    value={(getDisplayCfg().show_columns || []).join(', ')}
+                    onChange={e => setDisplayCfgField('show_columns',
+                      e.target.value ? e.target.value.split(',').map((v: string) => v.trim()).filter(Boolean) : undefined
+                    )} />
+                </div>
+
+                {/* ── Count rows (number widget only) ── */}
+                {form.type === 'number' && (
+                  <div style={{ gridColumn: '1/-1', display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <input type="checkbox" id="count_rows"
+                      checked={!!getDisplayCfg().count_rows}
+                      onChange={e => setDisplayCfgField('count_rows', e.target.checked || undefined)}
+                      style={{ width: 16, height: 16, cursor: 'pointer', accentColor: C.primary }} />
+                    <label htmlFor="count_rows" style={{ fontSize: 13, color: '#94a3b8', cursor: 'pointer' }}>
+                      <strong style={{ color: '#f1f5f9' }}>Count matching rows</strong>
+                      <span style={{ color: '#475569' }}> — e.g. "how many calls are waiting?" (counts rows after filters)</span>
+                    </label>
+                  </div>
+                )}
 
                 {/* Text style */}
                 <div style={{ gridColumn: '1/-1', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 10, padding: '12px 14px' }}>

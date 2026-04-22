@@ -1,9 +1,70 @@
 import { NextResponse } from 'next/server';
 import { ensureDbReady, getWidget, getDatasetData, listDatasets } from '@/lib/db';
-import { runQuery, isMssqlConfigured } from '@/lib/mssql';
+import { runQuery } from '@/lib/mssql';
 import { fetchZendesk } from '@/lib/zendesk';
 
 // No auth — called by the public kiosk view
+
+type Filter = { field: string; op: string; value: string };
+
+/** Apply display_config filters to a row array */
+function applyFilters(rows: any[], filters: Filter[]): any[] {
+  if (!filters?.length) return rows;
+  return rows.filter(row =>
+    filters.every(f => {
+      if (!f.field || !f.op) return true;
+      const rowVal = String(row[f.field] ?? '');
+      const v      = String(f.value ?? '');
+      switch (f.op) {
+        case '=':        return rowVal.toLowerCase() === v.toLowerCase();
+        case '!=':       return rowVal.toLowerCase() !== v.toLowerCase();
+        case 'in':       return v.split(',').map(x => x.trim().toLowerCase()).includes(rowVal.toLowerCase());
+        case 'not in':   return !v.split(',').map(x => x.trim().toLowerCase()).includes(rowVal.toLowerCase());
+        case '>':        return Number(row[f.field]) >  Number(v);
+        case '<':        return Number(row[f.field]) <  Number(v);
+        case '>=':       return Number(row[f.field]) >= Number(v);
+        case '<=':       return Number(row[f.field]) <= Number(v);
+        case 'contains': return rowVal.toLowerCase().includes(v.toLowerCase());
+        default:         return true;
+      }
+    })
+  );
+}
+
+/** Restrict to selected columns (in order) */
+function selectColumns(rows: any[], allCols: string[], showCols?: string[]): { columns: string[]; rows: any[] } {
+  if (!showCols?.length) return { columns: allCols, rows };
+  const cols = showCols.map(c => c.trim()).filter(c => allCols.includes(c));
+  if (!cols.length) return { columns: allCols, rows };
+  return {
+    columns: cols,
+    rows: rows.map(row => {
+      const r: Record<string, any> = {};
+      cols.forEach(c => { r[c] = row[c]; });
+      return r;
+    }),
+  };
+}
+
+/** Apply all display_config post-processing: filters → column selection */
+function processRows(rows: any[], allCols: string[], displayConfig: any, type: string) {
+  const filters:  Filter[]  = displayConfig?.filters      || [];
+  const showCols: string[]  = displayConfig?.show_columns || [];
+  const countRows: boolean  = !!displayConfig?.count_rows;
+
+  const filtered = applyFilters(rows, filters);
+  const { columns, rows: finalRows } = selectColumns(filtered, allCols, showCols);
+
+  if (type === 'number') {
+    if (countRows) {
+      return NextResponse.json({ value: finalRows.length, columns, rows: finalRows });
+    }
+    const valueKey = displayConfig?.value_key || columns[0];
+    return NextResponse.json({ value: Number(finalRows[0]?.[valueKey]) || 0, columns, rows: finalRows });
+  }
+  return NextResponse.json({ columns, rows: finalRows });
+}
+
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   try {
     await ensureDbReady();
@@ -11,19 +72,17 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     if (!widget) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
     const { data_source_type, data_source_config, display_config, type } = widget;
+    const dcfg = display_config as any;
 
+    // ── SQL ──────────────────────────────────────────────────────────────────
     if (data_source_type === 'sql') {
       const query = (data_source_config as any)?.query;
       if (!query) return NextResponse.json({ columns: [], rows: [], value: null });
       const result = await runQuery(query);
-      if (type === 'number' && result.rows.length > 0) {
-        const firstCol = result.columns[0];
-        const value = result.rows[0][firstCol];
-        return NextResponse.json({ value: Number(value) || 0, columns: result.columns, rows: result.rows });
-      }
-      return NextResponse.json(result);
+      return processRows(result.rows, result.columns, dcfg, type);
     }
 
+    // ── Dataset (Noetica push) ────────────────────────────────────────────────
     if (data_source_type === 'dataset') {
       const datasetName = (data_source_config as any)?.dataset;
       if (!datasetName) return NextResponse.json({ columns: [], rows: [] });
@@ -33,25 +92,18 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
       const dataRow = await getDatasetData(ds.id);
       const rows: any[] = dataRow?.data || [];
       const columns = rows.length > 0 ? Object.keys(rows[0]) : [];
-      if (type === 'number' && rows.length > 0) {
-        const valueKey = (display_config as any)?.value_key || columns[0];
-        return NextResponse.json({ value: Number(rows[0][valueKey]) || 0, columns, rows });
-      }
-      return NextResponse.json({ columns, rows });
+      return processRows(rows, columns, dcfg, type);
     }
 
+    // ── Zendesk ───────────────────────────────────────────────────────────────
     if (data_source_type === 'zendesk') {
       const path = (data_source_config as any)?.path;
       if (!path) return NextResponse.json({ columns: [], rows: [] });
-      const data = await fetchZendesk(path);
-      const key = (data_source_config as any)?.key || Object.keys(data).find(k => Array.isArray(data[k]));
+      const data  = await fetchZendesk(path);
+      const key   = (data_source_config as any)?.key || Object.keys(data).find(k => Array.isArray(data[k]));
       const rows: any[] = key ? data[key] : [data];
       const columns = rows.length > 0 ? Object.keys(rows[0]) : [];
-      if (type === 'number' && rows.length > 0) {
-        const valueKey = (display_config as any)?.value_key || columns[0];
-        return NextResponse.json({ value: Number(rows[0][valueKey]) || 0, columns, rows });
-      }
-      return NextResponse.json({ columns, rows });
+      return processRows(rows, columns, dcfg, type);
     }
 
     return NextResponse.json({ columns: [], rows: [] });
