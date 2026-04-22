@@ -16,6 +16,7 @@ export default function LeaderboardWidget({ widget, data }: Props) {
 
   const nameCol  = columns[0] || '';
   const valueCol = columns.find(c => c !== nameCol && !isNaN(Number(rows[0]?.[c]))) || columns[1] || '';
+  const hideMedals: boolean = !!cfg.hide_medals;
 
   const sorted = [...rows].sort((a, b) => Number(b[valueCol] || 0) - Number(a[valueCol] || 0));
 
@@ -37,14 +38,16 @@ export default function LeaderboardWidget({ widget, data }: Props) {
             maxHeight: 56,
             borderBottom: i < sorted.length - 1 ? '1px solid rgba(255,255,255,0.045)' : undefined,
           }}>
-            <span style={{
-              width: 22, textAlign: 'center', flexShrink: 0,
-              fontSize: isTop ? '1em' : '0.82em',
-              color: isTop ? undefined : '#475569',
-              fontWeight: 700, lineHeight: 1,
-            }}>
-              {isTop ? MEDALS[i] : `${i + 1}`}
-            </span>
+            {!hideMedals && (
+              <span style={{
+                width: 22, textAlign: 'center', flexShrink: 0,
+                fontSize: isTop ? '1em' : '0.82em',
+                color: isTop ? undefined : '#475569',
+                fontWeight: 700, lineHeight: 1,
+              }}>
+                {isTop ? MEDALS[i] : `${i + 1}`}
+              </span>
+            )}
             <span style={{
               flex: 1, minWidth: 0,
               fontSize: '0.95em',

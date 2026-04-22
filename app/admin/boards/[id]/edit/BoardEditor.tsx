@@ -1265,6 +1265,23 @@ export default function BoardEditor({ board: init, datasets }: Props) {
                   );
                 })()}
 
+                {/* Leaderboard options — visible for any leaderboard widget */}
+                {form.type === 'leaderboard' && (
+                  <div style={{ gridColumn: '1/-1', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 10, padding: '12px 14px' }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 10 }}>Leaderboard Options</div>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+                      <input type="checkbox"
+                        checked={!getDisplayCfg().hide_medals}
+                        onChange={e => setDisplayCfgField('hide_medals', e.target.checked ? undefined : true)}
+                        style={{ width: 16, height: 16, cursor: 'pointer', accentColor: C.primary }} />
+                      <span style={{ fontSize: 13, color: '#94a3b8' }}>
+                        <strong style={{ color: '#f1f5f9' }}>Show rank medals</strong>
+                        <span style={{ color: '#475569' }}> — 🥇🥈🥉 for the top 3, then 4, 5, 6… for the rest. Turn off if the medal is already in the widget title.</span>
+                      </span>
+                    </label>
+                  </div>
+                )}
+
                 {/* Text style */}
                 <div style={{ gridColumn: '1/-1', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 10, padding: '12px 14px' }}>
                   <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 10 }}>Text Style</div>
