@@ -151,7 +151,7 @@ export default function BoardEditor({ board: init, datasets }: Props) {
     const startX = e.clientX, startY = e.clientY;
     let hasDragged = false;
 
-    const initial: DragPreview = {
+    const initial = {
       widgetId: widget.id,
       colStart: widget.col_start, rowStart: widget.row_start,
       colSpan:  widget.col_span,  rowSpan:  widget.row_span,
@@ -166,7 +166,7 @@ export default function BoardEditor({ board: init, datasets }: Props) {
       const dRows = Math.round(dy / cellH);
       const colStart = Math.max(1, Math.min(board.cols - widget.col_span + 1, widget.col_start + dCols));
       const rowStart = Math.max(1, Math.min(board.rows - widget.row_span + 1, widget.row_start + dRows));
-      const next: DragPreview = { ...initial, colStart, rowStart };
+      const next = { ...initial, colStart, rowStart };
       dragFinalRef.current = next;
       setDragPreview(next);
     }
@@ -202,7 +202,7 @@ export default function BoardEditor({ board: init, datasets }: Props) {
     const { cellW, cellH } = getGridCellSize();
     const startX = e.clientX, startY = e.clientY;
 
-    const initial: DragPreview = {
+    const initial = {
       widgetId: widget.id,
       colStart: widget.col_start, rowStart: widget.row_start,
       colSpan:  widget.col_span,  rowSpan:  widget.row_span,
@@ -214,7 +214,7 @@ export default function BoardEditor({ board: init, datasets }: Props) {
       const dx = ev.clientX - startX, dy = ev.clientY - startY;
       const colSpan = Math.max(1, Math.min(board.cols - widget.col_start + 1, widget.col_span + Math.round(dx / cellW)));
       const rowSpan = Math.max(1, Math.min(board.rows - widget.row_start + 1, widget.row_span + Math.round(dy / cellH)));
-      const next: DragPreview = { ...initial, colSpan, rowSpan };
+      const next = { ...initial, colSpan, rowSpan };
       dragFinalRef.current = next;
       setDragPreview(next);
     }
