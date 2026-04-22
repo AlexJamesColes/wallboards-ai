@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import type { WbBoard, WbWidget, WbDataset } from '@/lib/db';
 import { ZD_METRICS, ZD_TIMES, ZD_FILTER_FIELDS } from '@/lib/zendesk';
+import CustomSelect from '@/components/CustomSelect';
+import SourcePicker from '@/components/SourcePicker';
 
 interface Props {
   board: WbBoard & { widgets: WbWidget[] };
@@ -61,6 +63,7 @@ export default function BoardEditor({ board: init, datasets }: Props) {
   const [widgets,  setWidgets]  = useState<WbWidget[]>(init.widgets || []);
   const [selected, setSelected] = useState<WbWidget | null>(null);
   const [adding,   setAdding]   = useState(false);
+  const [pickingSource, setPickingSource] = useState(false);
   const [form,     setForm]     = useState<Partial<WbWidget>>({});
   const [boardName, setBoardName] = useState(init.name);
   const [saving,   setSaving]   = useState(false);
@@ -99,9 +102,14 @@ export default function BoardEditor({ board: init, datasets }: Props) {
     router.push('/admin');
   }
 
-  function startAdd()                      { setSelected(null); setAdding(true);  setForm({ ...DEFAULT }); }
-  function selectWidget(w: WbWidget)       { setSelected(w);    setAdding(false); setForm({ ...w });       }
-  function cancelEdit()                    { setSelected(null); setAdding(false); setForm({});             }
+  function startAdd()                      { setSelected(null); setAdding(false); setPickingSource(true); setForm({}); }
+  function pickSource(src: 'sql' | 'zendesk' | 'dataset') {
+    setPickingSource(false);
+    setAdding(true);
+    setForm({ ...DEFAULT, data_source_type: src });
+  }
+  function selectWidget(w: WbWidget)       { setSelected(w);    setAdding(false); setPickingSource(false); setForm({ ...w }); }
+  function cancelEdit()                    { setSelected(null); setAdding(false); setPickingSource(false); setForm({});       }
 
   function parseJson(v: any) {
     if (typeof v === 'object' && v !== null) return v;
@@ -367,6 +375,10 @@ export default function BoardEditor({ board: init, datasets }: Props) {
   return (
     <div style={{ minHeight: '100vh', color: '#f1f5f9', fontFamily: 'var(--font-raleway, sans-serif)' }}>
 
+      {pickingSource && (
+        <SourcePicker onPick={pickSource} onCancel={() => setPickingSource(false)} />
+      )}
+
       {/* Top bar */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 24px', borderBottom: '1px solid rgba(255,255,255,0.06)', background: 'rgba(10,15,28,0.9)', backdropFilter: 'blur(18px)', position: 'sticky', top: 0, zIndex: 50 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -561,8 +573,10 @@ export default function BoardEditor({ board: init, datasets }: Props) {
 
                 <div>
                   <div style={lbl}>Widget Type</div>
-                  <select style={inp} value={form.type || 'number'} onChange={e => setForm(f => ({ ...f, type: e.target.value as any }))}>
-                    {[
+                  <CustomSelect
+                    value={form.type || 'number'}
+                    onChange={v => setForm(f => ({ ...f, type: v as any }))}
+                    options={[
                       { value: 'number',      label: 'Number' },
                       { value: 'gauge',       label: 'Gauge (Geck-O-Meter)' },
                       { value: 'line',        label: 'Line chart' },
@@ -570,16 +584,20 @@ export default function BoardEditor({ board: init, datasets }: Props) {
                       { value: 'hbar',        label: 'Bar chart (horizontal bars)' },
                       { value: 'leaderboard', label: 'Leaderboard' },
                       { value: 'table',       label: 'Table' },
-                    ].map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-                  </select>
+                    ]}
+                  />
                 </div>
                 <div>
                   <div style={lbl}>Data Source</div>
-                  <select style={inp} value={form.data_source_type || 'sql'} onChange={e => setForm(f => ({ ...f, data_source_type: e.target.value as any }))}>
-                    <option value="sql">SQL Server</option>
-                    <option value="dataset">Noetica Dataset</option>
-                    <option value="zendesk">Zendesk</option>
-                  </select>
+                  <CustomSelect
+                    value={form.data_source_type || 'sql'}
+                    onChange={v => setForm(f => ({ ...f, data_source_type: v as any }))}
+                    options={[
+                      { value: 'sql',     label: 'SQL Server' },
+                      { value: 'dataset', label: 'Noetica Dataset' },
+                      { value: 'zendesk', label: 'Zendesk' },
+                    ]}
+                  />
                 </div>
 
                 {/* ── SQL source ── */}
@@ -597,10 +615,12 @@ export default function BoardEditor({ board: init, datasets }: Props) {
                 {form.data_source_type === 'dataset' && (
                   <div style={{ gridColumn: '1/-1' }}>
                     <div style={lbl}>Dataset</div>
-                    <select style={inp} value={getDsc().dataset || ''} onChange={e => setDscField('dataset', e.target.value)}>
-                      <option value="">Select dataset…</option>
-                      {datasets.map(d => <option key={d.id} value={d.name}>{d.name}</option>)}
-                    </select>
+                    <CustomSelect
+                      value={getDsc().dataset || ''}
+                      onChange={v => setDscField('dataset', v || undefined)}
+                      placeholder="Select dataset…"
+                      options={datasets.map(d => ({ value: d.name, label: d.name }))}
+                    />
                   </div>
                 )}
 
@@ -626,15 +646,19 @@ export default function BoardEditor({ board: init, datasets }: Props) {
                           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                             <div>
                               <div style={lbl}>Display</div>
-                              <select style={inp} value={dsc.metric || 'created_tickets'} onChange={e => setDscField('metric', e.target.value)}>
-                                {Object.entries(ZD_METRICS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-                              </select>
+                              <CustomSelect
+                                value={dsc.metric || 'created_tickets'}
+                                onChange={v => setDscField('metric', v)}
+                                options={Object.entries(ZD_METRICS).map(([k, v]) => ({ value: k, label: v.label }))}
+                              />
                             </div>
                             <div>
                               <div style={lbl}>Time</div>
-                              <select style={inp} value={dsc.time || 'today'} onChange={e => setDscField('time', e.target.value)}>
-                                {Object.entries(ZD_TIMES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-                              </select>
+                              <CustomSelect
+                                value={dsc.time || 'today'}
+                                onChange={v => setDscField('time', v)}
+                                options={Object.entries(ZD_TIMES).map(([k, v]) => ({ value: k, label: v as string }))}
+                              />
                             </div>
                           </div>
 
@@ -648,10 +672,14 @@ export default function BoardEditor({ board: init, datasets }: Props) {
                               <div style={{ fontSize: 11, color: '#334155' }}>No filters — showing all tickets matching the metric &amp; time period.</div>
                             )}
                             {getZdFilters().map((f, i) => (
-                              <div key={i} style={{ display: 'grid', gridTemplateColumns: '140px 1fr 28px', gap: 6, marginBottom: 6 }}>
-                                <select value={f.field} onChange={e => updateZdFilter(i, 'field', e.target.value)} style={{ ...inp, marginTop: 0 }}>
-                                  {Object.entries(ZD_FILTER_FIELDS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-                                </select>
+                              <div key={i} style={{ display: 'grid', gridTemplateColumns: '160px 1fr 28px', gap: 6, marginBottom: 6 }}>
+                                <div style={{ marginTop: -6 }}>
+                                  <CustomSelect
+                                    value={f.field}
+                                    onChange={v => updateZdFilter(i, 'field', v)}
+                                    options={Object.entries(ZD_FILTER_FIELDS).map(([k, v]) => ({ value: k, label: v.label }))}
+                                  />
+                                </div>
                                 <input placeholder="value" value={f.value} onChange={e => updateZdFilter(i, 'value', e.target.value)} style={{ ...inp, marginTop: 0 }} />
                                 <button onClick={() => removeZdFilter(i)} style={{ background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.2)', borderRadius: 6, color: '#f87171', fontSize: 14, cursor: 'pointer' }}>×</button>
                               </div>
@@ -697,24 +725,29 @@ export default function BoardEditor({ board: init, datasets }: Props) {
                     </button>
                   </div>
                   {getFilters().map((f, i) => (
-                    <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 130px 1fr 32px', gap: 6, marginBottom: 6 }}>
+                    <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 150px 1fr 32px', gap: 6, marginBottom: 6, alignItems: 'start' }}>
                       <input
                         placeholder="Field name (e.g. Status)"
                         value={f.field}
                         onChange={e => updateFilter(i, 'field', e.target.value)}
                         style={{ ...inp, marginTop: 0 }} />
-                      <select value={f.op} onChange={e => updateFilter(i, 'op', e.target.value)}
-                        style={{ ...inp, marginTop: 0 }}>
-                        <option value="=">= equals</option>
-                        <option value="!=">≠ not equals</option>
-                        <option value="in">is one of</option>
-                        <option value="not in">not one of</option>
-                        <option value=">">{'>'} greater than</option>
-                        <option value="<">{'<'} less than</option>
-                        <option value=">=">≥ at least</option>
-                        <option value="<=">≤ at most</option>
-                        <option value="contains">contains</option>
-                      </select>
+                      <div style={{ marginTop: -6 }}>
+                        <CustomSelect
+                          value={f.op}
+                          onChange={v => updateFilter(i, 'op', v)}
+                          options={[
+                            { value: '=',        label: '= equals' },
+                            { value: '!=',       label: '≠ not equals' },
+                            { value: 'in',       label: 'is one of' },
+                            { value: 'not in',   label: 'not one of' },
+                            { value: '>',        label: '> greater than' },
+                            { value: '<',        label: '< less than' },
+                            { value: '>=',       label: '≥ at least' },
+                            { value: '<=',       label: '≤ at most' },
+                            { value: 'contains', label: 'contains' },
+                          ]}
+                        />
+                      </div>
                       <input
                         placeholder={f.op === 'in' || f.op === 'not in' ? '15, 23, 24 (comma-sep)' : 'value'}
                         value={f.value}
@@ -865,9 +898,11 @@ export default function BoardEditor({ board: init, datasets }: Props) {
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 120px', gap: 10 }}>
                     <div>
                       <div style={lbl}>Font Family</div>
-                      <select style={inp} value={dcfg.font_family || ''} onChange={e => setDisplayCfgField('font_family', e.target.value || undefined)}>
-                        {FONT_FAMILIES.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
-                      </select>
+                      <CustomSelect
+                        value={dcfg.font_family || ''}
+                        onChange={v => setDisplayCfgField('font_family', v || undefined)}
+                        options={FONT_FAMILIES.map(f => ({ value: f.value, label: f.label }))}
+                      />
                     </div>
                     <div>
                       <div style={lbl}>Font Size (px)</div>
