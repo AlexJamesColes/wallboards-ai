@@ -39,6 +39,9 @@ export interface WbWidget {
 export interface WbBoard {
   id: string;
   slug_token: string;
+  /** Optional human-readable slug for the kiosk URL (e.g. 'sales-london').
+   *  When set, the board is reachable at /:slug in addition to /view/:slug_token. */
+  slug: string | null;
   name: string;
   department: string | null;
   cols: number;
@@ -61,6 +64,7 @@ export interface WbDataset {
 
 export const getBoard: (id: string) => Promise<WbBoard | null> = wbDb.getBoard;
 export const getBoardByToken: (token: string) => Promise<WbBoard | null> = wbDb.getBoardByToken;
+export const getBoardBySlug:  (slug: string)  => Promise<WbBoard | null> = wbDb.getBoardBySlug;
 export const listBoards: () => Promise<(WbBoard & { widget_count: number })[]> = wbDb.listBoards;
 export const createBoard: (name: string, department?: string | null) => Promise<WbBoard> = wbDb.createBoard;
 export const updateBoard: (id: string, fields: Partial<WbBoard>) => Promise<WbBoard | null> = wbDb.updateBoard;

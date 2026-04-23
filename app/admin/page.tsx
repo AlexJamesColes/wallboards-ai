@@ -88,7 +88,7 @@ export default async function AdminPage() {
                           </div>
                         </div>
                         <div style={{ display: 'flex', gap: 8 }}>
-                          <Link href={`/view/${board.slug_token}`} target="_blank"
+                          <Link href={board.slug ? `/${board.slug}` : `/view/${board.slug_token}`} target="_blank"
                             style={{ flex: 1, textAlign: 'center', padding: '9px 0', background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.25)', borderRadius: 10, color: '#a5b4fc', fontSize: 13, fontWeight: 600 }}>
                             View ↗
                           </Link>

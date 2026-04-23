@@ -25,6 +25,7 @@ async function initPool(databaseUrl) {
       CREATE TABLE IF NOT EXISTS wb_boards (
         id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         slug_token  UUID NOT NULL UNIQUE DEFAULT gen_random_uuid(),
+        slug        VARCHAR(80),
         name        VARCHAR(200) NOT NULL DEFAULT 'New Board',
         department  VARCHAR(100),
         cols        INTEGER NOT NULL DEFAULT 4,
@@ -37,6 +38,9 @@ async function initPool(databaseUrl) {
     `);
     // Add department column for installs that predate it
     await client.query(`ALTER TABLE wb_boards ADD COLUMN IF NOT EXISTS department VARCHAR(100)`);
+    // Add slug column for human-readable kiosk URLs
+    await client.query(`ALTER TABLE wb_boards ADD COLUMN IF NOT EXISTS slug VARCHAR(80)`);
+    await client.query(`CREATE UNIQUE INDEX IF NOT EXISTS wb_boards_slug_unique ON wb_boards (LOWER(slug)) WHERE slug IS NOT NULL`);
 
     await client.query(`
       CREATE TABLE IF NOT EXISTS wb_widgets (
@@ -113,6 +117,20 @@ async function getBoardByToken(token) {
   return { ...board, widgets };
 }
 
+/** Case-insensitive slug lookup. Returns null if not found. */
+async function getBoardBySlug(slug) {
+  if (!slug) return null;
+  const p = getPool();
+  const { rows } = await p.query('SELECT * FROM wb_boards WHERE LOWER(slug) = LOWER($1)', [slug]);
+  if (!rows[0]) return null;
+  const board = rows[0];
+  const { rows: widgets } = await p.query(
+    'SELECT * FROM wb_widgets WHERE board_id = $1 ORDER BY row_start, col_start',
+    [board.id]
+  );
+  return { ...board, widgets };
+}
+
 async function listBoards() {
   const p = getPool();
   const { rows: boards } = await p.query('SELECT * FROM wb_boards ORDER BY created_at DESC');
@@ -138,7 +156,7 @@ async function createBoard(name, department) {
 
 async function updateBoard(id, fields) {
   const p = getPool();
-  const allowed = ['name', 'department', 'cols', 'rows', 'background'];
+  const allowed = ['name', 'department', 'slug', 'cols', 'rows', 'background'];
   const sets = [];
   const vals = [];
   for (const k of allowed) {
@@ -269,7 +287,7 @@ async function deleteDataset(name) {
 
 module.exports = {
   initPool,
-  getBoard, getBoardByToken, listBoards, createBoard, updateBoard, deleteBoard,
+  getBoard, getBoardByToken, getBoardBySlug, listBoards, createBoard, updateBoard, deleteBoard,
   getWidget, createWidget, updateWidget, deleteWidget,
   upsertDataset, setDatasetData, getDatasetData, listDatasets, deleteDataset,
 };

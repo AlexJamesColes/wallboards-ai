@@ -121,18 +121,23 @@ export default function BoardEditor({ board: init, datasets }: Props) {
     return () => { cancelled = true; };
   }, [selected?.id]);
 
-  async function saveBoardSettings(opts: { name?: string; department?: string | null; cols?: number; rows?: number; background?: string } = {}) {
-    await fetch(`/api/boards/${board.id}`, {
+  async function saveBoardSettings(opts: { name?: string; department?: string | null; slug?: string | null; cols?: number; rows?: number; background?: string } = {}) {
+    const res = await fetch(`/api/boards/${board.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         name:       opts.name       ?? boardName,
         department: opts.department !== undefined ? opts.department : board.department,
+        slug:       opts.slug       !== undefined ? opts.slug       : board.slug,
         cols:       opts.cols       ?? board.cols,
         rows:       opts.rows       ?? board.rows,
         background: opts.background ?? board.background,
       }),
     });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      showNotice('error', data.error || 'Could not save board settings.');
+    }
   }
 
   async function applyPreset(key: keyof typeof PRESETS) {
@@ -622,7 +627,7 @@ export default function BoardEditor({ board: init, datasets }: Props) {
             style={{ background: 'transparent', border: 'none', borderBottom: '1px solid rgba(255,255,255,0.15)', color: '#f1f5f9', fontSize: 15, fontWeight: 700, padding: '2px 4px', width: 220, outline: 'none' }} />
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <Link href={`/view/${board.slug_token}`} target="_blank"
+          <Link href={board.slug ? `/${board.slug}` : `/view/${board.slug_token}`} target="_blank"
             style={{ padding: '8px 16px', background: C.bg(0.1), border: `1px solid ${C.bg(0.3)}`, borderRadius: 8, color: C.primaryLight, fontSize: 13, fontWeight: 600 }}>
             View Wallboard ↗
           </Link>
@@ -653,6 +658,38 @@ export default function BoardEditor({ board: init, datasets }: Props) {
                 ...WB_DEPARTMENTS.map(d => ({ value: d, label: d })),
               ]}
             />
+          </div>
+
+          {/* Kiosk URL / slug */}
+          <div style={card}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: C.primary, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12 }}>Kiosk URL</div>
+            <div style={lbl}>Custom slug <span style={{ fontWeight: 400, textTransform: 'none', color: '#475569' }}>(a–z, 0–9, hyphens)</span></div>
+            <input
+              type="text"
+              style={inp}
+              placeholder="e.g. sales-london"
+              value={board.slug || ''}
+              onChange={e => {
+                // Normalise on keystroke: lowercase, strip non-slug chars
+                const clean = e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 60);
+                setBoard(b => ({ ...b, slug: clean || null }));
+              }}
+              onBlur={() => {
+                const reserved = ['admin','login','logout','view','api','_next','favicon.ico'];
+                if (board.slug && reserved.includes(board.slug)) {
+                  showNotice('error', `"${board.slug}" is a reserved word — pick another slug.`);
+                  setBoard(b => ({ ...b, slug: null }));
+                  saveBoardSettings({ slug: null });
+                  return;
+                }
+                saveBoardSettings({ slug: board.slug || null });
+              }}
+            />
+            <div style={{ fontSize: 11, color: '#475569', marginTop: 6, wordBreak: 'break-all' }}>
+              {typeof window !== 'undefined' && board.slug
+                ? <><span style={{ color: '#64748b' }}>{window.location.origin}</span><strong style={{ color: C.primaryLight }}>/{board.slug}</strong></>
+                : <span>Leave blank to use the UUID link only.</span>}
+            </div>
           </div>
 
           {/* Board layout presets */}
