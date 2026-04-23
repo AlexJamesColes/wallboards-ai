@@ -30,6 +30,7 @@ export default function TableWidget({ widget, data }: Props) {
   const cfg     = (widget.display_config as any) || {};
   const formats: ColumnFormat[] = Array.isArray(cfg.column_formats) ? cfg.column_formats : [];
   const formatFor = (col: string) => formats.find(f => f.column === col);
+  const hideHeader: boolean = !!cfg.hide_header;
 
   if (columns.length === 0) return <NoDataPlaceholder />;
 
@@ -74,25 +75,29 @@ export default function TableWidget({ widget, data }: Props) {
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', fontSize: 'inherit' }}>
-      {/* Header row */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: gridCols,
-        borderBottom: '1px solid rgba(99,102,241,0.18)',
-        flexShrink: 0,
-      }}>
-        {columns.map(col => (
-          <div key={col} style={{
-            ...cellBase,
-            padding: '4px 8px',
-            color: '#94a3b8', fontWeight: 600, fontSize: '0.85em',
-            letterSpacing: '-0.005em',
-            justifyContent: isNumericColumn(col) ? 'flex-end' : 'flex-start',
-          }}>
-            {col}
-          </div>
-        ))}
-      </div>
+      {/* Header row — hidden when display_config.hide_header is true, which
+          is useful for 'legend' / 'note' tables where the column name is
+          just a mechanical artefact (e.g. 'Legend') that'd clutter the TV. */}
+      {!hideHeader && (
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: gridCols,
+          borderBottom: '1px solid rgba(99,102,241,0.18)',
+          flexShrink: 0,
+        }}>
+          {columns.map(col => (
+            <div key={col} style={{
+              ...cellBase,
+              padding: '4px 8px',
+              color: '#94a3b8', fontWeight: 600, fontSize: '0.85em',
+              letterSpacing: '-0.005em',
+              justifyContent: isNumericColumn(col) ? 'flex-end' : 'flex-start',
+            }}>
+              {col}
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Body rows — flex: 1 1 0 so they share height equally and shrink
           when there are many; minHeight keeps them readable */}
@@ -102,8 +107,8 @@ export default function TableWidget({ widget, data }: Props) {
             display: 'grid',
             gridTemplateColumns: gridCols,
             flex: '1 1 0',
-            minHeight: 18,
-            maxHeight: 48,
+            minHeight: 22,
+            maxHeight: 80,
             borderBottom: i < rows.length - 1 ? '1px solid rgba(255,255,255,0.04)' : undefined,
           }}>
             {columns.map(col => (
