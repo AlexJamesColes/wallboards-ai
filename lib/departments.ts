@@ -15,6 +15,10 @@ export const WB_DEPARTMENTS = [
   'SME',
   'Fleet',
   'Ancillary',
+  // Beta is the last named group — work-in-progress boards whose numbers
+  // may not be fully reconciled yet. Admin page shows it after all real
+  // departments but before the "Uncategorised" bucket.
+  'Beta',
 ] as const;
 
 export type WbDepartment = typeof WB_DEPARTMENTS[number];

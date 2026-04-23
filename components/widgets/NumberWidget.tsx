@@ -25,7 +25,16 @@ export default function NumberWidget({ widget, data }: Props) {
   // Sizes scale with the widget's own box (via container-type: size on
   // WidgetRenderer). cqmin = the smaller of inline/block so wide-but-short
   // cells don't blow up vertically.
-  const valueFontSize    = 'clamp(24px, 26cqmin, 112px)';
+  //
+  // Length-aware multiplier: a short value like "8" wants a big font, but
+  // "£1,234,567" needs to shrink so it fits the width of a narrow cell.
+  // Otherwise tall-narrow widgets (e.g. LDN Earn MTD at 2 cols × 3 rows)
+  // compute a huge font off cqmin and the wide value overflows the width
+  // into an ellipsis.
+  const valueStr = formatNumber(num, cfg);
+  const len = valueStr.length;
+  const mul = len >= 9 ? 13 : len >= 7 ? 16 : len >= 5 ? 20 : 26;
+  const valueFontSize    = `clamp(22px, ${mul}cqmin, 112px)`;
   const subtitleFontSize = 'clamp(11px,  6cqmin,  22px)';
 
   // Gecko puts the subtitle (agent name) directly above the big number, not
@@ -58,7 +67,7 @@ export default function NumberWidget({ widget, data }: Props) {
         lineHeight: 1, letterSpacing: '-0.025em',
         maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
       }}>
-        {formatNumber(num, cfg)}
+        {valueStr}
       </div>
       {goal !== null && (
         <div style={{
