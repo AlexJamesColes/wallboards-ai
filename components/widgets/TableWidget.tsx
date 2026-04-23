@@ -60,11 +60,19 @@ export default function TableWidget({ widget, data }: Props) {
     return `${prefix}${formatted}${suffix}`;
   }
 
-  // Column widths — first column (usually Agent name) gets extra weight; the
-  // rest share the remaining space equally. minmax(0, ...) is essential so
-  // grid columns can shrink below content width (otherwise they blow out).
+  // Column widths:
+  //   - Numeric columns size to their content ("auto") so short values like
+  //     "5" or "142" don't claim the same space as "£165,339". Prevents the
+  //     "every column equal fraction" look that wastes space on narrow cols
+  //     and crams wide ones.
+  //   - The first text column (usually Agent name) grows into the remaining
+  //     space — with a generous minimum so medal + emoji decorations fit.
+  //   - Other text columns share fractional space equally.
   const gridCols = columns
-    .map((_, i) => (i === 0 ? 'minmax(0, 2.5fr)' : 'minmax(0, 1fr)'))
+    .map((col, i) => {
+      if (isNumericColumn(col)) return 'minmax(64px, max-content)';
+      return i === 0 ? 'minmax(200px, 1fr)' : 'minmax(0, 1fr)';
+    })
     .join(' ');
 
   const cellBase: React.CSSProperties = {
