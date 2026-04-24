@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { WbBoard } from '@/lib/db';
 import { extractEmojis, tokenize } from '@/lib/emoji';
-import { CelebrationProvider, CelebrationCountdown } from '@/components/Celebration';
+import { CelebrationProvider, CelebrationCountdown, CelebrationRegistrar } from '@/components/Celebration';
 
 interface Props { board: WbBoard; widgetId: string; }
 
@@ -100,6 +100,29 @@ function useTimeTicker(periodMs: number): number {
 }
 
 /**
+ * "Laziest Manager" comedy slide — same endpoint the classic kiosk uses.
+ * Returns a list with 0 or 1 agent depending on whether there's anything
+ * worth mocking (both at zero early in the day = skipped).
+ */
+function useLaziestManagerSlide(): any[] {
+  const [slide, setSlide] = useState<any | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    const fetchIt = async () => {
+      try {
+        const res  = await fetch('/api/laziest-manager', { cache: 'no-store' });
+        const data = await res.json();
+        if (!cancelled && data?.agent) setSlide(data.agent);
+      } catch { /* keep previous slide on hiccup */ }
+    };
+    fetchIt();
+    const iv = setInterval(fetchIt, 5 * 60 * 1000);
+    return () => { cancelled = true; clearInterval(iv); };
+  }, []);
+  return slide ? [slide] : [];
+}
+
+/**
  * Team income target — read from the URL's ?target= query param, otherwise
  * the compile-time default. Lets individual TVs show different targets
  * (e.g. the London wallboard shows the London-only split of the combined
@@ -126,6 +149,7 @@ export default function ShowcaseView({ board, widgetId }: Props) {
   const prevRef               = useRef<Map<string, Snapshot>>(new Map());
   const [tickerItems, setTicker] = useState<TickerItem[]>([]);
   const teamTarget            = useTeamTarget();
+  const laziestSlide          = useLaziestManagerSlide();
   useTimeTicker(1000);                // drive the countdown re-render
   useAutoReloadOnDeploy();
 
@@ -307,7 +331,20 @@ export default function ShowcaseView({ board, widgetId }: Props) {
   const rest = sortedRows.slice(3);
 
   return (
-    <CelebrationProvider intervalMs={300_000}>
+    <CelebrationProvider intervalMs={300_000} extraAgents={laziestSlide}>
+      {/* Push the showcase agents into the celebration context so the Hall
+          of Fame has real candidates (the bespoke showcase doesn't render a
+          TableWidget, so without this only Hugo would ever appear). */}
+      <CelebrationRegistrar
+        widgetId={widgetId}
+        rows={sortedRows}
+        nameCol={nameCol}
+        statCols={[
+          { col: incomeMtdCol,   label: 'Income MTD',    format: (v: any) => formatMoney(parseMoney(v)) },
+          { col: polMtdCol,      label: 'Policies MTD',  format: (v: any) => String(Math.round(parseMoney(v))) },
+          { col: incomeTodayCol, label: 'Income Today',  format: (v: any) => formatMoney(parseMoney(v)) },
+        ].filter(s => s.col)}
+      />
       <div style={{
         width: '100vw', height: '100vh',
         background: 'radial-gradient(ellipse at 20% 10%, #1a1f3a 0%, #0a0f1c 60%, #050813 100%)',
@@ -495,17 +532,19 @@ function bracketFor(income: number): BracketState {
 function Podium({ rows, cols }: { rows: Row[]; cols: ColMap }) {
   if (rows.length === 0) return null;
 
-  // Re-arrange so #2 is left, #1 centre, #3 right
+  // Re-arrange so #2 is left, #1 centre, #3 right. Visual hierarchy comes
+  // from the leader being slightly taller + the gold ring/pulse, not from
+  // huge size differences.
   const arranged: Array<{ row: Row; rank: number; height: number }> = [];
-  if (rows[1]) arranged.push({ row: rows[1], rank: 2, height: 0.82 });
+  if (rows[1]) arranged.push({ row: rows[1], rank: 2, height: 0.92 });
   if (rows[0]) arranged.push({ row: rows[0], rank: 1, height: 1.00 });
-  if (rows[2]) arranged.push({ row: rows[2], rank: 3, height: 0.70 });
+  if (rows[2]) arranged.push({ row: rows[2], rank: 3, height: 0.86 });
 
   return (
     <div style={{
       flex: '0 0 auto', display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
-      gap: 'clamp(16px, 2vw, 40px)', padding: 'clamp(16px, 2.5vh, 32px) clamp(20px, 3vw, 60px) 0',
-      position: 'relative', zIndex: 1, minHeight: '42vh',
+      gap: 'clamp(14px, 1.6vw, 32px)', padding: 'clamp(12px, 1.6vh, 22px) clamp(20px, 3vw, 60px) 0',
+      position: 'relative', zIndex: 1, minHeight: '30vh', maxHeight: '34vh',
     }}>
       {arranged.map(({ row, rank, height }) => (
         <PodiumCard key={String(row[cols.nameCol])} row={row} rank={rank} heightPct={height} cols={cols} />
@@ -537,65 +576,73 @@ function PodiumCard({ row, rank, heightPct, cols }: { row: Row; rank: number; he
 
   return (
     <div style={{
-      flex: `1 1 0`, maxWidth: '28vw',
+      flex: `1 1 0`, maxWidth: '24vw',
       height: `${heightPct * 100}%`,
       background: 'linear-gradient(180deg, rgba(26,33,54,0.85) 0%, rgba(14,20,39,0.85) 100%)',
       border: `2px solid ${tier.ring}`,
-      borderRadius: 22, padding: 'clamp(12px, 1.4vh, 20px) clamp(14px, 1.6vw, 26px)',
-      boxShadow: `0 0 60px ${tier.ringGlow}, 0 20px 60px rgba(0,0,0,0.55)`,
+      borderRadius: 18, padding: 'clamp(10px, 1.1vh, 16px) clamp(12px, 1.4vw, 22px)',
+      boxShadow: `0 0 60px ${tier.ringGlow}, 0 14px 40px rgba(0,0,0,0.55)`,
       backdropFilter: 'blur(14px)',
-      display: 'flex', flexDirection: 'column', alignItems: 'center',
+      display: 'grid',
+      // Header row (tier label + avatar + name) | primary metric | stats | emojis
+      gridTemplateColumns: '1fr',
+      gridAutoRows: 'auto',
+      alignContent: 'space-between',
+      justifyItems: 'center',
       textAlign: 'center', position: 'relative', overflow: 'hidden',
       animation: rank === 1 ? 'wb-leader-pulse 3.2s ease-in-out infinite' : undefined,
     }}>
-      {/* Tier label */}
-      <div style={{
-        fontSize: 'clamp(13px, 1.2vw, 20px)', fontWeight: 900,
-        letterSpacing: '0.3em', color: tier.labelColor,
-        textShadow: `0 0 18px ${tier.ringGlow}`,
-        marginBottom: 'clamp(6px, 0.8vh, 12px)', whiteSpace: 'nowrap',
-      }}>{tier.label}</div>
+      {/* Tier label + avatar inline */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <Avatar name={name} size={rank === 1 ? 'clamp(48px, 5vw, 78px)' : 'clamp(42px, 4.4vw, 66px)'} gradient={grad} />
+        <div style={{
+          fontSize: 'clamp(11px, 1vw, 18px)', fontWeight: 900,
+          letterSpacing: '0.3em', color: tier.labelColor,
+          textShadow: `0 0 18px ${tier.ringGlow}`,
+          whiteSpace: 'nowrap',
+        }}>{tier.label}</div>
+      </div>
 
-      {/* Avatar */}
-      <Avatar name={name} size={rank === 1 ? 'clamp(72px, 8vw, 132px)' : 'clamp(56px, 6.5vw, 104px)'} gradient={grad} />
-
-      {/* Name */}
+      {/* Name — never collapses */}
       <div style={{
-        fontSize: rank === 1 ? 'clamp(22px, 2.4vw, 38px)' : 'clamp(18px, 2vw, 30px)',
-        fontWeight: 900, color: '#f1f5f9', marginTop: 'clamp(8px, 1vh, 14px)',
+        fontSize: rank === 1 ? 'clamp(20px, 2.1vw, 34px)' : 'clamp(17px, 1.8vw, 28px)',
+        fontWeight: 900, color: '#f1f5f9',
         textShadow: '0 4px 20px rgba(0,0,0,0.5)', lineHeight: 1.1,
         maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+        flexShrink: 0, width: '100%',
       }}>{name}</div>
 
       {/* Primary metric */}
-      <div style={{
-        fontSize: rank === 1 ? 'clamp(32px, 4vw, 72px)' : 'clamp(26px, 3.2vw, 50px)',
-        fontWeight: 900, color: '#fde68a',
-        textShadow: '0 0 30px rgba(251,191,36,0.35)',
-        fontVariantNumeric: 'tabular-nums', lineHeight: 1, marginTop: 'clamp(4px, 0.8vh, 12px)',
-      }}>{formatMoney(incomeMtd)}</div>
-      <div style={{ fontSize: 'clamp(9px, 0.85vw, 13px)', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.12em', marginTop: 2 }}>Income this month</div>
-
-      {/* Stat grid — 2 rows × 3 columns to fit everything cleanly */}
-      <div style={{
-        display: 'grid', gridTemplateColumns: '1fr 1fr 1fr',
-        gap: 'clamp(8px, 1vw, 18px) clamp(10px, 1.2vw, 20px)',
-        marginTop: 'clamp(8px, 1vh, 16px)', width: '100%',
-      }}>
-        {cols.polMtdCol      && <Stat label="Policies MTD"  value={String(Math.round(polMtd))} />}
-        {cols.incomeTodayCol && <Stat label="Income Today"  value={formatMoney(incomeTodayV)} />}
-        {cols.polTodayCol    && <Stat label="Policies Today" value={String(Math.round(polToday))} />}
-        {cols.ippCol         && <Stat label="IPP"           value={formatMoney(ipp)} />}
-        {cols.gwpCol         && <Stat label="GWP"           value={formatMoney(gwp)} />}
-        {cols.addonsCol      && <Stat label="Add-ons"       value={String(Math.round(addons))} />}
+      <div>
+        <div style={{
+          fontSize: rank === 1 ? 'clamp(28px, 3.4vw, 60px)' : 'clamp(24px, 2.8vw, 44px)',
+          fontWeight: 900, color: '#fde68a',
+          textShadow: '0 0 30px rgba(251,191,36,0.35)',
+          fontVariantNumeric: 'tabular-nums', lineHeight: 1,
+        }}>{formatMoney(incomeMtd)}</div>
+        <div style={{ fontSize: 'clamp(8px, 0.75vw, 11px)', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.14em', marginTop: 3 }}>Income MTD</div>
       </div>
 
-      {/* Emoji shelf */}
+      {/* Compact stat row — the agent grid below shows everything else, the
+          podium just needs a couple of supporting numbers. */}
+      {(() => {
+        const stats: Array<{ label: string; value: string }> = [];
+        if (cols.polMtdCol)      stats.push({ label: 'Pols MTD',     value: String(Math.round(polMtd)) });
+        if (cols.incomeTodayCol) stats.push({ label: 'Today',        value: formatMoney(incomeTodayV) });
+        if (rank === 1 && cols.gwpCol) stats.push({ label: 'GWP',    value: formatMoney(gwp) });
+        if (stats.length === 0) return null;
+        return (
+          <div style={{ display: 'flex', gap: 'clamp(12px, 1.4vw, 24px)', justifyContent: 'center' }}>
+            {stats.map((s, i) => <Stat key={i} label={s.label} value={s.value} />)}
+          </div>
+        );
+      })()}
+
+      {/* Emoji shelf — compact */}
       {emojis.length > 0 && (
         <div style={{
-          display: 'flex', gap: 4, marginTop: 'auto',
-          paddingTop: 'clamp(6px, 1vh, 12px)',
-          fontSize: 'clamp(20px, 2.2vw, 38px)', flexWrap: 'wrap', justifyContent: 'center',
+          display: 'flex', gap: 3,
+          fontSize: 'clamp(16px, 1.7vw, 28px)', flexWrap: 'wrap', justifyContent: 'center',
         }}>
           {emojis.map((e, i) => <span key={i}>{e}</span>)}
         </div>
