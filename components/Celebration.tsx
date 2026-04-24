@@ -200,11 +200,20 @@ function CelebrationOverlay({ agents, onDone }: { agents: HighlightRow[]; onDone
   // Opening fanfare on mount
   useEffect(() => { playFanfare(); }, []);
 
+  // Stash onDone in a ref so the slide-advance timer doesn't get cleared and
+  // restarted every time the parent provider re-renders (which happens once
+  // a second courtesy of the showcase's countdown ticker — without this the
+  // 7s setTimeout never completes 7s of uninterrupted ticking and the
+  // overlay sits stuck on slide 0 with the animation already faded to 0,
+  // looking like a black screen).
+  const onDoneRef = useRef(onDone);
+  useEffect(() => { onDoneRef.current = onDone; });
+
   useEffect(() => {
-    if (idx >= agents.length) { onDone(); return; }
+    if (idx >= agents.length) { onDoneRef.current(); return; }
     const t = setTimeout(() => setIdx(i => i + 1), PER_AGENT_MS);
     return () => clearTimeout(t);
-  }, [idx, agents.length, onDone]);
+  }, [idx, agents.length]);
 
   if (idx >= agents.length) return null;
 
