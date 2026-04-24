@@ -41,8 +41,8 @@ export default function LoginPage() {
       <div className={styles.container}>
         <div className={styles.card}>
 
-          {/* Logo */}
-          <div className={styles.logo}>
+          {/* Logo — clicks through to insuretec.ai */}
+          <a href="http://insuretec.ai" className={styles.logo} style={{ textDecoration: 'none', color: 'inherit' }}>
             <svg width="36" height="36" viewBox="0 0 28 28" fill="none" aria-hidden>
               <defs>
                 <linearGradient id="shield-fill" x1="0" y1="0" x2="1" y2="1">
@@ -59,9 +59,9 @@ export default function LoginPage() {
             </svg>
             <div className={styles.logoText}>
               <div className={styles.brand}>Insure<span>Tec</span></div>
-              <div className={styles.sub}>Wallboards Pro</div>
+              <div className={styles.sub}>Wallboards</div>
             </div>
-          </div>
+          </a>
 
           {/* Eyebrow pill */}
           <div className={styles.eyebrowWrap}>
@@ -92,7 +92,7 @@ export default function LoginPage() {
             </button>
           </form>
 
-          <p className={styles.footerText}>InsureTec Solutions · Wallboards Pro</p>
+          <p className={styles.footerText}>InsureTec Solutions · Wallboards</p>
         </div>
       </div>
     </div>

@@ -1,7 +1,7 @@
 /**
  * Shared Recharts theme.
  *
- * Each Wallboards Pro chart widget (line / bar / hbar) used to inline these
+ * Each Wallboards chart widget (line / bar / hbar) used to inline these
  * style objects, so changing the tooltip background or axis colour required
  * editing three files. Importing from here keeps them in sync.
  */

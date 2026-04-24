@@ -1,5 +1,5 @@
 /**
- * Canonical list of departments for Wallboards Pro.
+ * Canonical list of departments for Wallboards.
  *
  * Kept in its own file so it can be imported from client components
  * (e.g. BoardEditor.tsx) without dragging in the pg-based lib/db.ts

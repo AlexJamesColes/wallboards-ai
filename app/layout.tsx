@@ -9,7 +9,7 @@ const raleway = Raleway({
 });
 
 export const metadata: Metadata = {
-  title: 'Wallboards Pro',
+  title: 'Wallboards',
   description: 'Live reporting wallboards',
 };
 

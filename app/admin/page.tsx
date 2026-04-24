@@ -19,15 +19,17 @@ export default async function AdminPage() {
     <div style={{ minHeight: '100vh', background: '#0a0f1c', fontFamily: 'var(--font-raleway, sans-serif)', paddingBottom: 60 }}>
       <header style={{ position: 'sticky', top: 0, zIndex: 50, background: 'linear-gradient(180deg, rgba(10,15,28,0.92), rgba(10,15,28,0.6))', backdropFilter: 'blur(18px)', borderBottom: '1px solid rgba(255,255,255,0.05)', padding: '14px 32px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ width: 32, height: 32, borderRadius: 8, background: 'rgba(99,102,241,0.15)', border: '1px solid rgba(99,102,241,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <svg width="16" height="16" viewBox="0 0 28 28" fill="none">
-              <rect x="2" y="4" width="24" height="16" rx="2.5" stroke="#6366f1" strokeWidth="1.8" fill="none" />
-              <rect x="9.5" y="12" width="2.5" height="6" rx="0.5" fill="#6366f1" opacity="0.8" />
-              <rect x="13.5" y="9" width="2.5" height="9" rx="0.5" fill="#6366f1" />
-              <rect x="17.5" y="11" width="2.5" height="7" rx="0.5" fill="#6366f1" opacity="0.8" />
-            </svg>
-          </div>
-          <span style={{ fontSize: 16, fontWeight: 800, color: '#f1f5f9' }}>Wallboards <span style={{ color: '#a5b4fc' }}>Pro</span></span>
+          <a href="http://insuretec.ai" style={{ display: 'flex', alignItems: 'center', gap: 12, textDecoration: 'none', color: 'inherit' }}>
+            <div style={{ width: 32, height: 32, borderRadius: 8, background: 'rgba(99,102,241,0.15)', border: '1px solid rgba(99,102,241,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <svg width="16" height="16" viewBox="0 0 28 28" fill="none">
+                <rect x="2" y="4" width="24" height="16" rx="2.5" stroke="#6366f1" strokeWidth="1.8" fill="none" />
+                <rect x="9.5" y="12" width="2.5" height="6" rx="0.5" fill="#6366f1" opacity="0.8" />
+                <rect x="13.5" y="9" width="2.5" height="9" rx="0.5" fill="#6366f1" />
+                <rect x="17.5" y="11" width="2.5" height="7" rx="0.5" fill="#6366f1" opacity="0.8" />
+              </svg>
+            </div>
+            <span style={{ fontSize: 16, fontWeight: 800, color: '#f1f5f9' }}>Wallboards</span>
+          </a>
           <span style={{ padding: '4px 10px', borderRadius: 999, background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.25)', color: '#a5b4fc', fontSize: 11, fontWeight: 700, letterSpacing: '0.05em' }}>Admin</span>
         </div>
         <a href="/api/logout" style={{ fontSize: 13, color: '#64748b' }}>Sign out</a>
@@ -38,7 +40,7 @@ export default async function AdminPage() {
           <div>
             <div style={{ fontSize: 11, fontWeight: 700, color: '#6366f1', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
               <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#6366f1', boxShadow: '0 0 8px rgba(99,102,241,0.7)', display: 'inline-block' }} />
-              Wallboards Pro
+              Wallboards
             </div>
             <h1 style={{ fontSize: 34, fontWeight: 800, color: '#f1f5f9', lineHeight: 1.1 }}>Your Boards</h1>
             <p style={{ color: '#64748b', marginTop: 8, fontSize: 14 }}>
