@@ -719,14 +719,15 @@ function AgentCard({ row, rank, cols, leaderIncome }: { row: Row; rank: number; 
   const emojis  = [...extractEmojis(rawName)];
   const grad    = avatarColors(name);
 
-  const incomeMtd   = parseMoney(row[cols.incomeMtdCol]);
-  const polMtd      = parseMoney(row[cols.polMtdCol]);
-  const polToday    = parseMoney(row[cols.polTodayCol]);
-  const ipp         = parseMoney(row[cols.ippCol]);
-  const gwp         = parseMoney(row[cols.gwpCol]);
-  const bracket     = bracketFor(incomeMtd);
-  const progressPct = bracket.pct;
-  const maxed       = !bracket.next;
+  const incomeMtd     = parseMoney(row[cols.incomeMtdCol]);
+  const incomeTodayV  = parseMoney(row[cols.incomeTodayCol]);
+  const polMtd        = parseMoney(row[cols.polMtdCol]);
+  const polToday      = parseMoney(row[cols.polTodayCol]);
+  const ipp           = parseMoney(row[cols.ippCol]);
+  const gwp           = parseMoney(row[cols.gwpCol]);
+  const bracket       = bracketFor(incomeMtd);
+  const progressPct   = bracket.pct;
+  const maxed         = !bracket.next;
 
   return (
     <div style={{
@@ -749,33 +750,48 @@ function AgentCard({ row, rank, cols, leaderIncome }: { row: Row; rank: number; 
         </div>
       </div>
 
-      {/* Primary number — explicit MTD label so it's never confused with
-          today's number on the right. */}
-      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', minWidth: 0 }}>
-          <span style={{ fontSize: 'clamp(20px, 2vw, 32px)', fontWeight: 900, color: '#e2e8f0', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>
+      {/* Two hero numbers side by side — MTD on the left, Today on the
+          right — so at a glance you can see both this agent's month
+          total and what they've added today. Today's number is tinted
+          gold when >0 to make progress visually pop on the floor. */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 'clamp(20px, 2vw, 32px)', fontWeight: 900, color: '#e2e8f0', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>
             {formatMoney(incomeMtd)}
-          </span>
-          <span style={{ fontSize: 'clamp(8px, 0.7vw, 11px)', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.12em', marginTop: 2 }}>
+          </div>
+          <div style={{ fontSize: 'clamp(8px, 0.7vw, 11px)', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.12em', marginTop: 2 }}>
             Income MTD
-          </span>
+          </div>
         </div>
-        <span style={{ fontSize: 'clamp(10px, 0.95vw, 14px)', color: polToday > 0 ? '#a5b4fc' : '#475569', fontWeight: 700, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
-          {polToday > 0 ? `+${polToday} pols today` : '0 today'}
-        </span>
+        {cols.incomeTodayCol && (
+          <div style={{ textAlign: 'right', minWidth: 0 }}>
+            <div style={{
+              fontSize: 'clamp(16px, 1.6vw, 26px)', fontWeight: 900,
+              color: incomeTodayV > 0 ? '#fde68a' : '#475569',
+              textShadow: incomeTodayV > 0 ? '0 0 14px rgba(251,191,36,0.3)' : undefined,
+              fontVariantNumeric: 'tabular-nums', lineHeight: 1,
+            }}>
+              {formatMoney(incomeTodayV)}
+            </div>
+            <div style={{ fontSize: 'clamp(8px, 0.7vw, 11px)', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.12em', marginTop: 2 }}>
+              Income Today
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Mini-stat row — every label says MTD so it's clear these are the
-          monthly cumulative numbers (the "+N pols today" indicator above
-          covers today). */}
+      {/* Mini-stat row — MTD labels throughout (Policies Today handled
+          alongside Income Today at the top if needed, but with the two
+          hero figures above this row focuses on the cumulative breakdown). */}
       <div style={{
         display: 'flex', justifyContent: 'space-between', gap: 4,
         fontSize: 'clamp(9px, 0.85vw, 12px)', color: '#94a3b8',
-        fontVariantNumeric: 'tabular-nums', lineHeight: 1.2,
+        fontVariantNumeric: 'tabular-nums', lineHeight: 1.2, flexWrap: 'wrap',
       }}>
-        {cols.polMtdCol && <span><strong style={{ color: '#cbd5e1' }}>{Math.round(polMtd)}</strong> pols MTD</span>}
-        {cols.ippCol    && ipp > 0 && <span><strong style={{ color: '#cbd5e1' }}>{formatMoney(ipp)}</strong> IPP</span>}
-        {cols.gwpCol    && gwp > 0 && <span><strong style={{ color: '#cbd5e1' }}>{formatMoney(gwp)}</strong> GWP MTD</span>}
+        {cols.polMtdCol   && <span><strong style={{ color: '#cbd5e1' }}>{Math.round(polMtd)}</strong> pols MTD</span>}
+        {cols.polTodayCol && polToday > 0 && <span style={{ color: '#a5b4fc' }}><strong>+{polToday}</strong> pols today</span>}
+        {cols.ippCol      && ipp > 0 && <span><strong style={{ color: '#cbd5e1' }}>{formatMoney(ipp)}</strong> IPP</span>}
+        {cols.gwpCol      && gwp > 0 && <span><strong style={{ color: '#cbd5e1' }}>{formatMoney(gwp)}</strong> GWP MTD</span>}
       </div>
 
       {/* Commission bracket progress — shows how close this agent is to the
