@@ -486,55 +486,62 @@ function TodayStrip({ rows, cols }: {
   rows: Row[];
   cols: { nameCol: string; incomeTodayCol: string; polTodayCol: string };
 }) {
-  // Track each agent's previous rank in the today board so we can flag
-  // climbers / droppers between refreshes.
+  // Track each booked agent's previous rank so we can flag climbers / droppers.
   const prevRef = useRef<Map<string, number>>(new Map());
 
   if (!cols.incomeTodayCol) return null;
 
-  // Sort by today's income desc, drop anyone at £0 (no daily action).
-  const today = rows
-    .map(r => ({
-      name:     cleanName(String(r[cols.nameCol] ?? '')),
-      income:   parseMoney(r[cols.incomeTodayCol]),
-      policies: parseMoney(r[cols.polTodayCol]),
-    }))
-    .filter(a => a.income > 0)
-    .sort((a, b) => b.income - a.income);
+  // Everyone on the board — booked today first (ranked by income), then
+  // agents still at £0 so they can see themselves on the challenge and
+  // know they need to get on the board.
+  const allAgents = rows.map(r => ({
+    name:     cleanName(String(r[cols.nameCol] ?? '')),
+    income:   parseMoney(r[cols.incomeTodayCol]),
+    policies: parseMoney(r[cols.polTodayCol]),
+  })).filter(a => a.name);
 
-  // Snapshot for next render's diff
+  const booked = allAgents.filter(a => a.income > 0).sort((a, b) => b.income - a.income);
+  const zeros  = allAgents.filter(a => a.income === 0).sort((a, b) => a.name.localeCompare(b.name));
+
+  // Snapshot ranks for booked agents so we can animate position changes
   const newPrev = new Map<string, number>();
-  today.forEach((a, i) => newPrev.set(a.name.toLowerCase(), i + 1));
+  booked.forEach((a, i) => newPrev.set(a.name.toLowerCase(), i + 1));
   const oldRanks = prevRef.current;
   // Use a layout-effect-equivalent trick — we set after build so the
   // next render sees the snapshot we just produced.
   setTimeout(() => { prevRef.current = newPrev; }, 0);
 
+  const headline = booked.length === 0
+    ? 'No bookings yet today — first deal wins the spot'
+    : `${booked.length} on the board · ${zeros.length} still to open`;
+
   return (
     <div style={{
-      flexShrink: 0, padding: 'clamp(6px, 0.7vh, 10px) clamp(20px, 3vw, 60px)',
+      flexShrink: 0, padding: 'clamp(6px, 0.7vh, 10px) clamp(16px, 2.2vw, 36px) clamp(8px, 0.9vh, 12px)',
       borderBottom: '1px solid rgba(255,255,255,0.05)',
       background: 'rgba(10,15,28,0.55)', backdropFilter: 'blur(10px)',
-      display: 'flex', alignItems: 'center', gap: 16, minWidth: 0,
+      display: 'flex', flexDirection: 'column', gap: 'clamp(4px, 0.5vh, 8px)',
       position: 'relative', zIndex: 2,
     }}>
-      <span style={{
-        fontSize: 'clamp(10px, 0.95vw, 14px)', fontWeight: 800,
-        color: '#fbbf24', letterSpacing: '0.22em', textTransform: 'uppercase',
-        flexShrink: 0,
-      }}>🔥 Today</span>
-
-      {today.length === 0 && (
-        <span style={{ fontSize: 'clamp(11px, 1vw, 14px)', color: '#475569', fontStyle: 'italic' }}>
-          No bookings yet today — first deal wins the spot.
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 14, flexWrap: 'wrap' }}>
+        <span style={{
+          fontSize: 'clamp(10px, 0.95vw, 14px)', fontWeight: 800,
+          color: '#fbbf24', letterSpacing: '0.22em', textTransform: 'uppercase',
+          flexShrink: 0,
+        }}>🔥 Today's Challenge</span>
+        <span style={{ fontSize: 'clamp(10px, 0.85vw, 13px)', color: '#64748b', fontWeight: 600 }}>
+          {headline}
         </span>
-      )}
+      </div>
 
+      {/* All pills in one wrapping row. Booked agents first (gold tint on
+          leader), zero-today agents in a greyed pill so they can see
+          themselves and know they need to open. */}
       <div style={{
-        display: 'flex', gap: 'clamp(8px, 1vw, 16px)',
-        overflowX: 'auto', scrollbarWidth: 'none', flex: 1, minWidth: 0,
+        display: 'flex', flexWrap: 'wrap',
+        gap: 'clamp(4px, 0.5vw, 8px) clamp(5px, 0.6vw, 10px)',
       }}>
-        {today.map((a, i) => {
+        {booked.map((a, i) => {
           const rank = i + 1;
           const was  = oldRanks.get(a.name.toLowerCase());
           const climbed = was !== undefined && was > rank;
@@ -542,47 +549,54 @@ function TodayStrip({ rows, cols }: {
           const isNew   = was === undefined;
           const isLeader = rank === 1;
           return (
-            <div key={a.name + '|' + rank} style={{
-              display: 'inline-flex', alignItems: 'center', gap: 8,
-              padding: 'clamp(4px, 0.6vh, 8px) clamp(10px, 1.1vw, 16px)',
+            <div key={'b|' + a.name} style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+              padding: 'clamp(3px, 0.4vh, 6px) clamp(7px, 0.8vw, 11px)',
               borderRadius: 99, flexShrink: 0,
               background: isLeader
-                ? 'linear-gradient(90deg, rgba(251,191,36,0.18) 0%, rgba(251,191,36,0.06) 100%)'
-                : 'rgba(255,255,255,0.04)',
-              border: `1px solid ${isLeader ? 'rgba(251,191,36,0.4)' : 'rgba(255,255,255,0.08)'}`,
+                ? 'linear-gradient(90deg, rgba(251,191,36,0.22) 0%, rgba(251,191,36,0.08) 100%)'
+                : 'rgba(99,102,241,0.12)',
+              border: `1px solid ${isLeader ? 'rgba(251,191,36,0.45)' : 'rgba(99,102,241,0.3)'}`,
               animation: climbed ? 'wb-row-up 1.2s ease-out' : dropped ? 'wb-row-down 1.2s ease-out' : undefined,
-              boxShadow: isLeader ? '0 0 16px rgba(251,191,36,0.25)' : undefined,
+              boxShadow: isLeader ? '0 0 14px rgba(251,191,36,0.28)' : undefined,
             }}>
-              <span style={{ fontSize: 'clamp(11px, 1vw, 14px)', fontWeight: 800, color: isLeader ? '#fde68a' : '#64748b', fontVariantNumeric: 'tabular-nums' }}>
+              <span style={{ fontSize: 'clamp(10px, 0.9vw, 13px)', fontWeight: 800, color: isLeader ? '#fde68a' : '#a5b4fc', fontVariantNumeric: 'tabular-nums' }}>
                 #{rank}
               </span>
-              <span style={{ fontSize: 'clamp(11px, 1vw, 15px)', fontWeight: 600, color: '#f1f5f9', whiteSpace: 'nowrap' }}>
+              <span style={{ fontSize: 'clamp(10px, 0.9vw, 14px)', fontWeight: 600, color: '#f1f5f9', whiteSpace: 'nowrap' }}>
                 {a.name}
               </span>
-              <span style={{ fontSize: 'clamp(11px, 1.05vw, 16px)', fontWeight: 800, color: isLeader ? '#fde68a' : '#a5b4fc', fontVariantNumeric: 'tabular-nums' }}>
+              <span style={{ fontSize: 'clamp(10px, 0.95vw, 14px)', fontWeight: 800, color: isLeader ? '#fde68a' : '#e2e8f0', fontVariantNumeric: 'tabular-nums' }}>
                 {formatMoney(a.income)}
               </span>
               {a.policies > 0 && (
-                <span style={{ fontSize: 'clamp(9px, 0.8vw, 11px)', color: '#64748b', fontWeight: 700 }}>
-                  {a.policies}p
+                <span style={{ fontSize: 'clamp(9px, 0.75vw, 11px)', color: '#94a3b8', fontWeight: 700 }}>
+                  · {a.policies}
                 </span>
               )}
-              {climbed && was !== undefined && (
-                <span aria-hidden style={{ fontSize: 10, color: '#10b981', fontWeight: 800 }}>
-                  ▲{was - rank}
-                </span>
-              )}
-              {dropped && was !== undefined && (
-                <span aria-hidden style={{ fontSize: 10, color: '#f87171', fontWeight: 800 }}>
-                  ▼{rank - was}
-                </span>
-              )}
-              {isNew && rank <= 5 && (
-                <span aria-hidden style={{ fontSize: 10, color: '#fbbf24', fontWeight: 800 }}>NEW</span>
-              )}
+              {climbed && was !== undefined && <span aria-hidden style={{ fontSize: 10, color: '#10b981', fontWeight: 800 }}>▲{was - rank}</span>}
+              {dropped && was !== undefined && <span aria-hidden style={{ fontSize: 10, color: '#f87171', fontWeight: 800 }}>▼{rank - was}</span>}
+              {isNew && <span aria-hidden style={{ fontSize: 10, color: '#fbbf24', fontWeight: 800 }}>NEW</span>}
             </div>
           );
         })}
+        {zeros.map(a => (
+          <div key={'z|' + a.name} style={{
+            display: 'inline-flex', alignItems: 'center', gap: 5,
+            padding: 'clamp(3px, 0.4vh, 6px) clamp(7px, 0.8vw, 11px)',
+            borderRadius: 99, flexShrink: 0,
+            background: 'rgba(255,255,255,0.025)',
+            border: '1px solid rgba(255,255,255,0.06)',
+            opacity: 0.78,
+          }}>
+            <span style={{ fontSize: 'clamp(10px, 0.9vw, 14px)', fontWeight: 600, color: '#94a3b8', whiteSpace: 'nowrap' }}>
+              {a.name}
+            </span>
+            <span style={{ fontSize: 'clamp(10px, 0.85vw, 13px)', fontWeight: 700, color: '#475569', fontVariantNumeric: 'tabular-nums' }}>
+              £0 · 0
+            </span>
+          </div>
+        ))}
       </div>
     </div>
   );
