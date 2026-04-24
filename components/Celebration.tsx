@@ -33,9 +33,8 @@ interface Ctx {
 
 const CelebrationCtx = createContext<Ctx | null>(null);
 
-// Emojis that are purely positional (medals) — we don't count them as
-// "achievement" emojis for the takeover selection.
-const RANK_EMOJIS = new Set(['🥇', '🥈', '🥉']);
+// (Previously excluded 🥇🥈🥉 from celebration; now medals count too so
+// position-based winners get their moment alongside achievement-based ones.)
 
 export function CelebrationProvider({ children, intervalMs = 600_000 }: { children: ReactNode; intervalMs?: number }) {
   const registry = useRef<Map<string, HighlightRow[]>>(new Map());
@@ -122,12 +121,11 @@ export function CelebrationRegistrar({
     if (!ctx) return;
     const highlights: HighlightRow[] = rows.map(r => {
       const fullName = String(r[nameCol] ?? '');
-      const emojiSet = extractEmojis(fullName);
-      const decorative = [...emojiSet].filter(e => !RANK_EMOJIS.has(e));
+      const emojis   = [...extractEmojis(fullName)];
       return {
         widgetId,
         name:   fullName,
-        emojis: decorative,
+        emojis,
         stats:  statCols.slice(0, 3).map(s => ({ label: s.label, value: s.format(r[s.col]) })),
       };
     });

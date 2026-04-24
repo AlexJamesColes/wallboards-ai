@@ -234,7 +234,7 @@ export default function TableWidget({ widget, data }: Props) {
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', fontSize: 'inherit' }}>
-      {gamify && (
+      {gamify && !hideHeader && cfg.skip_celebration !== true && (
         <CelebrationRegistrar
           widgetId={widget.id}
           rows={cleanedRows}
