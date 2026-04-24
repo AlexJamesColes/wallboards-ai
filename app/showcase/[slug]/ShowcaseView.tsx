@@ -455,6 +455,43 @@ interface ColMap {
 // duplicating looked silly on the podium.
 const RANK_MEDALS: Record<number, string> = { 1: '🥇', 2: '🥈', 3: '🥉' };
 
+// Commission brackets — mirrors the Commission Tracker board's SQL. An
+// agent's earn-MTD determines their current bracket; the card's progress
+// bar shows how close they are to the next one.
+const BRACKETS: Array<{ min: number; rate: number }> = [
+  { min:     0, rate:  0 },
+  { min: 25000, rate:  3 },
+  { min: 30000, rate:  4 },
+  { min: 35000, rate:  5 },
+  { min: 40000, rate:  7 },
+  { min: 50000, rate:  8 },
+  { min: 60000, rate: 10 },
+];
+
+interface BracketState {
+  current: { min: number; rate: number };
+  next:    { min: number; rate: number } | null;
+  /** 0–100 percent between current.min and next.min */
+  pct:     number;
+  /** £ remaining to hit the next threshold (0 when maxed) */
+  toNext:  number;
+}
+
+function bracketFor(income: number): BracketState {
+  // Find the highest bracket whose min <= income
+  let idx = 0;
+  for (let i = BRACKETS.length - 1; i >= 0; i--) {
+    if (income >= BRACKETS[i].min) { idx = i; break; }
+  }
+  const current = BRACKETS[idx];
+  const next    = BRACKETS[idx + 1] || null;
+  if (!next) return { current, next: null, pct: 100, toNext: 0 };
+  const span  = next.min - current.min;
+  const pct   = Math.min(100, Math.max(0, ((income - current.min) / span) * 100));
+  const toNext = Math.max(0, next.min - income);
+  return { current, next, pct, toNext };
+}
+
 function Podium({ rows, cols }: { rows: Row[]; cols: ColMap }) {
   if (rows.length === 0) return null;
 
@@ -638,7 +675,9 @@ function AgentCard({ row, rank, cols, leaderIncome }: { row: Row; rank: number; 
   const polToday    = parseMoney(row[cols.polTodayCol]);
   const ipp         = parseMoney(row[cols.ippCol]);
   const gwp         = parseMoney(row[cols.gwpCol]);
-  const progressPct = Math.min(100, Math.round((incomeMtd / leaderIncome) * 100));
+  const bracket     = bracketFor(incomeMtd);
+  const progressPct = bracket.pct;
+  const maxed       = !bracket.next;
 
   return (
     <div style={{
@@ -682,13 +721,35 @@ function AgentCard({ row, rank, cols, leaderIncome }: { row: Row; rank: number; 
         {cols.gwpCol    && gwp > 0 && <span><strong style={{ color: '#cbd5e1' }}>{formatMoney(gwp)}</strong> GWP</span>}
       </div>
 
-      {/* Progress bar vs leader */}
-      <div style={{ height: 4, borderRadius: 99, background: 'rgba(255,255,255,0.05)', overflow: 'hidden' }}>
+      {/* Commission bracket progress — shows how close this agent is to the
+          next rate tier. Maxed agents get a solid gold bar. */}
+      <div>
         <div style={{
-          width: `${progressPct}%`, height: '100%',
-          background: 'linear-gradient(90deg, #6366f1 0%, #a855f7 100%)',
-          transition: 'width 1s ease-out',
-        }} />
+          display: 'flex', justifyContent: 'space-between', alignItems: 'baseline',
+          fontSize: 'clamp(9px, 0.85vw, 12px)', fontWeight: 800,
+          fontVariantNumeric: 'tabular-nums', lineHeight: 1,
+          marginBottom: 3,
+        }}>
+          <span style={{ color: bracket.current.rate > 0 ? '#a5b4fc' : '#64748b' }}>
+            {bracket.current.rate}%
+          </span>
+          <span style={{ color: '#64748b', fontWeight: 500, fontSize: '0.92em' }}>
+            {maxed ? 'Max tier' : `${formatMoney(bracket.toNext)} to go`}
+          </span>
+          <span style={{ color: '#fde68a' }}>
+            {maxed ? '🏆' : `${bracket.next!.rate}%`}
+          </span>
+        </div>
+        <div style={{ height: 6, borderRadius: 99, background: 'rgba(255,255,255,0.05)', overflow: 'hidden', position: 'relative' }}>
+          <div style={{
+            width: `${progressPct}%`, height: '100%',
+            background: maxed
+              ? 'linear-gradient(90deg, #fbbf24 0%, #fde68a 100%)'
+              : 'linear-gradient(90deg, #6366f1 0%, #a855f7 55%, #fbbf24 100%)',
+            boxShadow: maxed ? '0 0 14px rgba(251,191,36,0.55)' : undefined,
+            transition: 'width 1s ease-out',
+          }} />
+        </div>
       </div>
 
       {/* Emoji shelf */}
