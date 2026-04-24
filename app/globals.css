@@ -3,3 +3,64 @@ html, body { height: 100%; background: #0a0f1c; color: #f1f5f9; }
 body { font-family: var(--font-raleway, -apple-system, sans-serif); -webkit-font-smoothing: antialiased; }
 a { color: inherit; text-decoration: none; }
 input, select, textarea, button { font-family: inherit; }
+
+/* ─── Gamification ─────────────────────────────────────────────────────── */
+
+/* Emoji pops in with a spring — rotate-in + overshoot + settle */
+@keyframes wb-emoji-pop {
+  0%   { transform: scale(0)   rotate(-180deg); opacity: 0; }
+  40%  { transform: scale(1.5) rotate(20deg);   opacity: 1; }
+  70%  { transform: scale(0.9) rotate(-10deg);  }
+  100% { transform: scale(1)   rotate(0);       opacity: 1; }
+}
+
+/* Emoji fades out when lost */
+@keyframes wb-emoji-fade {
+  0%   { transform: scale(1);   opacity: 1; filter: grayscale(0); }
+  100% { transform: scale(0.6); opacity: 0; filter: grayscale(1); }
+}
+
+/* Row glows green when it climbs up the ranking */
+@keyframes wb-row-up {
+  0%   { background: rgba(16,185,129,0);    box-shadow: none; }
+  20%  { background: rgba(16,185,129,0.28); box-shadow: inset 0 0 32px rgba(16,185,129,0.4); }
+  100% { background: rgba(16,185,129,0);    box-shadow: none; }
+}
+
+/* Row glows red when it drops down the ranking */
+@keyframes wb-row-down {
+  0%   { background: rgba(248,113,113,0);    box-shadow: none; }
+  20%  { background: rgba(248,113,113,0.22); box-shadow: inset 0 0 28px rgba(248,113,113,0.3); }
+  100% { background: rgba(248,113,113,0);    box-shadow: none; }
+}
+
+/* Rank-change arrow slides up (for gains) or down (for drops) into place */
+@keyframes wb-arrow-up {
+  0%   { transform: translateY(14px); opacity: 0; }
+  100% { transform: translateY(0);    opacity: 1; }
+}
+@keyframes wb-arrow-down {
+  0%   { transform: translateY(-14px); opacity: 0; }
+  100% { transform: translateY(0);     opacity: 1; }
+}
+
+/* Perpetual #1 spotlight — subtle gold pulse so the leader always stands out */
+@keyframes wb-leader-pulse {
+  0%, 100% { box-shadow: inset 0 0 0 1px rgba(251,191,36,0.15); }
+  50%      { box-shadow: inset 0 0 0 1px rgba(251,191,36,0.45), inset 0 0 24px rgba(251,191,36,0.15); }
+}
+
+/* Big celebratory crown flourish when someone new takes #1 */
+@keyframes wb-crown {
+  0%   { transform: scale(1)   rotate(0); }
+  25%  { transform: scale(1.6) rotate(-15deg); filter: drop-shadow(0 0 12px rgba(251,191,36,0.9)); }
+  50%  { transform: scale(1.3) rotate(15deg);  }
+  100% { transform: scale(1)   rotate(0); }
+}
+
+/* Brief flash on a numeric cell when its value changes */
+@keyframes wb-value-flash {
+  0%   { color: inherit; }
+  25%  { color: #fbbf24; text-shadow: 0 0 10px rgba(251,191,36,0.5); }
+  100% { color: inherit; text-shadow: none; }
+}
