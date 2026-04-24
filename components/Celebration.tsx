@@ -62,19 +62,40 @@ export function CelebrationProvider({
     return all.filter(r => r.emojis.length > 0);
   };
 
+  // Normalise a name for dedup (same person across widgets / emoji variants)
+  const dedupKey = (n: string) => n.toLowerCase().replace(/\p{Extended_Pictographic}(?:\uFE0F)?/gu, '').replace(/\s+/g, ' ').trim();
+
   const trigger = () => {
-    const agents = snapshot();
-    if (agents.length === 0) return;
-    // De-dupe by name (same person may appear in multiple widgets)
+    // Main pool (registered widget rows) — sorted so the celebration
+    // starts with the most-decorated agents and works down. Ties are
+    // broken by leaderboard position (rank 1 before rank 2, etc.).
+    const main: HighlightRow[] = [];
+    for (const rows of registry.current.values()) main.push(...rows);
+    const mainFiltered = main.filter(r => r.emojis.length > 0);
+
     const seen = new Set<string>();
-    const uniq = agents.filter(a => {
-      const key = a.name.toLowerCase().replace(/\s+/g, ' ').trim();
+    const uniqMain = mainFiltered.filter(a => {
+      const key = dedupKey(a.name);
       if (seen.has(key)) return false;
       seen.add(key);
       return true;
     });
-    // Cap to 10 to keep the sequence around 30s
-    setActiveAgents(uniq.slice(0, 10));
+    uniqMain.sort((a, b) => {
+      const ec = b.emojis.length - a.emojis.length;         // most emojis first
+      if (ec !== 0) return ec;
+      return (a.rank ?? Infinity) - (b.rank ?? Infinity);   // then leaderboard order
+    });
+
+    // Extras (Laziest Manager etc.) always close the sequence.
+    const extras = extraAgents.filter(r => r.emojis.length > 0);
+    const uniqExtras = extras.filter(e => !seen.has(dedupKey(e.name)));
+
+    // Cap to 10 slides total, reserving space for the extras at the end.
+    const maxMain = Math.max(0, 10 - uniqExtras.length);
+    const final   = [...uniqMain.slice(0, maxMain), ...uniqExtras];
+
+    if (final.length === 0) return;
+    setActiveAgents(final);
   };
 
   const ctx: Ctx = {
