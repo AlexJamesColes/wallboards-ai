@@ -271,9 +271,6 @@ export default function TableWidget({ widget, data }: Props) {
           const rowAnim = !gamify || Number.isNaN(d.rankDelta) || d.rankDelta === 0
             ? undefined
             : d.rankDelta > 0 ? 'wb-row-up 1.2s ease-out' : 'wb-row-down 1.2s ease-out';
-          const leaderStyle: React.CSSProperties = gamify && i === 0
-            ? { animation: 'wb-leader-pulse 3.2s ease-in-out infinite' }
-            : {};
 
           return (
             <div key={key + '|' + animToken} style={{
@@ -283,7 +280,7 @@ export default function TableWidget({ widget, data }: Props) {
               minHeight: 22,
               maxHeight: 80,
               borderBottom: i < cleanedRows.length - 1 ? '1px solid rgba(255,255,255,0.04)' : undefined,
-              animation: [rowAnim, leaderStyle.animation].filter(Boolean).join(', ') || undefined,
+              animation: rowAnim,
               position: 'relative',
             }}>
               {gamify && <ArrowCell d={d} />}
