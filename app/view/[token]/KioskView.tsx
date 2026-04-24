@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import type { WbBoard, WbWidget } from '@/lib/db';
 import WidgetRenderer from '@/components/WidgetRenderer';
+import { CelebrationProvider } from '@/components/Celebration';
 
 function Clock() {
   const [time, setTime] = useState('');
@@ -73,6 +74,7 @@ export default function KioskView({ board }: Props) {
   );
 
   return (
+    <CelebrationProvider intervalMs={600_000}>
     <div style={{ width: '100vw', height: '100vh', background, overflow: 'hidden', fontFamily: 'var(--font-raleway, sans-serif)', display: 'flex', flexDirection: 'column' }}>
       {/* Minimal header bar */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', borderBottom: '1px solid rgba(255,255,255,0.04)', flexShrink: 0 }}>
@@ -102,6 +104,7 @@ export default function KioskView({ board }: Props) {
         </div>
       )}
     </div>
+    </CelebrationProvider>
   );
 }
 

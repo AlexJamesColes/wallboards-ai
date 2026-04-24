@@ -4,6 +4,7 @@ import type { WbWidget } from '@/lib/db';
 import { formatNumber } from '@/lib/formatNumber';
 import NoDataPlaceholder from '@/components/NoDataPlaceholder';
 import { tokenize, extractEmojis } from '@/lib/emoji';
+import { CelebrationRegistrar } from '@/components/Celebration';
 
 interface Props { widget: WbWidget; data: any; }
 
@@ -72,12 +73,43 @@ export default function TableWidget({ widget, data }: Props) {
   const nameCol = columns[0];
   const numericCols = columns.filter(isNumericColumn);
 
+  // Strip emojis awarded to multiple rows — each decorative emoji should
+  // recognise a SINGLE winner. If two agents tie for "most income today" the
+  // SQL query often tags both with 🔥; we drop it from both so the accolade
+  // is only shown when there's a clear winner.
+  const dupedEmojis = (() => {
+    const counts = new Map<string, number>();
+    for (const r of rows) {
+      // Dedup within the same row first (e.g. 🏆🏆 in one string counts once)
+      const seen = new Set<string>();
+      for (const e of extractEmojis(String(r[nameCol] ?? ''))) {
+        if (seen.has(e)) continue;
+        seen.add(e);
+        counts.set(e, (counts.get(e) || 0) + 1);
+      }
+    }
+    const dup = new Set<string>();
+    counts.forEach((n, e) => { if (n > 1) dup.add(e); });
+    return dup;
+  })();
+
+  function cleanName(raw: string): string {
+    if (!dupedEmojis.size) return raw;
+    let out = raw;
+    dupedEmojis.forEach(e => { out = out.split(e).join(''); });
+    return out.replace(/\s+/g, ' ').trim();
+  }
+
+  // Project rows so the first column has de-duped name text. Downstream
+  // logic (diffing, NameCell, CelebrationRegistrar) all see the cleaned name.
+  const cleanedRows = rows.map(r => ({ ...r, [nameCol]: cleanName(String(r[nameCol] ?? '')) }));
+
   const prev = useRef<Map<string, RowSnapshot>>(new Map());
   const [animToken, setAnimToken] = useState(0); // bumped each render so keyframes restart
 
-  // Build current snapshot
+  // Build current snapshot from the cleaned rows (so tied emojis are gone)
   const current = new Map<string, RowSnapshot>();
-  rows.forEach((row, rank) => {
+  cleanedRows.forEach((row, rank) => {
     const key = String(row[nameCol] ?? `__row_${rank}`);
     const values: Record<string, string> = {};
     numericCols.forEach(c => { values[c] = renderCell(c, row[c]); });
@@ -191,8 +223,25 @@ export default function TableWidget({ widget, data }: Props) {
     );
   }
 
+  // Feed the hall-of-fame celebration with whichever of our rows have
+  // decorative emojis — uses the first up-to-3 numeric columns as the stat
+  // lines under their name.
+  const statCols = numericCols.slice(0, 3).map(col => ({
+    col,
+    label:  col,
+    format: (v: any) => renderCell(col, v),
+  }));
+
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', fontSize: 'inherit' }}>
+      {gamify && (
+        <CelebrationRegistrar
+          widgetId={widget.id}
+          rows={cleanedRows}
+          nameCol={nameCol}
+          statCols={statCols}
+        />
+      )}
       {!hideHeader && (
         <div style={{
           display: 'grid',
@@ -216,7 +265,7 @@ export default function TableWidget({ widget, data }: Props) {
       )}
 
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
-        {rows.map((row, i) => {
+        {cleanedRows.map((row, i) => {
           const key = String(row[nameCol] ?? `__row_${i}`);
           const d   = diff(key);
           const rowAnim = !gamify || Number.isNaN(d.rankDelta) || d.rankDelta === 0
@@ -233,7 +282,7 @@ export default function TableWidget({ widget, data }: Props) {
               flex: '1 1 0',
               minHeight: 22,
               maxHeight: 80,
-              borderBottom: i < rows.length - 1 ? '1px solid rgba(255,255,255,0.04)' : undefined,
+              borderBottom: i < cleanedRows.length - 1 ? '1px solid rgba(255,255,255,0.04)' : undefined,
               animation: [rowAnim, leaderStyle.animation].filter(Boolean).join(', ') || undefined,
               position: 'relative',
             }}>
