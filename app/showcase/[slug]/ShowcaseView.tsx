@@ -623,16 +623,18 @@ function PodiumCard({ row, rank, heightPct, cols }: { row: Row; rank: number; he
         <div style={{ fontSize: 'clamp(8px, 0.75vw, 11px)', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.14em', marginTop: 3 }}>Income MTD</div>
       </div>
 
-      {/* Compact stat row — the agent grid below shows everything else, the
-          podium just needs a couple of supporting numbers. */}
+      {/* Compact stat row. Label every value with TODAY or MTD so there's
+          never any ambiguity about the time period at a glance from across
+          the room. */}
       {(() => {
         const stats: Array<{ label: string; value: string }> = [];
-        if (cols.polMtdCol)      stats.push({ label: 'Pols MTD',     value: String(Math.round(polMtd)) });
-        if (cols.incomeTodayCol) stats.push({ label: 'Today',        value: formatMoney(incomeTodayV) });
-        if (rank === 1 && cols.gwpCol) stats.push({ label: 'GWP',    value: formatMoney(gwp) });
+        if (cols.incomeTodayCol) stats.push({ label: 'Income Today',  value: formatMoney(incomeTodayV) });
+        if (cols.polTodayCol)    stats.push({ label: 'Pols Today',    value: String(Math.round(polToday)) });
+        if (cols.polMtdCol)      stats.push({ label: 'Pols MTD',      value: String(Math.round(polMtd)) });
+        if (rank === 1 && cols.gwpCol) stats.push({ label: 'GWP MTD', value: formatMoney(gwp) });
         if (stats.length === 0) return null;
         return (
-          <div style={{ display: 'flex', gap: 'clamp(12px, 1.4vw, 24px)', justifyContent: 'center' }}>
+          <div style={{ display: 'flex', gap: 'clamp(10px, 1.2vw, 22px)', justifyContent: 'center', flexWrap: 'wrap' }}>
             {stats.map((s, i) => <Stat key={i} label={s.label} value={s.value} />)}
           </div>
         );
@@ -747,25 +749,33 @@ function AgentCard({ row, rank, cols, leaderIncome }: { row: Row; rank: number; 
         </div>
       </div>
 
-      {/* Primary number + today policies */}
+      {/* Primary number — explicit MTD label so it's never confused with
+          today's number on the right. */}
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
-        <span style={{ fontSize: 'clamp(20px, 2vw, 32px)', fontWeight: 900, color: '#e2e8f0', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>
-          {formatMoney(incomeMtd)}
-        </span>
-        <span style={{ fontSize: 'clamp(10px, 0.95vw, 14px)', color: polToday > 0 ? '#a5b4fc' : '#64748b', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
-          {polToday > 0 ? `+${polToday} today` : '—'}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', minWidth: 0 }}>
+          <span style={{ fontSize: 'clamp(20px, 2vw, 32px)', fontWeight: 900, color: '#e2e8f0', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>
+            {formatMoney(incomeMtd)}
+          </span>
+          <span style={{ fontSize: 'clamp(8px, 0.7vw, 11px)', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.12em', marginTop: 2 }}>
+            Income MTD
+          </span>
+        </div>
+        <span style={{ fontSize: 'clamp(10px, 0.95vw, 14px)', color: polToday > 0 ? '#a5b4fc' : '#475569', fontWeight: 700, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+          {polToday > 0 ? `+${polToday} pols today` : '0 today'}
         </span>
       </div>
 
-      {/* Mini-stat row: Policies MTD · IPP · GWP */}
+      {/* Mini-stat row — every label says MTD so it's clear these are the
+          monthly cumulative numbers (the "+N pols today" indicator above
+          covers today). */}
       <div style={{
         display: 'flex', justifyContent: 'space-between', gap: 4,
         fontSize: 'clamp(9px, 0.85vw, 12px)', color: '#94a3b8',
         fontVariantNumeric: 'tabular-nums', lineHeight: 1.2,
       }}>
-        {cols.polMtdCol && <span><strong style={{ color: '#cbd5e1' }}>{Math.round(polMtd)}</strong> pols</span>}
+        {cols.polMtdCol && <span><strong style={{ color: '#cbd5e1' }}>{Math.round(polMtd)}</strong> pols MTD</span>}
         {cols.ippCol    && ipp > 0 && <span><strong style={{ color: '#cbd5e1' }}>{formatMoney(ipp)}</strong> IPP</span>}
-        {cols.gwpCol    && gwp > 0 && <span><strong style={{ color: '#cbd5e1' }}>{formatMoney(gwp)}</strong> GWP</span>}
+        {cols.gwpCol    && gwp > 0 && <span><strong style={{ color: '#cbd5e1' }}>{formatMoney(gwp)}</strong> GWP MTD</span>}
       </div>
 
       {/* Commission bracket progress — shows how close this agent is to the
