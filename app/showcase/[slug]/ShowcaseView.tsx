@@ -359,7 +359,13 @@ export default function ShowcaseView({ board, widgetId }: Props) {
         {/* ── Header ───────────────────────────────────────────────── */}
         <Header boardName={board.name} teamTotal={teamTotal} target={teamTarget} targetPct={targetPct} />
 
-        {/* ── Podium ───────────────────────────────────────────────── */}
+        {/* ── Today's leaderboard strip — fast-moving daily race ────── */}
+        <TodayStrip
+          rows={sortedRows}
+          cols={{ nameCol, incomeTodayCol, polTodayCol }}
+        />
+
+        {/* ── Podium (MTD position) ────────────────────────────────── */}
         <Podium
           rows={top3}
           cols={{ nameCol, incomeMtdCol, polMtdCol, polTodayCol, incomeTodayCol, ippCol, gwpCol, addonsCol }}
@@ -473,6 +479,116 @@ function Clock() {
 }
 
 // ────────────────────────────────────────────────────────────────────────
+//  Today strip — fast-moving daily race ranked by Income Today
+// ────────────────────────────────────────────────────────────────────────
+
+function TodayStrip({ rows, cols }: {
+  rows: Row[];
+  cols: { nameCol: string; incomeTodayCol: string; polTodayCol: string };
+}) {
+  // Track each agent's previous rank in the today board so we can flag
+  // climbers / droppers between refreshes.
+  const prevRef = useRef<Map<string, number>>(new Map());
+
+  if (!cols.incomeTodayCol) return null;
+
+  // Sort by today's income desc, drop anyone at £0 (no daily action).
+  const today = rows
+    .map(r => ({
+      name:     cleanName(String(r[cols.nameCol] ?? '')),
+      income:   parseMoney(r[cols.incomeTodayCol]),
+      policies: parseMoney(r[cols.polTodayCol]),
+    }))
+    .filter(a => a.income > 0)
+    .sort((a, b) => b.income - a.income);
+
+  // Snapshot for next render's diff
+  const newPrev = new Map<string, number>();
+  today.forEach((a, i) => newPrev.set(a.name.toLowerCase(), i + 1));
+  const oldRanks = prevRef.current;
+  // Use a layout-effect-equivalent trick — we set after build so the
+  // next render sees the snapshot we just produced.
+  setTimeout(() => { prevRef.current = newPrev; }, 0);
+
+  return (
+    <div style={{
+      flexShrink: 0, padding: 'clamp(6px, 0.7vh, 10px) clamp(20px, 3vw, 60px)',
+      borderBottom: '1px solid rgba(255,255,255,0.05)',
+      background: 'rgba(10,15,28,0.55)', backdropFilter: 'blur(10px)',
+      display: 'flex', alignItems: 'center', gap: 16, minWidth: 0,
+      position: 'relative', zIndex: 2,
+    }}>
+      <span style={{
+        fontSize: 'clamp(10px, 0.95vw, 14px)', fontWeight: 800,
+        color: '#fbbf24', letterSpacing: '0.22em', textTransform: 'uppercase',
+        flexShrink: 0,
+      }}>🔥 Today</span>
+
+      {today.length === 0 && (
+        <span style={{ fontSize: 'clamp(11px, 1vw, 14px)', color: '#475569', fontStyle: 'italic' }}>
+          No bookings yet today — first deal wins the spot.
+        </span>
+      )}
+
+      <div style={{
+        display: 'flex', gap: 'clamp(8px, 1vw, 16px)',
+        overflowX: 'auto', scrollbarWidth: 'none', flex: 1, minWidth: 0,
+      }}>
+        {today.map((a, i) => {
+          const rank = i + 1;
+          const was  = oldRanks.get(a.name.toLowerCase());
+          const climbed = was !== undefined && was > rank;
+          const dropped = was !== undefined && was < rank;
+          const isNew   = was === undefined;
+          const isLeader = rank === 1;
+          return (
+            <div key={a.name + '|' + rank} style={{
+              display: 'inline-flex', alignItems: 'center', gap: 8,
+              padding: 'clamp(4px, 0.6vh, 8px) clamp(10px, 1.1vw, 16px)',
+              borderRadius: 99, flexShrink: 0,
+              background: isLeader
+                ? 'linear-gradient(90deg, rgba(251,191,36,0.18) 0%, rgba(251,191,36,0.06) 100%)'
+                : 'rgba(255,255,255,0.04)',
+              border: `1px solid ${isLeader ? 'rgba(251,191,36,0.4)' : 'rgba(255,255,255,0.08)'}`,
+              animation: climbed ? 'wb-row-up 1.2s ease-out' : dropped ? 'wb-row-down 1.2s ease-out' : undefined,
+              boxShadow: isLeader ? '0 0 16px rgba(251,191,36,0.25)' : undefined,
+            }}>
+              <span style={{ fontSize: 'clamp(11px, 1vw, 14px)', fontWeight: 800, color: isLeader ? '#fde68a' : '#64748b', fontVariantNumeric: 'tabular-nums' }}>
+                #{rank}
+              </span>
+              <span style={{ fontSize: 'clamp(11px, 1vw, 15px)', fontWeight: 600, color: '#f1f5f9', whiteSpace: 'nowrap' }}>
+                {a.name}
+              </span>
+              <span style={{ fontSize: 'clamp(11px, 1.05vw, 16px)', fontWeight: 800, color: isLeader ? '#fde68a' : '#a5b4fc', fontVariantNumeric: 'tabular-nums' }}>
+                {formatMoney(a.income)}
+              </span>
+              {a.policies > 0 && (
+                <span style={{ fontSize: 'clamp(9px, 0.8vw, 11px)', color: '#64748b', fontWeight: 700 }}>
+                  {a.policies}p
+                </span>
+              )}
+              {climbed && was !== undefined && (
+                <span aria-hidden style={{ fontSize: 10, color: '#10b981', fontWeight: 800 }}>
+                  ▲{was - rank}
+                </span>
+              )}
+              {dropped && was !== undefined && (
+                <span aria-hidden style={{ fontSize: 10, color: '#f87171', fontWeight: 800 }}>
+                  ▼{rank - was}
+                </span>
+              )}
+              {isNew && rank <= 5 && (
+                <span aria-hidden style={{ fontSize: 10, color: '#fbbf24', fontWeight: 800 }}>NEW</span>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ────────────────────────────────────────────────────────────────────────
 //  Podium — top 3 hero cards
 // ────────────────────────────────────────────────────────────────────────
 
@@ -562,13 +678,13 @@ function PodiumCard({ row, rank, heightPct, cols }: { row: Row; rank: number; he
   const emojis  = [...extractEmojis(rawName)].filter(e => e !== myMedal);
   const grad    = avatarColors(name);
 
-  const incomeMtd    = parseMoney(row[cols.incomeMtdCol]);
-  const polMtd       = parseMoney(row[cols.polMtdCol]);
-  const polToday     = parseMoney(row[cols.polTodayCol]);
-  const incomeTodayV = parseMoney(row[cols.incomeTodayCol]);
-  const ipp          = parseMoney(row[cols.ippCol]);
-  const gwp          = parseMoney(row[cols.gwpCol]);
-  const addons       = parseMoney(row[cols.addonsCol]);
+  const incomeMtd = parseMoney(row[cols.incomeMtdCol]);
+  const polMtd    = parseMoney(row[cols.polMtdCol]);
+  const ipp       = parseMoney(row[cols.ippCol]);
+  const gwp       = parseMoney(row[cols.gwpCol]);
+  // addons currently unused on the trimmed podium — leave the column
+  // detection in place so we can re-introduce the stat without rewiring.
+  void cols.addonsCol;
 
   const tier = rank === 1 ? { ring: '#fde68a', ringGlow: 'rgba(251,191,36,0.6)', label: '🥇 1st', labelColor: '#fde68a' }
              : rank === 2 ? { ring: '#e5e7eb', ringGlow: 'rgba(229,231,235,0.45)', label: '🥈 2nd', labelColor: '#e5e7eb' }
@@ -623,15 +739,13 @@ function PodiumCard({ row, rank, heightPct, cols }: { row: Row; rank: number; he
         <div style={{ fontSize: 'clamp(8px, 0.75vw, 11px)', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.14em', marginTop: 3 }}>Income MTD</div>
       </div>
 
-      {/* Compact stat row. Label every value with TODAY or MTD so there's
-          never any ambiguity about the time period at a glance from across
-          the room. */}
+      {/* Compact stat row — MTD only. Today's leaderboard up top covers
+          the daily race; the podium is about the month-long position. */}
       {(() => {
         const stats: Array<{ label: string; value: string }> = [];
-        if (cols.incomeTodayCol) stats.push({ label: 'Income Today',  value: formatMoney(incomeTodayV) });
-        if (cols.polTodayCol)    stats.push({ label: 'Pols Today',    value: String(Math.round(polToday)) });
-        if (cols.polMtdCol)      stats.push({ label: 'Pols MTD',      value: String(Math.round(polMtd)) });
-        if (rank === 1 && cols.gwpCol) stats.push({ label: 'GWP MTD', value: formatMoney(gwp) });
+        if (cols.polMtdCol)            stats.push({ label: 'Pols MTD', value: String(Math.round(polMtd)) });
+        if (cols.ippCol  && ipp > 0)   stats.push({ label: 'IPP',      value: formatMoney(ipp) });
+        if (cols.gwpCol  && gwp > 0)   stats.push({ label: 'GWP MTD',  value: formatMoney(gwp) });
         if (stats.length === 0) return null;
         return (
           <div style={{ display: 'flex', gap: 'clamp(10px, 1.2vw, 22px)', justifyContent: 'center', flexWrap: 'wrap' }}>
@@ -720,9 +834,7 @@ function AgentCard({ row, rank, cols, leaderIncome }: { row: Row; rank: number; 
   const grad    = avatarColors(name);
 
   const incomeMtd     = parseMoney(row[cols.incomeMtdCol]);
-  const incomeTodayV  = parseMoney(row[cols.incomeTodayCol]);
   const polMtd        = parseMoney(row[cols.polMtdCol]);
-  const polToday      = parseMoney(row[cols.polTodayCol]);
   const ipp           = parseMoney(row[cols.ippCol]);
   const gwp           = parseMoney(row[cols.gwpCol]);
   const bracket       = bracketFor(incomeMtd);
@@ -750,48 +862,27 @@ function AgentCard({ row, rank, cols, leaderIncome }: { row: Row; rank: number; 
         </div>
       </div>
 
-      {/* Two hero numbers side by side — MTD on the left, Today on the
-          right — so at a glance you can see both this agent's month
-          total and what they've added today. Today's number is tinted
-          gold when >0 to make progress visually pop on the floor. */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
-        <div style={{ minWidth: 0 }}>
-          <div style={{ fontSize: 'clamp(20px, 2vw, 32px)', fontWeight: 900, color: '#e2e8f0', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>
-            {formatMoney(incomeMtd)}
-          </div>
-          <div style={{ fontSize: 'clamp(8px, 0.7vw, 11px)', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.12em', marginTop: 2 }}>
-            Income MTD
-          </div>
+      {/* MTD-only main tile. Today's stats live in the linear leaderboard
+          strip up top where their constant up/down movement makes more
+          sense than crowding every card. */}
+      <div>
+        <div style={{ fontSize: 'clamp(20px, 2vw, 32px)', fontWeight: 900, color: '#e2e8f0', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>
+          {formatMoney(incomeMtd)}
         </div>
-        {cols.incomeTodayCol && (
-          <div style={{ textAlign: 'right', minWidth: 0 }}>
-            <div style={{
-              fontSize: 'clamp(16px, 1.6vw, 26px)', fontWeight: 900,
-              color: incomeTodayV > 0 ? '#fde68a' : '#475569',
-              textShadow: incomeTodayV > 0 ? '0 0 14px rgba(251,191,36,0.3)' : undefined,
-              fontVariantNumeric: 'tabular-nums', lineHeight: 1,
-            }}>
-              {formatMoney(incomeTodayV)}
-            </div>
-            <div style={{ fontSize: 'clamp(8px, 0.7vw, 11px)', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.12em', marginTop: 2 }}>
-              Income Today
-            </div>
-          </div>
-        )}
+        <div style={{ fontSize: 'clamp(8px, 0.7vw, 11px)', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.12em', marginTop: 2 }}>
+          Income MTD
+        </div>
       </div>
 
-      {/* Mini-stat row — MTD labels throughout (Policies Today handled
-          alongside Income Today at the top if needed, but with the two
-          hero figures above this row focuses on the cumulative breakdown). */}
+      {/* Mini-stat row — pure cumulative breakdown */}
       <div style={{
         display: 'flex', justifyContent: 'space-between', gap: 4,
         fontSize: 'clamp(9px, 0.85vw, 12px)', color: '#94a3b8',
         fontVariantNumeric: 'tabular-nums', lineHeight: 1.2, flexWrap: 'wrap',
       }}>
-        {cols.polMtdCol   && <span><strong style={{ color: '#cbd5e1' }}>{Math.round(polMtd)}</strong> pols MTD</span>}
-        {cols.polTodayCol && polToday > 0 && <span style={{ color: '#a5b4fc' }}><strong>+{polToday}</strong> pols today</span>}
-        {cols.ippCol      && ipp > 0 && <span><strong style={{ color: '#cbd5e1' }}>{formatMoney(ipp)}</strong> IPP</span>}
-        {cols.gwpCol      && gwp > 0 && <span><strong style={{ color: '#cbd5e1' }}>{formatMoney(gwp)}</strong> GWP MTD</span>}
+        {cols.polMtdCol && <span><strong style={{ color: '#cbd5e1' }}>{Math.round(polMtd)}</strong> pols MTD</span>}
+        {cols.ippCol    && ipp > 0 && <span><strong style={{ color: '#cbd5e1' }}>{formatMoney(ipp)}</strong> IPP</span>}
+        {cols.gwpCol    && gwp > 0 && <span><strong style={{ color: '#cbd5e1' }}>{formatMoney(gwp)}</strong> GWP MTD</span>}
       </div>
 
       {/* Commission bracket progress — shows how close this agent is to the
