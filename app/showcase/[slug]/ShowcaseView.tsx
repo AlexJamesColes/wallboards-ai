@@ -11,8 +11,11 @@ interface Props { board: WbBoard; widgetId: string; }
 //  Config + helpers
 // ────────────────────────────────────────────────────────────────────────
 
-const TEAM_TARGET_MTD = 500_000;     // £ target for the header banner
-const POLL_MS         = 60_000;      // same cadence as widgets
+// Default monthly income target when no ?target= query param is supplied.
+// For London sales this is roughly half of the combined London + Guildford
+// NB budget (~£2.59M); can always be overridden per-TV via the URL.
+const DEFAULT_TEAM_TARGET = 1_300_000;
+const POLL_MS             = 60_000;
 
 /** Deterministic colour for an avatar based on name — same person always
  *  gets the same gradient, but faces around the board feel varied. */
@@ -96,6 +99,23 @@ function useTimeTicker(periodMs: number): number {
   return 0;
 }
 
+/**
+ * Team income target — read from the URL's ?target= query param, otherwise
+ * the compile-time default. Lets individual TVs show different targets
+ * (e.g. the London wallboard shows the London-only split of the combined
+ * L+G budget) without a redeploy.
+ */
+function useTeamTarget(): number {
+  const [val, setVal] = useState<number>(DEFAULT_TEAM_TARGET);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const q = new URLSearchParams(window.location.search).get('target');
+    const n = q ? Number(q) : NaN;
+    if (Number.isFinite(n) && n > 0) setVal(n);
+  }, []);
+  return val;
+}
+
 // ────────────────────────────────────────────────────────────────────────
 //  Main view
 // ────────────────────────────────────────────────────────────────────────
@@ -105,6 +125,7 @@ export default function ShowcaseView({ board, widgetId }: Props) {
   const [error, setError]     = useState<string | null>(null);
   const prevRef               = useRef<Map<string, Snapshot>>(new Map());
   const [tickerItems, setTicker] = useState<TickerItem[]>([]);
+  const teamTarget            = useTeamTarget();
   useTimeTicker(1000);                // drive the countdown re-render
   useAutoReloadOnDeploy();
 
@@ -277,7 +298,7 @@ export default function ShowcaseView({ board, widgetId }: Props) {
   const sortedRows = [...data.rows].sort((a, b) => parseMoney(b[incomeMtdCol]) - parseMoney(a[incomeMtdCol]));
 
   const teamTotal   = sortedRows.reduce((s, r) => s + parseMoney(r[incomeMtdCol]), 0);
-  const targetPct   = Math.min(100, Math.round((teamTotal / TEAM_TARGET_MTD) * 100));
+  const targetPct   = Math.min(100, Math.round((teamTotal / teamTarget) * 100));
 
   const top3 = sortedRows.slice(0, 3);
   const rest = sortedRows.slice(3);
@@ -296,7 +317,7 @@ export default function ShowcaseView({ board, widgetId }: Props) {
         <div aria-hidden style={{ position: 'absolute', bottom: '-20%', right: '-10%', width: '50vw', height: '50vw', background: 'radial-gradient(circle, rgba(168,85,247,0.10) 0%, transparent 60%)', pointerEvents: 'none' }} />
 
         {/* ── Header ───────────────────────────────────────────────── */}
-        <Header boardName={board.name} teamTotal={teamTotal} targetPct={targetPct} />
+        <Header boardName={board.name} teamTotal={teamTotal} target={teamTarget} targetPct={targetPct} />
 
         {/* ── Podium ───────────────────────────────────────────────── */}
         <Podium
@@ -323,8 +344,8 @@ export default function ShowcaseView({ board, widgetId }: Props) {
 //  Header with team target + countdown
 // ────────────────────────────────────────────────────────────────────────
 
-function Header({ boardName, teamTotal, targetPct }: {
-  boardName: string; teamTotal: number; targetPct: number;
+function Header({ boardName, teamTotal, target, targetPct }: {
+  boardName: string; teamTotal: number; target: number; targetPct: number;
 }) {
   const now       = new Date();
   const endOfDay  = new Date(now);
@@ -359,7 +380,7 @@ function Header({ boardName, teamTotal, targetPct }: {
           <span style={{ fontSize: 'clamp(18px, 2vw, 32px)', fontWeight: 900, color: '#fde68a', fontVariantNumeric: 'tabular-nums' }}>
             {formatMoney(teamTotal)}
           </span>
-          <span style={{ fontSize: 'clamp(12px, 1.1vw, 16px)', color: '#64748b' }}>of {formatMoney(TEAM_TARGET_MTD)}</span>
+          <span style={{ fontSize: 'clamp(12px, 1.1vw, 16px)', color: '#64748b' }}>of {formatMoney(target)}</span>
           <span style={{ marginLeft: 'auto', fontSize: 'clamp(14px, 1.5vw, 22px)', fontWeight: 800, color: targetPct >= 100 ? '#10b981' : '#a5b4fc' }}>
             {targetPct}%
           </span>
@@ -553,18 +574,32 @@ function Avatar({ name, size, gradient }: { name: string; size: string; gradient
 function AgentGrid({ rows, startIndex, cols, teamLeaderIncome }: {
   rows: Row[]; startIndex: number; cols: ColMap; teamLeaderIncome: number;
 }) {
+  // Give cards a firm minimum height so they can actually breathe — content
+  // (avatar + big number + progress bar + emoji shelf) needs ~110px. The
+  // inner grid scrolls when there are more agents than fit on the viewport,
+  // but in practice we never scroll on a TV because the outer page hides
+  // overflow; the important bit is that cards always render at the right
+  // size rather than getting crushed to pill shapes.
   return (
     <div style={{
-      flex: 1, minHeight: 0, padding: 'clamp(16px, 2vh, 28px) clamp(20px, 3vw, 60px) 0',
-      display: 'grid',
-      gridTemplateColumns: 'repeat(auto-fill, minmax(clamp(200px, 19vw, 300px), 1fr))',
-      gridAutoRows: 'minmax(0, 1fr)',
-      gap: 'clamp(10px, 1.2vh, 16px)',
-      overflow: 'hidden', position: 'relative', zIndex: 1,
+      flex: 1, minHeight: 0,
+      padding: 'clamp(16px, 2vh, 28px) clamp(20px, 3vw, 60px) 0',
+      overflowY: 'auto',
+      position: 'relative', zIndex: 1,
+      // Hide the scrollbar — TVs can't scroll anyway, this just prevents a
+      // visible track.
+      scrollbarWidth: 'none',
     }}>
-      {rows.map((row, i) => (
-        <AgentCard key={String(row[cols.nameCol])} row={row} rank={startIndex + i} cols={cols} leaderIncome={teamLeaderIncome} />
-      ))}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fill, minmax(clamp(200px, 19vw, 300px), 1fr))',
+        gridAutoRows: 'minmax(clamp(104px, 13vh, 140px), auto)',
+        gap: 'clamp(10px, 1.2vh, 16px)',
+      }}>
+        {rows.map((row, i) => (
+          <AgentCard key={String(row[cols.nameCol])} row={row} rank={startIndex + i} cols={cols} leaderIncome={teamLeaderIncome} />
+        ))}
+      </div>
     </div>
   );
 }
