@@ -275,6 +275,55 @@ function CelebrationOverlay({ agents, onDone }: { agents: HighlightRow[]; onDone
           ))}
         </div>
       </div>
+
+      {/* Emoji explosion — rendered at the dialog level (sibling to the
+          card) so it can fly OUT past the card edges and over the blurred
+          backdrop without being clipped. Keyed on idx so each new slide
+          gets a fresh burst. */}
+      <EmojiBurst key={`emoji-${idx}`} agent={agent} />
+    </div>
+  );
+}
+
+/** Standalone emoji firework burst, full-viewport so emojis can fly past
+ *  the card boundary into the dimmed backdrop. */
+function EmojiBurst({ agent }: { agent: HighlightRow }) {
+  if (agent.emojis.length === 0) return null;
+  const seed  = hash(agent.name);
+  const count = Math.max(agent.emojis.length, 1);
+  // Smaller font when many emojis stack so they don't crowd the text
+  const fontSize = count >= 7 ? 'clamp(34px, 4.5vw, 78px)' : 'clamp(42px, 5.5vw, 100px)';
+
+  return (
+    <div aria-hidden style={{
+      position: 'absolute', inset: 0,
+      pointerEvents: 'none',
+      // Don't clip — let emojis fly anywhere on the screen.
+      overflow: 'visible',
+    }}>
+      {agent.emojis.map((emoji, i) => {
+        const angle  = (seed + i * 360 / count) * (Math.PI / 180);
+        // Bigger radius now (50-65vmin) so emojis clear the card and
+        // don't crowd the agent's name in the centre.
+        const radius = 50 + ((seed * (i + 3)) % 16);
+        const dx     = Math.cos(angle) * radius;
+        const dy     = Math.sin(angle) * radius * 0.7;
+        const spin   = ((seed + i * 97) % 720) - 360;
+        const delay  = i * 0.08;
+        return (
+          <span key={i} style={{
+            position: 'absolute', left: '50%', top: '50%',
+            fontSize,
+            animation: `wb-celeb-emoji 2.6s ${delay}s cubic-bezier(0.22, 1, 0.36, 1) forwards`,
+            ['--dx'   as any]: `${dx}vmin`,
+            ['--dy'   as any]: `${dy}vmin`,
+            ['--spin' as any]: `${spin}deg`,
+            filter: 'drop-shadow(0 4px 18px rgba(0,0,0,0.5))',
+          }}>
+            {emoji}
+          </span>
+        );
+      })}
     </div>
   );
 }

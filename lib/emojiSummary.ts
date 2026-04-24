@@ -54,10 +54,45 @@ export function summarizeAgent(emojis: string[]): string {
 
   if (parts.length === 0) return '';
 
-  // ── Prefix sets the energy level based on how many awards stack ─────
-  const prefix = parts.length >= 3 ? 'On absolute fire — '
-               : parts.length === 2 ? 'Having a belter — '
-               :                      'Smashing it — ';
+  // ── Prefix pools per intensity level ────────────────────────────────
+  // Pick deterministically by name so the same agent reads consistently
+  // within a single celebration cycle but different agents (and the same
+  // agent on different days, since name + emoji-set forms the seed) get
+  // different opening phrases — keeps the slideshow from feeling like a
+  // template.
+  const PREFIXES_LOW: string[] = [
+    'Smashing it — ',
+    'Top form — ',
+    'Loving this — ',
+    'Stepping up — ',
+    'Quietly killing it — ',
+    'Putting in the work — ',
+  ];
+  const PREFIXES_MID: string[] = [
+    'Having a belter — ',
+    'Two crowns today — ',
+    'On a tear — ',
+    'Stacking the wins — ',
+    'Riding high — ',
+    'Doubling down — ',
+  ];
+  const PREFIXES_HIGH: string[] = [
+    'On absolute fire — ',
+    'Putting on a clinic — ',
+    'Untouchable today — ',
+    'Taking no prisoners — ',
+    'Owning the floor — ',
+    'Stratospheric — ',
+  ];
+
+  const pool = parts.length >= 3 ? PREFIXES_HIGH
+             : parts.length === 2 ? PREFIXES_MID
+             :                       PREFIXES_LOW;
+  // Tiny deterministic hash so the same combo always yields the same line
+  const seed = [...emojis].sort().join('') + parts.length;
+  let h = 0;
+  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) | 0;
+  const prefix = pool[Math.abs(h) % pool.length];
 
   // ── Natural "A, B, and C" join ──────────────────────────────────────
   let joined: string;

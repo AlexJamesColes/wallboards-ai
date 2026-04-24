@@ -90,14 +90,11 @@ interface TickerItem {
 //  Hour-ticking clock
 // ────────────────────────────────────────────────────────────────────────
 
-function useTimeTicker(periodMs: number): number {
-  const [, setT] = useState(0);
-  useEffect(() => {
-    const iv = setInterval(() => setT(t => t + 1), periodMs);
-    return () => clearInterval(iv);
-  }, [periodMs]);
-  return 0;
-}
+// (useTimeTicker was used at the parent level which forced the ENTIRE
+// showcase tree to re-render every second just for the clock + countdown.
+// Now each clock-driven component has its own contained ticker — see
+// <Clock /> and <DayCountdown /> — so the heavy bits (podium, agent grid,
+// today strip) only re-render when their data actually changes.)
 
 /**
  * "Laziest Manager" comedy slide — same endpoint the classic kiosk uses.
@@ -150,7 +147,6 @@ export default function ShowcaseView({ board, widgetId }: Props) {
   const [tickerItems, setTicker] = useState<TickerItem[]>([]);
   const teamTarget            = useTeamTarget();
   const laziestSlide          = useLaziestManagerSlide();
-  useTimeTicker(1000);                // drive the countdown re-render
   useAutoReloadOnDeploy();
 
   // Poll /api/alerts for anything IT has pushed (Teams webhook forwards etc.)
@@ -292,23 +288,8 @@ export default function ShowcaseView({ board, widgetId }: Props) {
     prevRef.current = current;
   }, [data]);
 
-  if (error) {
-    return (
-      <div style={{ minHeight: '100vh', background: '#0a0f1c', color: '#f87171',
-                   display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 40 }}>
-        Could not load wallboard data: {error}
-      </div>
-    );
-  }
-
-  if (!data) {
-    return (
-      <div style={{ minHeight: '100vh', background: '#0a0f1c', color: '#94a3b8',
-                   display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 40 }}>
-        Loading…
-      </div>
-    );
-  }
+  if (error)  return <BrandedSplash boardName={board.name} state="error" detail={error} />;
+  if (!data)  return <BrandedSplash boardName={board.name} state="loading" />;
 
   // Decode columns for this board
   const cols         = data.columns;
@@ -422,46 +403,35 @@ export default function ShowcaseView({ board, widgetId }: Props) {
 function Header({ boardName, teamTotal, target, targetPct }: {
   boardName: string; teamTotal: number; target: number; targetPct: number;
 }) {
-  const now       = new Date();
-  const endOfDay  = new Date(now);
-  endOfDay.setHours(18, 0, 0, 0);                                // 6 PM close
-  const msLeft    = Math.max(0, endOfDay.getTime() - now.getTime());
-  const hrsLeft   = Math.floor(msLeft / 3_600_000);
-  const minsLeft  = Math.floor((msLeft % 3_600_000) / 60_000);
-  const isUrgent  = msLeft > 0 && msLeft < 3_600_000;            // under an hour
-
   return (
     <div style={{
-      display: 'flex', alignItems: 'center', gap: 24,
-      padding: 'clamp(12px, 1.6vh, 22px) clamp(20px, 2vw, 40px)',
+      display: 'flex', alignItems: 'center', gap: 18,
+      padding: 'clamp(6px, 0.8vh, 12px) clamp(16px, 1.8vw, 32px)',
       borderBottom: '1px solid rgba(255,255,255,0.06)',
       background: 'rgba(10,15,28,0.5)', backdropFilter: 'blur(12px)',
       flexShrink: 0, zIndex: 2,
     }}>
-      {/* Board name */}
-      <div style={{ flexShrink: 0 }}>
-        <div style={{ fontSize: 'clamp(10px, 0.9vw, 14px)', fontWeight: 700, color: '#64748b', letterSpacing: '0.2em', textTransform: 'uppercase' }}>
-          Live Wallboard
-        </div>
-        <div style={{ fontSize: 'clamp(18px, 1.8vw, 28px)', fontWeight: 800, color: '#f1f5f9', marginTop: 2 }}>
+      {/* Board name — compact one-line */}
+      <div style={{ flexShrink: 0, lineHeight: 1.2 }}>
+        <div style={{ fontSize: 'clamp(15px, 1.4vw, 22px)', fontWeight: 800, color: '#f1f5f9' }}>
           {boardName}
         </div>
       </div>
 
-      {/* Team target progress bar */}
+      {/* Team target progress bar — slimmer */}
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 6 }}>
-          <span style={{ fontSize: 'clamp(11px, 1vw, 15px)', color: '#94a3b8', fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase' }}>Team · this month</span>
-          <span style={{ fontSize: 'clamp(18px, 2vw, 32px)', fontWeight: 900, color: '#fde68a', fontVariantNumeric: 'tabular-nums' }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 4 }}>
+          <span style={{ fontSize: 'clamp(10px, 0.9vw, 13px)', color: '#94a3b8', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Team · MTD</span>
+          <span style={{ fontSize: 'clamp(15px, 1.6vw, 24px)', fontWeight: 900, color: '#fde68a', fontVariantNumeric: 'tabular-nums' }}>
             {formatMoney(teamTotal)}
           </span>
-          <span style={{ fontSize: 'clamp(12px, 1.1vw, 16px)', color: '#64748b' }}>of {formatMoney(target)}</span>
-          <span style={{ marginLeft: 'auto', fontSize: 'clamp(14px, 1.5vw, 22px)', fontWeight: 800, color: targetPct >= 100 ? '#10b981' : '#a5b4fc' }}>
+          <span style={{ fontSize: 'clamp(11px, 1vw, 14px)', color: '#64748b' }}>of {formatMoney(target)}</span>
+          <span style={{ marginLeft: 'auto', fontSize: 'clamp(12px, 1.2vw, 18px)', fontWeight: 800, color: targetPct >= 100 ? '#10b981' : '#a5b4fc' }}>
             {targetPct}%
           </span>
         </div>
         <div style={{
-          height: 'clamp(10px, 1.3vh, 18px)', borderRadius: 99,
+          height: 'clamp(6px, 0.8vh, 11px)', borderRadius: 99,
           background: 'rgba(255,255,255,0.06)', overflow: 'hidden', position: 'relative',
         }}>
           <div style={{
@@ -469,28 +439,138 @@ function Header({ boardName, teamTotal, target, targetPct }: {
             background: targetPct >= 100
               ? 'linear-gradient(90deg, #10b981 0%, #34d399 50%, #fbbf24 100%)'
               : 'linear-gradient(90deg, #6366f1 0%, #a855f7 50%, #fbbf24 100%)',
-            boxShadow: '0 0 20px rgba(251,191,36,0.35)',
+            boxShadow: '0 0 16px rgba(251,191,36,0.3)',
             transition: 'width 1.2s cubic-bezier(0.34, 1.56, 0.64, 1)',
           }} />
         </div>
       </div>
 
-      {/* Countdown + clock */}
-      <div style={{ textAlign: 'right', flexShrink: 0 }}>
+      {/* Countdown + clock — own internal tick. */}
+      <DayCountdown />
+    </div>
+  );
+}
+
+/** Self-contained countdown to 6pm + clock + celebration timer. Owns its
+ *  own setInterval so the parent ShowcaseView only re-renders when actual
+ *  data changes (not every second just for the clock). */
+function DayCountdown() {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const iv = setInterval(() => setNow(Date.now()), 30_000); // 30s — fine for hr/min display
+    return () => clearInterval(iv);
+  }, []);
+
+  const date     = new Date(now);
+  const endOfDay = new Date(date);
+  endOfDay.setHours(18, 0, 0, 0);
+  const msLeft   = Math.max(0, endOfDay.getTime() - date.getTime());
+  const closed   = msLeft === 0;
+  const hrsLeft  = Math.floor(msLeft / 3_600_000);
+  const minsLeft = Math.floor((msLeft % 3_600_000) / 60_000);
+  const isUrgent = !closed && msLeft < 3_600_000;
+
+  return (
+    <div style={{ textAlign: 'right', flexShrink: 0 }}>
+      <div style={{
+        fontSize: 'clamp(10px, 0.9vw, 14px)', fontWeight: 700,
+        color: closed ? '#10b981' : isUrgent ? '#fbbf24' : '#64748b',
+        letterSpacing: '0.2em', textTransform: 'uppercase',
+        animation: isUrgent ? 'wb-celeb-banner 1.2s ease-in-out infinite' : undefined,
+      }}>
+        {closed ? 'Day done · see you Mon' : 'Time left today'}
+      </div>
+      <div style={{
+        fontSize: 'clamp(18px, 1.8vw, 28px)', fontWeight: 900,
+        color: closed ? '#10b981' : isUrgent ? '#fbbf24' : '#f1f5f9',
+        fontVariantNumeric: 'tabular-nums', marginTop: 2,
+      }}>
+        {closed ? '🎉' : `${hrsLeft}h ${String(minsLeft).padStart(2, '0')}m`}
+      </div>
+      <div style={{ marginTop: 4, display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+        <CelebrationCountdown />
+        <Clock />
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Branded full-screen state — used for both initial load and any data
+ * fetch error. Shows the InsureTec wordmark + the board name + a status
+ * line so a TV that's slow to load doesn't read as "broken" to anyone
+ * walking past during a presentation.
+ */
+function BrandedSplash({ boardName, state, detail }: {
+  boardName: string;
+  state: 'loading' | 'error';
+  detail?: string;
+}) {
+  return (
+    <div style={{
+      width: '100vw', height: '100vh',
+      background: 'radial-gradient(ellipse at 20% 10%, #1a1f3a 0%, #0a0f1c 60%, #050813 100%)',
+      color: '#f1f5f9', fontFamily: 'var(--font-raleway, sans-serif)',
+      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+      gap: 24, position: 'relative', overflow: 'hidden',
+    }}>
+      {/* Ambient glow */}
+      <div aria-hidden style={{
+        position: 'absolute', inset: 0,
+        background: 'radial-gradient(circle at 50% 50%, rgba(99,102,241,0.18) 0%, transparent 60%)',
+        animation: 'wb-celeb-burst 4s ease-out infinite',
+      }} />
+
+      {/* InsureTec wordmark */}
+      <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 16 }}>
         <div style={{
-          fontSize: 'clamp(10px, 0.9vw, 14px)', fontWeight: 700,
-          color: isUrgent ? '#fbbf24' : '#64748b', letterSpacing: '0.2em', textTransform: 'uppercase',
-          animation: isUrgent ? 'wb-celeb-banner 1.2s ease-in-out infinite' : undefined,
+          width: 56, height: 56, borderRadius: 14,
+          background: 'rgba(99,102,241,0.18)',
+          border: '1.5px solid rgba(99,102,241,0.4)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}>
-          {msLeft === 0 ? 'Closed' : 'Time left today'}
+          <svg width="30" height="30" viewBox="0 0 28 28" fill="none">
+            <rect x="2" y="4" width="24" height="16" rx="2.5" stroke="#a5b4fc" strokeWidth="1.8" fill="none" />
+            <rect x="9.5" y="12" width="2.5" height="6" rx="0.5" fill="#a5b4fc" opacity="0.8" />
+            <rect x="13.5" y="9"  width="2.5" height="9" rx="0.5" fill="#a5b4fc" />
+            <rect x="17.5" y="11" width="2.5" height="7" rx="0.5" fill="#a5b4fc" opacity="0.8" />
+          </svg>
         </div>
-        <div style={{ fontSize: 'clamp(18px, 1.8vw, 28px)', fontWeight: 900, color: isUrgent ? '#fbbf24' : '#f1f5f9', fontVariantNumeric: 'tabular-nums', marginTop: 2 }}>
-          {msLeft === 0 ? '—' : `${hrsLeft}h ${String(minsLeft).padStart(2, '0')}m`}
+        <div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: '#64748b', letterSpacing: '0.25em', textTransform: 'uppercase' }}>InsureTec</div>
+          <div style={{ fontSize: 28, fontWeight: 800, color: '#f1f5f9', marginTop: 2 }}>Wallboards</div>
         </div>
-        <div style={{ marginTop: 4, display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
-          <CelebrationCountdown />
-          <Clock />
-        </div>
+      </div>
+
+      {/* Board name */}
+      <div style={{ fontSize: 'clamp(18px, 1.6vw, 26px)', fontWeight: 600, color: '#94a3b8', position: 'relative', textAlign: 'center', padding: '0 24px' }}>
+        {boardName}
+      </div>
+
+      {/* Status line */}
+      <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 10, marginTop: 12 }}>
+        {state === 'loading' ? (
+          <>
+            <span style={{
+              width: 10, height: 10, borderRadius: '50%',
+              background: '#a5b4fc',
+              boxShadow: '0 0 12px rgba(99,102,241,0.7)',
+              animation: 'wb-celeb-banner 1.4s ease-in-out infinite',
+            }} />
+            <span style={{ fontSize: 13, fontWeight: 600, color: '#64748b', letterSpacing: '0.18em', textTransform: 'uppercase' }}>
+              Connecting to live data…
+            </span>
+          </>
+        ) : (
+          <div style={{ textAlign: 'center', maxWidth: 600, padding: '0 24px' }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#f87171', letterSpacing: '0.18em', textTransform: 'uppercase' }}>
+              Couldn't reach the data source
+            </div>
+            <div style={{ fontSize: 12, color: '#475569', marginTop: 8 }}>
+              {detail || 'Retrying automatically — keep this screen on.'}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -577,9 +657,8 @@ function TodayStrip({ rows, cols }: {
         </span>
       </div>
 
-      {/* All pills in one wrapping row. Booked agents first (gold tint on
-          leader), zero-today agents in a greyed pill so they can see
-          themselves and know they need to open. */}
+      {/* Booked agents first — own wrapping row so they read as the
+          "race in progress" group without being mixed in with zeros. */}
       <div style={{
         display: 'flex', flexWrap: 'wrap',
         gap: 'clamp(4px, 0.5vw, 8px) clamp(5px, 0.6vw, 10px)',
@@ -639,24 +718,12 @@ function TodayStrip({ rows, cols }: {
             </div>
           );
         })}
-        {zeros.map(a => (
-          <div key={'z|' + a.name} style={{
-            display: 'inline-flex', alignItems: 'center', gap: 5,
-            padding: 'clamp(3px, 0.4vh, 6px) clamp(7px, 0.8vw, 11px)',
-            borderRadius: 99, flexShrink: 0,
-            background: 'rgba(255,255,255,0.025)',
-            border: '1px solid rgba(255,255,255,0.06)',
-            opacity: 0.78,
-          }}>
-            <span style={{ fontSize: 'clamp(10px, 0.9vw, 14px)', fontWeight: 600, color: '#94a3b8', whiteSpace: 'nowrap' }}>
-              {a.name}
-            </span>
-            <span style={{ fontSize: 'clamp(10px, 0.85vw, 13px)', fontWeight: 700, color: '#475569', fontVariantNumeric: 'tabular-nums' }}>
-              £0 · 0
-            </span>
-          </div>
-        ))}
       </div>
+
+      {/* The headline above already says "X on the board · Y still to
+          open" — the count is enough motivation, no need to list every
+          £0 agent individually (saves vertical space for the actual
+          race up top). */}
     </div>
   );
 }
@@ -721,13 +788,13 @@ function bracketFor(income: number): BracketState {
 function Podium({ rows, cols }: { rows: Row[]; cols: ColMap }) {
   if (rows.length === 0) return null;
 
-  // Re-arrange so #2 is left, #1 centre, #3 right. Visual hierarchy comes
-  // from the leader being slightly taller + the gold ring/pulse, not from
-  // huge size differences.
+  // Re-arrange so #2 is left, #1 centre, #3 right. The leader is now
+  // properly taller (1.0 vs 0.78/0.7) so a glance from across the room
+  // reads "who's #1" without needing to compare numbers.
   const arranged: Array<{ row: Row; rank: number; height: number }> = [];
-  if (rows[1]) arranged.push({ row: rows[1], rank: 2, height: 0.92 });
+  if (rows[1]) arranged.push({ row: rows[1], rank: 2, height: 0.78 });
   if (rows[0]) arranged.push({ row: rows[0], rank: 1, height: 1.00 });
-  if (rows[2]) arranged.push({ row: rows[2], rank: 3, height: 0.86 });
+  if (rows[2]) arranged.push({ row: rows[2], rank: 3, height: 0.70 });
 
   return (
     <div style={{
@@ -1030,7 +1097,7 @@ function ActivityTicker({ items }: { items: TickerItem[] }) {
         background: 'rgba(10,15,28,0.6)', backdropFilter: 'blur(10px)',
         fontSize: 'clamp(12px, 1.1vw, 15px)', color: '#475569', fontWeight: 600, letterSpacing: '0.15em', textTransform: 'uppercase',
       }}>
-        🛰️ Watching the floor…
+        🛰️ Live · waiting for the next big move
       </div>
     );
   }

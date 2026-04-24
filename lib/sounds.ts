@@ -14,8 +14,20 @@
 
 let audioCtx: AudioContext | null = null;
 
+/** True when the URL contains ?sound=off — TVs in a quiet office can
+ *  silence celebrations without a redeploy. Cached on first call. */
+let muteCache: boolean | null = null;
+function isMuted(): boolean {
+  if (typeof window === 'undefined') return true;
+  if (muteCache !== null) return muteCache;
+  const v = new URLSearchParams(window.location.search).get('sound');
+  muteCache = v === 'off' || v === '0' || v === 'false';
+  return muteCache;
+}
+
 function ctx(): AudioContext | null {
   if (typeof window === 'undefined') return null;
+  if (isMuted()) return null;
   if (audioCtx) return audioCtx;
   const Ctor = window.AudioContext || (window as any).webkitAudioContext;
   if (!Ctor) return null;
