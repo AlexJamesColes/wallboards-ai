@@ -158,7 +158,7 @@ export function CelebrationRegistrar({
 // Overlay — sequences through agents, 3.2s per agent
 // ────────────────────────────────────────────────────────────────────────
 
-const PER_AGENT_MS = 5000;
+const PER_AGENT_MS = 7000;
 
 /** Heuristic for "is this a comedy/joke slide?" — trigger womp-womp instead
  *  of the triumphant chime. */
@@ -223,7 +223,7 @@ function CelebrationOverlay({ agents, onDone }: { agents: HighlightRow[]; onDone
         alignItems: 'center', justifyContent: 'center',
         pointerEvents: 'none',
         animation: (isFirst ? 'wb-celeb-backdrop-in 0.4s ease-out forwards'
-                  : isLast  ? 'wb-celeb-backdrop-out 0.5s 4.4s ease-in forwards'
+                  : isLast  ? 'wb-celeb-backdrop-out 0.5s 6.4s ease-in forwards'
                   :           'none'),
       }}
     >
@@ -269,7 +269,7 @@ function AgentSlide({ agent, isFirst, summary }: { agent: HighlightRow; isFirst:
         fontSize: 'clamp(16px, 2vw, 28px)', fontWeight: 700,
         color: '#fbbf24', letterSpacing: '0.35em', textTransform: 'uppercase',
         textShadow: '0 0 24px rgba(251,191,36,0.6)',
-        animation: 'wb-celeb-banner 5s ease-out forwards',
+        animation: 'wb-celeb-banner 7s ease-out forwards',
         whiteSpace: 'nowrap',
       }}>
         {agent.banner ? agent.banner : '⭐  Hall of Fame  ⭐'}
@@ -285,36 +285,13 @@ function AgentSlide({ agent, isFirst, summary }: { agent: HighlightRow; isFirst:
           animation: 'wb-celeb-burst 2s ease-out forwards',
         }} />
 
-        {/* Rank badge — e.g. "#1" above the name. Colour tints by podium
-            tier (gold / silver / bronze) so the position reads instantly. */}
-        {typeof agent.rank === 'number' && agent.rank > 0 && (() => {
-          const tier = agent.rank === 1 ? { fg: '#fde68a', glow: 'rgba(251,191,36,0.55)' }
-                     : agent.rank === 2 ? { fg: '#e5e7eb', glow: 'rgba(229,231,235,0.45)' }
-                     : agent.rank === 3 ? { fg: '#fdba74', glow: 'rgba(253,186,116,0.45)' }
-                     :                    { fg: '#a5b4fc', glow: 'rgba(99,102,241,0.45)' };
-          return (
-            <div style={{
-              position: 'relative',
-              fontSize: 'clamp(20px, 2.4vw, 40px)',
-              fontWeight: 900,
-              letterSpacing: '0.12em',
-              color: tier.fg,
-              textShadow: `0 0 22px ${tier.glow}`,
-              marginBottom: 'clamp(4px, 0.8vh, 10px)',
-              animation: 'wb-celeb-stats 5s ease-out forwards',
-            }}>
-              #{agent.rank}
-            </div>
-          );
-        })()}
-
         <div style={{
           position: 'relative',
           fontSize: 'clamp(48px, 8vw, 140px)',
           fontWeight: 900,
           color: '#f1f5f9',
           textShadow: '0 6px 40px rgba(99,102,241,0.55)',
-          animation: 'wb-celeb-name 5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards',
+          animation: 'wb-celeb-name 7s cubic-bezier(0.34, 1.56, 0.64, 1) forwards',
           padding: '0 4vw',
         }}>
           {nameClean || 'Unknown agent'}
@@ -326,7 +303,7 @@ function AgentSlide({ agent, isFirst, summary }: { agent: HighlightRow; isFirst:
             marginTop: 'clamp(16px, 2vh, 28px)',
             display: 'flex', gap: 'clamp(24px, 4vw, 60px)',
             justifyContent: 'center',
-            animation: 'wb-celeb-stats 5s ease-out forwards',
+            animation: 'wb-celeb-stats 7s ease-out forwards',
           }}>
             {agent.stats.map((s, i) => (
               <div key={i} style={{ textAlign: 'center' }}>
@@ -352,7 +329,7 @@ function AgentSlide({ agent, isFirst, summary }: { agent: HighlightRow; isFirst:
             maxWidth: '80vw',
             margin: 'clamp(18px, 2.4vh, 34px) auto 0',
             textWrap: 'balance',
-            animation: 'wb-celeb-stats 5s 0.3s ease-out both',
+            animation: 'wb-celeb-stats 7s 0.3s ease-out both',
           }}>
             “{summary}”
           </div>
