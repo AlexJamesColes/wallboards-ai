@@ -27,6 +27,8 @@ interface Ctx {
   unregister: (widgetId: string) => void;
   snapshot:   () => HighlightRow[];
   trigger:    () => void;
+  /** Unix ms when the next auto-celebration will fire, or null if disabled. */
+  nextFireAt: number | null;
 }
 
 const CelebrationCtx = createContext<Ctx | null>(null);
@@ -38,6 +40,7 @@ const RANK_EMOJIS = new Set(['🥇', '🥈', '🥉']);
 export function CelebrationProvider({ children, intervalMs = 600_000 }: { children: ReactNode; intervalMs?: number }) {
   const registry = useRef<Map<string, HighlightRow[]>>(new Map());
   const [activeAgents, setActiveAgents] = useState<HighlightRow[] | null>(null);
+  const [nextFireAt,   setNextFireAt]   = useState<number | null>(null);
 
   const snapshot = (): HighlightRow[] => {
     const all: HighlightRow[] = [];
@@ -65,17 +68,25 @@ export function CelebrationProvider({ children, intervalMs = 600_000 }: { childr
     unregister: (id)       => { registry.current.delete(id); },
     snapshot,
     trigger,
+    nextFireAt,
   };
 
   // Auto-trigger on a timer. Fire the first celebration ~90s after load
-  // (so data has time to settle) then repeat every `intervalMs`. That way
-  // anyone watching for a minute or two sees the feature without waiting
-  // the full cycle.
+  // (so data has time to settle) then repeat every `intervalMs`. We use a
+  // chained setTimeout (rather than setInterval) so we know exactly when
+  // the next fire is scheduled — needed for the countdown indicator.
   useEffect(() => {
-    if (!intervalMs || intervalMs <= 0) return;
-    const firstFire = setTimeout(trigger, 90_000);
-    const iv        = setInterval(trigger, intervalMs);
-    return () => { clearTimeout(firstFire); clearInterval(iv); };
+    if (!intervalMs || intervalMs <= 0) { setNextFireAt(null); return; }
+    let timer: ReturnType<typeof setTimeout>;
+    const schedule = (ms: number) => {
+      setNextFireAt(Date.now() + ms);
+      timer = setTimeout(() => {
+        trigger();
+        schedule(intervalMs);
+      }, ms);
+    };
+    schedule(90_000);
+    return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [intervalMs]);
 
@@ -273,4 +284,45 @@ function hash(s: string): number {
 
 export function useCelebration() {
   return useContext(CelebrationCtx);
+}
+
+/**
+ * Small countdown indicator — shows time remaining until the next auto
+ * celebration. Renders nothing if celebrations are disabled or the timer
+ * hasn't been set yet. Pulses on the final 10 seconds to tee up the moment.
+ */
+export function CelebrationCountdown({ style }: { style?: React.CSSProperties } = {}) {
+  const ctx = useCelebration();
+  const [, tick] = useState(0);
+
+  useEffect(() => {
+    const iv = setInterval(() => tick(t => t + 1), 1000);
+    return () => clearInterval(iv);
+  }, []);
+
+  if (!ctx?.nextFireAt) return null;
+  const remaining = Math.max(0, ctx.nextFireAt - Date.now());
+  if (remaining <= 0) return null;
+
+  const totalSec = Math.ceil(remaining / 1000);
+  const mm = Math.floor(totalSec / 60);
+  const ss = totalSec % 60;
+  const imminent = totalSec <= 10;
+
+  return (
+    <span
+      title="Time until the next Hall of Fame celebration"
+      style={{
+        display: 'inline-flex', alignItems: 'center', gap: 4,
+        fontSize: 12, fontWeight: 600,
+        color: imminent ? '#fbbf24' : '#475569',
+        fontVariantNumeric: 'tabular-nums',
+        animation: imminent ? 'wb-celeb-banner 1s ease-in-out infinite' : undefined,
+        ...style,
+      }}
+    >
+      <span aria-hidden>⭐</span>
+      {mm}:{String(ss).padStart(2, '0')}
+    </span>
+  );
 }

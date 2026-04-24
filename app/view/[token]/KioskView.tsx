@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import type { WbBoard, WbWidget } from '@/lib/db';
 import WidgetRenderer from '@/components/WidgetRenderer';
-import { CelebrationProvider } from '@/components/Celebration';
+import { CelebrationProvider, CelebrationCountdown } from '@/components/Celebration';
 
 function Clock() {
   const [time, setTime] = useState('');
@@ -82,7 +82,10 @@ export default function KioskView({ board }: Props) {
           {name}
           {isMobile && <span style={{ color: '#475569' }}> · {activeIdx + 1}/{ordered.length}</span>}
         </span>
-        <Clock />
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 12 }}>
+          <CelebrationCountdown />
+          <Clock />
+        </span>
       </div>
 
       {isMobile ? (
