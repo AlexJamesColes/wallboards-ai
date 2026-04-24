@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react';
 import { extractEmojis } from '@/lib/emoji';
+import { playFanfare, playSlideChime, playWompWomp } from '@/lib/sounds';
 
 /**
  * "Hall of fame" takeover that runs every 10 minutes. Any TableWidget can
@@ -101,9 +102,12 @@ export function CelebrationProvider({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [intervalMs]);
 
-  // Keyboard shortcut for manual trigger (useful on admin TVs): press "c"
+  // Keyboard shortcut for manual trigger (useful on admin TVs): press "c".
+  // Any keypress also counts as the user gesture that unlocks Web Audio —
+  // we import + call it lazily so SSR doesn't choke.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      import('@/lib/sounds').then(m => m.unlockAudio()).catch(() => {});
       if (e.key === 'c' && !e.metaKey && !e.ctrlKey && !e.altKey) trigger();
     };
     window.addEventListener('keydown', onKey);
@@ -153,8 +157,20 @@ export function CelebrationRegistrar({
 
 const PER_AGENT_MS = 3200;
 
+/** Heuristic for "is this a comedy/joke slide?" — trigger womp-womp instead
+ *  of the triumphant chime. */
+function isComedySlide(agent: HighlightRow): boolean {
+  const banner = (agent.banner || '').toLowerCase();
+  if (/lazy|laziest|worst|slowest|sleeper|snooz/.test(banner)) return true;
+  // 💤 / 😴 / 🦥 / 🛌 in the name also signal a joke
+  return /[\u{1F4A4}\u{1F634}\u{1F9A5}\u{1F6CF}]/u.test(agent.name);
+}
+
 function CelebrationOverlay({ agents, onDone }: { agents: HighlightRow[]; onDone: () => void }) {
   const [idx, setIdx] = useState(0);
+
+  // Opening fanfare on mount
+  useEffect(() => { playFanfare(); }, []);
 
   useEffect(() => {
     if (idx >= agents.length) { onDone(); return; }
@@ -164,21 +180,14 @@ function CelebrationOverlay({ agents, onDone }: { agents: HighlightRow[]; onDone
 
   if (idx >= agents.length) return null;
 
-  const agent      = agents[idx];
-  const isFirst    = idx === 0;
-  const isLast     = idx === agents.length - 1;
-  const nameClean  = agent.name.replace(/\p{Extended_Pictographic}(?:\uFE0F)?/gu, '').trim();
-
-  // Spread emojis around a circle — randomise the radius slightly so it looks
-  // less mechanical. Use a deterministic pseudo-random so the same agent
-  // looks the same across re-renders during their 3.2s slot.
-  const seed = hash(agent.name);
-  const count = Math.max(agent.emojis.length, 1);
+  const agent   = agents[idx];
+  const isFirst = idx === 0;
+  const isLast  = idx === agents.length - 1;
 
   return (
     <div
       role="dialog"
-      aria-label={`Celebrating ${nameClean}`}
+      aria-label={`Celebrating ${agent.name}`}
       style={{
         position: 'fixed', inset: 0, zIndex: 1000,
         background: 'rgba(4,6,14,0.78)',
@@ -192,6 +201,42 @@ function CelebrationOverlay({ agents, onDone }: { agents: HighlightRow[]; onDone
                   :           'none'),
       }}
     >
+      {/* Key-on-idx forces a fresh mount per slide so every keyframe
+          animation restarts — otherwise `forwards` fill keeps the previous
+          agent's end-state and subsequent slides appear frozen. */}
+      <AgentSlide key={idx} agent={agent} isFirst={isFirst} />
+
+      {/* Progress dots (unkeyed — stay mounted across slides) */}
+      <div style={{
+        position: 'absolute', bottom: '5vh',
+        display: 'flex', gap: 8,
+      }}>
+        {agents.map((_, i) => (
+          <span key={i} style={{
+            width: i === idx ? 24 : 8, height: 8, borderRadius: 4,
+            background: i === idx ? '#fbbf24' : i < idx ? 'rgba(251,191,36,0.4)' : 'rgba(255,255,255,0.15)',
+            transition: 'all 0.3s ease',
+          }} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function AgentSlide({ agent, isFirst }: { agent: HighlightRow; isFirst: boolean }) {
+  const nameClean = agent.name.replace(/\p{Extended_Pictographic}(?:\uFE0F)?/gu, '').trim();
+  const seed      = hash(agent.name);
+  const count     = Math.max(agent.emojis.length, 1);
+
+  // Per-slide sound effect (skip the first because the fanfare already fired)
+  useEffect(() => {
+    if (isFirst) return; // fanfare handled it
+    if (isComedySlide(agent)) playWompWomp();
+    else                       playSlideChime();
+  }, [agent, isFirst]);
+
+  return (
+    <>
       {/* Banner */}
       <div style={{
         position: 'absolute', top: '8vh',
@@ -204,7 +249,7 @@ function CelebrationOverlay({ agents, onDone }: { agents: HighlightRow[]; onDone
         {agent.banner ? agent.banner : '⭐  Hall of Fame  ⭐'}
       </div>
 
-      {/* Name */}
+      {/* Name + stats + emojis */}
       <div style={{ position: 'relative', textAlign: 'center' }}>
         {/* Radial burst behind the name */}
         <div aria-hidden style={{
@@ -245,20 +290,19 @@ function CelebrationOverlay({ agents, onDone }: { agents: HighlightRow[]; onDone
 
         {/* Exploding emojis */}
         {agent.emojis.map((emoji, i) => {
-          const angle = (seed + i * 360 / count) * (Math.PI / 180);
-          const radius = 42 + ((seed * (i + 3)) % 18);      // vmin units
-          const dx = Math.cos(angle) * radius;
-          const dy = Math.sin(angle) * radius * 0.8;         // flatten a touch
-          const spin = ((seed + i * 97) % 720) - 360;
-          const delay = i * 0.08;
+          const angle  = (seed + i * 360 / count) * (Math.PI / 180);
+          const radius = 42 + ((seed * (i + 3)) % 18);
+          const dx     = Math.cos(angle) * radius;
+          const dy     = Math.sin(angle) * radius * 0.8;
+          const spin   = ((seed + i * 97) % 720) - 360;
+          const delay  = i * 0.08;
           return (
             <span key={i} aria-hidden style={{
               position: 'absolute', left: '50%', top: '50%',
               fontSize: 'clamp(48px, 7vw, 120px)',
               animation: `wb-celeb-emoji 2.6s ${delay}s cubic-bezier(0.22, 1, 0.36, 1) forwards`,
-              // CSS custom props consumed by the keyframe
-              ['--dx'  as any]: `${dx}vmin`,
-              ['--dy'  as any]: `${dy}vmin`,
+              ['--dx'   as any]: `${dx}vmin`,
+              ['--dy'   as any]: `${dy}vmin`,
               ['--spin' as any]: `${spin}deg`,
               filter: 'drop-shadow(0 4px 18px rgba(0,0,0,0.5))',
               pointerEvents: 'none',
@@ -268,21 +312,7 @@ function CelebrationOverlay({ agents, onDone }: { agents: HighlightRow[]; onDone
           );
         })}
       </div>
-
-      {/* Progress dots */}
-      <div style={{
-        position: 'absolute', bottom: '5vh',
-        display: 'flex', gap: 8,
-      }}>
-        {agents.map((_, i) => (
-          <span key={i} style={{
-            width: i === idx ? 24 : 8, height: 8, borderRadius: 4,
-            background: i === idx ? '#fbbf24' : i < idx ? 'rgba(251,191,36,0.4)' : 'rgba(255,255,255,0.15)',
-            transition: 'all 0.3s ease',
-          }} />
-        ))}
-      </div>
-    </div>
+    </>
   );
 }
 
