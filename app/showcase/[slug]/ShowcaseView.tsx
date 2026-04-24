@@ -321,8 +321,37 @@ export default function ShowcaseView({ board, widgetId }: Props) {
   const gwpCol       = cols.find(c => /^gwp$/i.test(c) || /gwp/i.test(c))           || '';
   const addonsCol    = cols.find(c => /^add[- ]?ons?$/i.test(c) || /addon/i.test(c)) || '';
 
+  // ── De-duplicate tied accolade emojis ────────────────────────────────
+  // Each decorative emoji should mark a single winner. If the SQL gave 🎉
+  // (most policies today) to multiple agents because they tied, strip it
+  // from all of them so no false bragging rights show up on the podium,
+  // grid, today strip, or celebrations. Same rule the TableWidget applies
+  // — replicated here because the showcase doesn't render through it.
+  const dupedEmojis = (() => {
+    const counts = new Map<string, number>();
+    for (const r of data.rows) {
+      const seen = new Set<string>();
+      for (const e of extractEmojis(String(r[nameCol] ?? ''))) {
+        if (seen.has(e)) continue;
+        seen.add(e);
+        counts.set(e, (counts.get(e) || 0) + 1);
+      }
+    }
+    const dup = new Set<string>();
+    counts.forEach((n, e) => { if (n > 1) dup.add(e); });
+    return dup;
+  })();
+
+  const dedupedRows = dupedEmojis.size === 0 ? data.rows : data.rows.map(r => {
+    const raw = String(r[nameCol] ?? '');
+    let cleaned = raw;
+    dupedEmojis.forEach(e => { cleaned = cleaned.split(e).join(''); });
+    cleaned = cleaned.replace(/\s+/g, ' ').trim();
+    return { ...r, [nameCol]: cleaned };
+  });
+
   // Sort by income MTD desc (same order as the SQL sent us, but enforce it)
-  const sortedRows = [...data.rows].sort((a, b) => parseMoney(b[incomeMtdCol]) - parseMoney(a[incomeMtdCol]));
+  const sortedRows = [...dedupedRows].sort((a, b) => parseMoney(b[incomeMtdCol]) - parseMoney(a[incomeMtdCol]));
 
   const teamTotal   = sortedRows.reduce((s, r) => s + parseMoney(r[incomeMtdCol]), 0);
   const targetPct   = Math.min(100, Math.round((teamTotal / teamTarget) * 100));
