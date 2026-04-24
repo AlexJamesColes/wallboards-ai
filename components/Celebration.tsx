@@ -67,13 +67,15 @@ export function CelebrationProvider({ children, intervalMs = 600_000 }: { childr
     trigger,
   };
 
-  // Auto-trigger on a timer once the wallboard has been on-screen a while
+  // Auto-trigger on a timer. Fire the first celebration ~90s after load
+  // (so data has time to settle) then repeat every `intervalMs`. That way
+  // anyone watching for a minute or two sees the feature without waiting
+  // the full cycle.
   useEffect(() => {
     if (!intervalMs || intervalMs <= 0) return;
-    // Skip the very first interval — we don't want a celebration to fire
-    // immediately on page load before data has settled.
-    const iv = setInterval(trigger, intervalMs);
-    return () => clearInterval(iv);
+    const firstFire = setTimeout(trigger, 90_000);
+    const iv        = setInterval(trigger, intervalMs);
+    return () => { clearTimeout(firstFire); clearInterval(iv); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [intervalMs]);
 
