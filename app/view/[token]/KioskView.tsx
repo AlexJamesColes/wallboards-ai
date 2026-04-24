@@ -6,23 +6,27 @@ import WidgetRenderer from '@/components/WidgetRenderer';
 import { CelebrationProvider, CelebrationCountdown } from '@/components/Celebration';
 
 /**
- * Running joke celebration: always appended to every takeover cycle.
- * Down the line we'll replace this with a real Zendesk metric (tickets
- * ignored / overdue SLA / longest idle) — for now, hard-coded lolz.
+ * "Laziest Manager" joke agent, populated live from Zendesk via
+ * /api/laziest-manager. Compares Harry Cooper and Hugo Blythman-Rowe
+ * on ticket updates today; whoever has fewer gets the slide.
  */
-const JOKE_AGENTS = [
-  {
-    widgetId: '__joke__',
-    name:     'Hugo Blythman-Row 💤💤💤',
-    emojis:   ['💤', '🛌', '🦥', '😴', '☕', '🫠', '🧘', '🙈', '💤', '💤'],
-    stats: [
-      { label: 'Deals Today',      value: '0'    },
-      { label: 'Coffee Breaks',    value: '∞'    },
-      { label: 'Out-of-Office',    value: '365d' },
-    ],
-    banner: '😴  LAZIEST MANAGER  😴',
-  },
-];
+function useLaziestManagerSlide(): any[] {
+  const [slide, setSlide] = useState<any | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    const fetchIt = async () => {
+      try {
+        const res  = await fetch('/api/laziest-manager', { cache: 'no-store' });
+        const data = await res.json();
+        if (!cancelled && data?.agent) setSlide(data.agent);
+      } catch { /* network hiccup — keep the previous slide, if any */ }
+    };
+    fetchIt();
+    const iv = setInterval(fetchIt, 5 * 60 * 1000);  // refresh every 5 min
+    return () => { cancelled = true; clearInterval(iv); };
+  }, []);
+  return slide ? [slide] : [];
+}
 
 function Clock() {
   const [time, setTime] = useState('');
@@ -85,6 +89,7 @@ export default function KioskView({ board }: Props) {
   const { cols = 4, rows = 3, background = '#0a0f1c', name, widgets } = board;
   const isMobile = useIsMobile();
   const [activeIdx, setActiveIdx] = useState(0);
+  const laziestSlide = useLaziestManagerSlide();
   useAutoReloadOnDeploy();
 
   // Order widgets top-to-bottom, left-to-right for a sensible swipe sequence.
@@ -93,7 +98,7 @@ export default function KioskView({ board }: Props) {
   );
 
   return (
-    <CelebrationProvider intervalMs={300_000} extraAgents={JOKE_AGENTS}>
+    <CelebrationProvider intervalMs={300_000} extraAgents={laziestSlide}>
     <div style={{ width: '100vw', height: '100vh', background, overflow: 'hidden', fontFamily: 'var(--font-raleway, sans-serif)', display: 'flex', flexDirection: 'column' }}>
       {/* Minimal header bar */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', borderBottom: '1px solid rgba(255,255,255,0.04)', flexShrink: 0 }}>
