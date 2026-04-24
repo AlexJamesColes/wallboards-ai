@@ -532,6 +532,20 @@ function TodayStrip({ rows, cols }: {
   const booked = allAgents.filter(a => a.income > 0).sort((a, b) => b.income - a.income);
   const zeros  = allAgents.filter(a => a.income === 0).sort((a, b) => a.name.localeCompare(b.name));
 
+  // Determine the unique "most units today" winner. If two or more
+  // agents tie on the highest policy count, nobody is awarded — same
+  // rule as the de-duplicated emoji accolades.
+  const unitsLeaderName: string | null = (() => {
+    let best = 0;
+    let bestCount = 0;
+    let bestName  = '';
+    for (const a of booked) {
+      if (a.policies > best) { best = a.policies; bestCount = 1; bestName = a.name; }
+      else if (a.policies === best) bestCount++;
+    }
+    return best > 0 && bestCount === 1 ? bestName.toLowerCase() : null;
+  })();
+
   // Snapshot ranks for booked agents so we can animate position changes
   const newPrev = new Map<string, number>();
   booked.forEach((a, i) => newPrev.set(a.name.toLowerCase(), i + 1));
@@ -557,7 +571,7 @@ function TodayStrip({ rows, cols }: {
           fontSize: 'clamp(10px, 0.95vw, 14px)', fontWeight: 800,
           color: '#fbbf24', letterSpacing: '0.22em', textTransform: 'uppercase',
           flexShrink: 0,
-        }}>🔥 Today's Challenge</span>
+        }}>🔥 Today's Earn &amp; Units</span>
         <span style={{ fontSize: 'clamp(10px, 0.85vw, 13px)', color: '#64748b', fontWeight: 600 }}>
           {headline}
         </span>
@@ -576,31 +590,47 @@ function TodayStrip({ rows, cols }: {
           const climbed = was !== undefined && was > rank;
           const dropped = was !== undefined && was < rank;
           const isNew   = was === undefined;
-          const isLeader = rank === 1;
+          const isIncomeLeader = rank === 1;
+          const isUnitsLeader  = unitsLeaderName === a.name.toLowerCase();
+          // Income leader = gold tint (the prestige money slot)
+          // Units leader  = teal/cyan tint (a distinct second crown so a
+          // "high-volume seller" can stand out even when not on top of
+          // the £ board). Skipped entirely if multiple agents tie on units.
+          const tint = isIncomeLeader
+            ? { bg: 'linear-gradient(90deg, rgba(251,191,36,0.22) 0%, rgba(251,191,36,0.08) 100%)',
+                border: 'rgba(251,191,36,0.45)', glow: '0 0 14px rgba(251,191,36,0.28)',
+                rankColor: '#fde68a', moneyColor: '#fde68a' }
+            : isUnitsLeader
+            ? { bg: 'linear-gradient(90deg, rgba(45,212,191,0.22) 0%, rgba(45,212,191,0.08) 100%)',
+                border: 'rgba(45,212,191,0.5)', glow: '0 0 14px rgba(45,212,191,0.3)',
+                rankColor: '#5eead4', moneyColor: '#a7f3d0' }
+            : { bg: 'rgba(99,102,241,0.12)', border: 'rgba(99,102,241,0.3)', glow: undefined,
+                rankColor: '#a5b4fc', moneyColor: '#e2e8f0' };
           return (
             <div key={'b|' + a.name} style={{
               display: 'inline-flex', alignItems: 'center', gap: 6,
               padding: 'clamp(3px, 0.4vh, 6px) clamp(7px, 0.8vw, 11px)',
               borderRadius: 99, flexShrink: 0,
-              background: isLeader
-                ? 'linear-gradient(90deg, rgba(251,191,36,0.22) 0%, rgba(251,191,36,0.08) 100%)'
-                : 'rgba(99,102,241,0.12)',
-              border: `1px solid ${isLeader ? 'rgba(251,191,36,0.45)' : 'rgba(99,102,241,0.3)'}`,
+              background: tint.bg,
+              border: `1px solid ${tint.border}`,
               animation: climbed ? 'wb-row-up 1.2s ease-out' : dropped ? 'wb-row-down 1.2s ease-out' : undefined,
-              boxShadow: isLeader ? '0 0 14px rgba(251,191,36,0.28)' : undefined,
+              boxShadow: tint.glow,
             }}>
-              <span style={{ fontSize: 'clamp(10px, 0.9vw, 13px)', fontWeight: 800, color: isLeader ? '#fde68a' : '#a5b4fc', fontVariantNumeric: 'tabular-nums' }}>
+              <span style={{ fontSize: 'clamp(10px, 0.9vw, 13px)', fontWeight: 800, color: tint.rankColor, fontVariantNumeric: 'tabular-nums' }}>
                 #{rank}
               </span>
               <span style={{ fontSize: 'clamp(10px, 0.9vw, 14px)', fontWeight: 600, color: '#f1f5f9', whiteSpace: 'nowrap' }}>
                 {a.name}
               </span>
-              <span style={{ fontSize: 'clamp(10px, 0.95vw, 14px)', fontWeight: 800, color: isLeader ? '#fde68a' : '#e2e8f0', fontVariantNumeric: 'tabular-nums' }}>
+              <span style={{ fontSize: 'clamp(10px, 0.95vw, 14px)', fontWeight: 800, color: tint.moneyColor, fontVariantNumeric: 'tabular-nums' }}>
                 {formatMoney(a.income)}
               </span>
               {a.policies > 0 && (
-                <span style={{ fontSize: 'clamp(9px, 0.75vw, 11px)', color: '#94a3b8', fontWeight: 700 }}>
-                  · {a.policies}
+                <span style={{
+                  fontSize: 'clamp(9px, 0.75vw, 11px)', fontWeight: 700,
+                  color: isUnitsLeader ? '#5eead4' : '#94a3b8',
+                }}>
+                  · {a.policies}{isUnitsLeader ? '★' : ''}
                 </span>
               )}
               {climbed && was !== undefined && <span aria-hidden style={{ fontSize: 10, color: '#10b981', fontWeight: 800 }}>▲{was - rank}</span>}

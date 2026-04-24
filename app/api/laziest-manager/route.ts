@@ -66,13 +66,12 @@ export async function GET() {
   const laziest = results[0];
   const other   = results[1];
 
-  // Skip the slide when we don't have a real signal:
-  //   - Zendesk lookup failed for either manager → no meaningful comparison
-  //   - Both at 0 updates (early morning / weekend) → don't call anyone lazy
-  //     just because nobody's started work yet.
+  // Only skip when we have no signal at all (Zendesk lookup failed for
+  // either manager). Both-at-zero is now allowed through — the running
+  // joke gets stronger when neither has touched a single ticket, and the
+  // summary already handles the tied-at-zero case with a tiebreak quip.
   const lookupFailed = laziest.count === Number.POSITIVE_INFINITY || other.count === Number.POSITIVE_INFINITY;
-  const bothAtZero   = laziest.count === 0 && other.count === 0;
-  if (lookupFailed || bothAtZero) {
+  if (lookupFailed) {
     return NextResponse.json({ agent: null });
   }
 
