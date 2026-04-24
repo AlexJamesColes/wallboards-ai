@@ -289,10 +289,13 @@ export default function ShowcaseView({ board, widgetId }: Props) {
   // Decode columns for this board
   const cols         = data.columns;
   const nameCol      = cols[0] || 'name';
-  const incomeMtdCol = cols.find(c => /^income$|income.*mtd|mtd.*income/i.test(c)) || cols.find(c => /income/i.test(c)) || '';
-  const polMtdCol    = cols.find(c => /^policies.*mtd|mtd.*polic/i.test(c))        || '';
-  const polTodayCol  = cols.find(c => /polic.*today|today.*polic/i.test(c))         || '';
-  const incomeTodayCol = cols.find(c => /income.*today|today.*income/i.test(c))     || '';
+  const incomeMtdCol = cols.find(c => /^income$|income.*mtd|mtd.*income/i.test(c)) || cols.find(c => /income/i.test(c) && !/today/i.test(c)) || '';
+  const polMtdCol    = cols.find(c => /^policies.*mtd|mtd.*polic/i.test(c))        || cols.find(c => /^polic/i.test(c) && !/today/i.test(c)) || '';
+  const polTodayCol  = cols.find(c => /polic.*today|today.*polic/i.test(c))        || '';
+  const incomeTodayCol = cols.find(c => /income.*today|today.*income/i.test(c))    || '';
+  const ippCol       = cols.find(c => /^ipp$/i.test(c) || /ipp/i.test(c))           || '';
+  const gwpCol       = cols.find(c => /^gwp$/i.test(c) || /gwp/i.test(c))           || '';
+  const addonsCol    = cols.find(c => /^add[- ]?ons?$/i.test(c) || /addon/i.test(c)) || '';
 
   // Sort by income MTD desc (same order as the SQL sent us, but enforce it)
   const sortedRows = [...data.rows].sort((a, b) => parseMoney(b[incomeMtdCol]) - parseMoney(a[incomeMtdCol]));
@@ -322,14 +325,14 @@ export default function ShowcaseView({ board, widgetId }: Props) {
         {/* ── Podium ───────────────────────────────────────────────── */}
         <Podium
           rows={top3}
-          cols={{ nameCol, incomeMtdCol, polMtdCol, polTodayCol, incomeTodayCol }}
+          cols={{ nameCol, incomeMtdCol, polMtdCol, polTodayCol, incomeTodayCol, ippCol, gwpCol, addonsCol }}
         />
 
         {/* ── Rest of the pack ────────────────────────────────────── */}
         <AgentGrid
           rows={rest}
           startIndex={4}
-          cols={{ nameCol, incomeMtdCol, polMtdCol, polTodayCol, incomeTodayCol }}
+          cols={{ nameCol, incomeMtdCol, polMtdCol, polTodayCol, incomeTodayCol, ippCol, gwpCol, addonsCol }}
           teamLeaderIncome={parseMoney(top3[0]?.[incomeMtdCol]) || 1}
         />
 
@@ -442,7 +445,15 @@ interface ColMap {
   polMtdCol: string;
   polTodayCol: string;
   incomeTodayCol: string;
+  ippCol: string;
+  gwpCol: string;
+  addonsCol: string;
 }
+
+// Medal emojis associated with each rank — filtered out of the agent's own
+// emoji shelf because the rank label "🥇 1st" already shows them and
+// duplicating looked silly on the podium.
+const RANK_MEDALS: Record<number, string> = { 1: '🥇', 2: '🥈', 3: '🥉' };
 
 function Podium({ rows, cols }: { rows: Row[]; cols: ColMap }) {
   if (rows.length === 0) return null;
@@ -469,12 +480,19 @@ function Podium({ rows, cols }: { rows: Row[]; cols: ColMap }) {
 function PodiumCard({ row, rank, heightPct, cols }: { row: Row; rank: number; heightPct: number; cols: ColMap }) {
   const rawName = String(row[cols.nameCol] ?? '');
   const name    = cleanName(rawName);
-  const emojis  = [...extractEmojis(rawName)];
+  // Filter the rank's own medal out of the shelf — the tier label up top
+  // already shows it.
+  const myMedal = RANK_MEDALS[rank];
+  const emojis  = [...extractEmojis(rawName)].filter(e => e !== myMedal);
   const grad    = avatarColors(name);
 
-  const incomeMtd  = parseMoney(row[cols.incomeMtdCol]);
-  const polMtd     = parseMoney(row[cols.polMtdCol]);
+  const incomeMtd    = parseMoney(row[cols.incomeMtdCol]);
+  const polMtd       = parseMoney(row[cols.polMtdCol]);
+  const polToday     = parseMoney(row[cols.polTodayCol]);
   const incomeTodayV = parseMoney(row[cols.incomeTodayCol]);
+  const ipp          = parseMoney(row[cols.ippCol]);
+  const gwp          = parseMoney(row[cols.gwpCol]);
+  const addons       = parseMoney(row[cols.addonsCol]);
 
   const tier = rank === 1 ? { ring: '#fde68a', ringGlow: 'rgba(251,191,36,0.6)', label: '🥇 1st', labelColor: '#fde68a' }
              : rank === 2 ? { ring: '#e5e7eb', ringGlow: 'rgba(229,231,235,0.45)', label: '🥈 2nd', labelColor: '#e5e7eb' }
@@ -486,7 +504,7 @@ function PodiumCard({ row, rank, heightPct, cols }: { row: Row; rank: number; he
       height: `${heightPct * 100}%`,
       background: 'linear-gradient(180deg, rgba(26,33,54,0.85) 0%, rgba(14,20,39,0.85) 100%)',
       border: `2px solid ${tier.ring}`,
-      borderRadius: 22, padding: 'clamp(14px, 1.8vh, 22px) clamp(14px, 1.6vw, 26px)',
+      borderRadius: 22, padding: 'clamp(12px, 1.4vh, 20px) clamp(14px, 1.6vw, 26px)',
       boxShadow: `0 0 60px ${tier.ringGlow}, 0 20px 60px rgba(0,0,0,0.55)`,
       backdropFilter: 'blur(14px)',
       display: 'flex', flexDirection: 'column', alignItems: 'center',
@@ -495,47 +513,52 @@ function PodiumCard({ row, rank, heightPct, cols }: { row: Row; rank: number; he
     }}>
       {/* Tier label */}
       <div style={{
-        fontSize: 'clamp(14px, 1.3vw, 22px)', fontWeight: 900,
+        fontSize: 'clamp(13px, 1.2vw, 20px)', fontWeight: 900,
         letterSpacing: '0.3em', color: tier.labelColor,
         textShadow: `0 0 18px ${tier.ringGlow}`,
-        marginBottom: 'clamp(8px, 1.2vh, 18px)', whiteSpace: 'nowrap',
+        marginBottom: 'clamp(6px, 0.8vh, 12px)', whiteSpace: 'nowrap',
       }}>{tier.label}</div>
 
       {/* Avatar */}
-      <Avatar name={name} size={rank === 1 ? 'clamp(80px, 9vw, 148px)' : 'clamp(62px, 7vw, 116px)'} gradient={grad} />
+      <Avatar name={name} size={rank === 1 ? 'clamp(72px, 8vw, 132px)' : 'clamp(56px, 6.5vw, 104px)'} gradient={grad} />
 
       {/* Name */}
       <div style={{
-        fontSize: rank === 1 ? 'clamp(22px, 2.4vw, 40px)' : 'clamp(18px, 2vw, 32px)',
-        fontWeight: 900, color: '#f1f5f9', marginTop: 'clamp(10px, 1.4vh, 18px)',
+        fontSize: rank === 1 ? 'clamp(22px, 2.4vw, 38px)' : 'clamp(18px, 2vw, 30px)',
+        fontWeight: 900, color: '#f1f5f9', marginTop: 'clamp(8px, 1vh, 14px)',
         textShadow: '0 4px 20px rgba(0,0,0,0.5)', lineHeight: 1.1,
         maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
       }}>{name}</div>
 
       {/* Primary metric */}
       <div style={{
-        fontSize: rank === 1 ? 'clamp(36px, 4.5vw, 80px)' : 'clamp(28px, 3.6vw, 56px)',
+        fontSize: rank === 1 ? 'clamp(32px, 4vw, 72px)' : 'clamp(26px, 3.2vw, 50px)',
         fontWeight: 900, color: '#fde68a',
         textShadow: '0 0 30px rgba(251,191,36,0.35)',
-        fontVariantNumeric: 'tabular-nums', lineHeight: 1, marginTop: 'clamp(6px, 1vh, 14px)',
+        fontVariantNumeric: 'tabular-nums', lineHeight: 1, marginTop: 'clamp(4px, 0.8vh, 12px)',
       }}>{formatMoney(incomeMtd)}</div>
-      <div style={{ fontSize: 'clamp(10px, 0.95vw, 14px)', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.12em', marginTop: 2 }}>Income this month</div>
+      <div style={{ fontSize: 'clamp(9px, 0.85vw, 13px)', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.12em', marginTop: 2 }}>Income this month</div>
 
-      {/* Secondary stats */}
+      {/* Stat grid — 2 rows × 3 columns to fit everything cleanly */}
       <div style={{
-        display: 'flex', gap: 'clamp(12px, 1.4vw, 24px)', marginTop: 'clamp(8px, 1.2vh, 14px)',
-        opacity: 0.85,
+        display: 'grid', gridTemplateColumns: '1fr 1fr 1fr',
+        gap: 'clamp(8px, 1vw, 18px) clamp(10px, 1.2vw, 20px)',
+        marginTop: 'clamp(8px, 1vh, 16px)', width: '100%',
       }}>
-        <Stat label="Policies MTD" value={String(Math.round(polMtd))} />
-        <Stat label="Income Today" value={formatMoney(incomeTodayV)} />
+        {cols.polMtdCol      && <Stat label="Policies MTD"  value={String(Math.round(polMtd))} />}
+        {cols.incomeTodayCol && <Stat label="Income Today"  value={formatMoney(incomeTodayV)} />}
+        {cols.polTodayCol    && <Stat label="Policies Today" value={String(Math.round(polToday))} />}
+        {cols.ippCol         && <Stat label="IPP"           value={formatMoney(ipp)} />}
+        {cols.gwpCol         && <Stat label="GWP"           value={formatMoney(gwp)} />}
+        {cols.addonsCol      && <Stat label="Add-ons"       value={String(Math.round(addons))} />}
       </div>
 
       {/* Emoji shelf */}
       {emojis.length > 0 && (
         <div style={{
-          display: 'flex', gap: 6, marginTop: 'auto',
-          paddingTop: 'clamp(8px, 1.2vh, 14px)',
-          fontSize: 'clamp(24px, 2.6vw, 44px)', flexWrap: 'wrap', justifyContent: 'center',
+          display: 'flex', gap: 4, marginTop: 'auto',
+          paddingTop: 'clamp(6px, 1vh, 12px)',
+          fontSize: 'clamp(20px, 2.2vw, 38px)', flexWrap: 'wrap', justifyContent: 'center',
         }}>
           {emojis.map((e, i) => <span key={i}>{e}</span>)}
         </div>
@@ -611,21 +634,24 @@ function AgentCard({ row, rank, cols, leaderIncome }: { row: Row; rank: number; 
   const grad    = avatarColors(name);
 
   const incomeMtd   = parseMoney(row[cols.incomeMtdCol]);
+  const polMtd      = parseMoney(row[cols.polMtdCol]);
   const polToday    = parseMoney(row[cols.polTodayCol]);
+  const ipp         = parseMoney(row[cols.ippCol]);
+  const gwp         = parseMoney(row[cols.gwpCol]);
   const progressPct = Math.min(100, Math.round((incomeMtd / leaderIncome) * 100));
 
   return (
     <div style={{
       background: 'linear-gradient(180deg, rgba(26,33,54,0.55) 0%, rgba(14,20,39,0.55) 100%)',
       border: '1px solid rgba(255,255,255,0.06)', borderRadius: 14,
-      padding: 'clamp(10px, 1.2vh, 16px) clamp(12px, 1.2vw, 18px)',
-      display: 'flex', flexDirection: 'column', gap: 6,
+      padding: 'clamp(8px, 1vh, 14px) clamp(10px, 1.1vw, 16px)',
+      display: 'flex', flexDirection: 'column', gap: 5,
       overflow: 'hidden', position: 'relative',
       backdropFilter: 'blur(8px)',
     }}>
       {/* Top row: avatar + name + rank chip */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <Avatar name={name} size="clamp(32px, 3vw, 46px)" gradient={grad} />
+        <Avatar name={name} size="clamp(30px, 2.8vw, 44px)" gradient={grad} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{
             fontSize: 'clamp(13px, 1.1vw, 18px)', fontWeight: 700, color: '#f1f5f9',
@@ -635,14 +661,25 @@ function AgentCard({ row, rank, cols, leaderIncome }: { row: Row; rank: number; 
         </div>
       </div>
 
-      {/* Primary number */}
+      {/* Primary number + today policies */}
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
         <span style={{ fontSize: 'clamp(20px, 2vw, 32px)', fontWeight: 900, color: '#e2e8f0', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>
           {formatMoney(incomeMtd)}
         </span>
-        <span style={{ fontSize: 'clamp(11px, 1vw, 15px)', color: polToday > 0 ? '#a5b4fc' : '#64748b', fontWeight: 700 }}>
+        <span style={{ fontSize: 'clamp(10px, 0.95vw, 14px)', color: polToday > 0 ? '#a5b4fc' : '#64748b', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
           {polToday > 0 ? `+${polToday} today` : '—'}
         </span>
+      </div>
+
+      {/* Mini-stat row: Policies MTD · IPP · GWP */}
+      <div style={{
+        display: 'flex', justifyContent: 'space-between', gap: 4,
+        fontSize: 'clamp(9px, 0.85vw, 12px)', color: '#94a3b8',
+        fontVariantNumeric: 'tabular-nums', lineHeight: 1.2,
+      }}>
+        {cols.polMtdCol && <span><strong style={{ color: '#cbd5e1' }}>{Math.round(polMtd)}</strong> pols</span>}
+        {cols.ippCol    && ipp > 0 && <span><strong style={{ color: '#cbd5e1' }}>{formatMoney(ipp)}</strong> IPP</span>}
+        {cols.gwpCol    && gwp > 0 && <span><strong style={{ color: '#cbd5e1' }}>{formatMoney(gwp)}</strong> GWP</span>}
       </div>
 
       {/* Progress bar vs leader */}
