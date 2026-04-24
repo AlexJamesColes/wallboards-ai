@@ -231,9 +231,11 @@ function CelebrationOverlay({ agents, onDone }: { agents: HighlightRow[]; onDone
       aria-label={`Celebrating ${agent.name}`}
       style={{
         position: 'fixed', inset: 0, zIndex: 1000,
-        // Soft dim of the wallboard behind — no blur, board stays
-        // readable so the celebration feels like a pop-up not a takeover.
-        background: 'rgba(4,6,14,0.45)',
+        // Dim + blur the wallboard so the pop-up has full focus without
+        // a chaotic field of leaderboard text fighting for attention.
+        background: 'rgba(4,6,14,0.55)',
+        backdropFilter: 'blur(14px)',
+        WebkitBackdropFilter: 'blur(14px)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         pointerEvents: 'none',
         animation: (isFirst ? 'wb-celeb-backdrop-in 0.4s ease-out forwards'
