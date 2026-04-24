@@ -61,17 +61,21 @@ export default function TableWidget({ widget, data }: Props) {
   }
 
   // Column widths:
-  //   - Numeric columns size to their content ("auto") so short values like
-  //     "5" or "142" don't claim the same space as "£165,339". Prevents the
-  //     "every column equal fraction" look that wastes space on narrow cols
-  //     and crams wide ones.
-  //   - The first text column (usually Agent name) grows into the remaining
-  //     space — with a generous minimum so medal + emoji decorations fit.
+  //   - The first text column (usually Agent name) gets a weighted share so
+  //     long names with emoji decorations fit comfortably, but it doesn't
+  //     eat ALL the remaining width — that caused a huge gap between the
+  //     left-aligned name and the right-aligned numeric columns.
+  //   - Numeric columns each take an equal share of the rest (1fr), so
+  //     values line up in neat columns and are right-aligned to their cell.
   //   - Other text columns share fractional space equally.
+  const numNumeric = columns.filter(isNumericColumn).length;
+  // Give the label column ~35% of the width when there are many numeric
+  // columns, scaling down as more numerics are present.
+  const nameWeight = numNumeric >= 6 ? 2 : numNumeric >= 3 ? 2 : 3;
   const gridCols = columns
     .map((col, i) => {
-      if (isNumericColumn(col)) return 'minmax(64px, max-content)';
-      return i === 0 ? 'minmax(200px, 1fr)' : 'minmax(0, 1fr)';
+      if (isNumericColumn(col)) return 'minmax(64px, 1fr)';
+      return i === 0 ? `minmax(180px, ${nameWeight}fr)` : 'minmax(0, 1fr)';
     })
     .join(' ');
 
