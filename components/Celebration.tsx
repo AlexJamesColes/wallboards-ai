@@ -155,7 +155,7 @@ export function CelebrationRegistrar({
 // Overlay — sequences through agents, 3.2s per agent
 // ────────────────────────────────────────────────────────────────────────
 
-const PER_AGENT_MS = 3200;
+const PER_AGENT_MS = 5000;
 
 /** Heuristic for "is this a comedy/joke slide?" — trigger womp-womp instead
  *  of the triumphant chime. */
@@ -197,7 +197,7 @@ function CelebrationOverlay({ agents, onDone }: { agents: HighlightRow[]; onDone
         alignItems: 'center', justifyContent: 'center',
         pointerEvents: 'none',
         animation: (isFirst ? 'wb-celeb-backdrop-in 0.4s ease-out forwards'
-                  : isLast  ? 'wb-celeb-backdrop-out 0.5s 2.7s ease-in forwards'
+                  : isLast  ? 'wb-celeb-backdrop-out 0.5s 4.4s ease-in forwards'
                   :           'none'),
       }}
     >
@@ -243,7 +243,7 @@ function AgentSlide({ agent, isFirst }: { agent: HighlightRow; isFirst: boolean 
         fontSize: 'clamp(16px, 2vw, 28px)', fontWeight: 700,
         color: '#fbbf24', letterSpacing: '0.35em', textTransform: 'uppercase',
         textShadow: '0 0 24px rgba(251,191,36,0.6)',
-        animation: 'wb-celeb-banner 3.2s ease-out forwards',
+        animation: 'wb-celeb-banner 5s ease-out forwards',
         whiteSpace: 'nowrap',
       }}>
         {agent.banner ? agent.banner : '⭐  Hall of Fame  ⭐'}
@@ -265,7 +265,7 @@ function AgentSlide({ agent, isFirst }: { agent: HighlightRow; isFirst: boolean 
           fontWeight: 900,
           color: '#f1f5f9',
           textShadow: '0 6px 40px rgba(99,102,241,0.55)',
-          animation: 'wb-celeb-name 3.2s cubic-bezier(0.34, 1.56, 0.64, 1) forwards',
+          animation: 'wb-celeb-name 5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards',
           padding: '0 4vw',
         }}>
           {nameClean || 'Unknown agent'}
@@ -277,7 +277,7 @@ function AgentSlide({ agent, isFirst }: { agent: HighlightRow; isFirst: boolean 
             marginTop: 'clamp(16px, 2vh, 28px)',
             display: 'flex', gap: 'clamp(24px, 4vw, 60px)',
             justifyContent: 'center',
-            animation: 'wb-celeb-stats 3.2s ease-out forwards',
+            animation: 'wb-celeb-stats 5s ease-out forwards',
           }}>
             {agent.stats.map((s, i) => (
               <div key={i} style={{ textAlign: 'center' }}>
