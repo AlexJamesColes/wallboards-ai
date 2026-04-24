@@ -5,6 +5,25 @@ import type { WbBoard, WbWidget } from '@/lib/db';
 import WidgetRenderer from '@/components/WidgetRenderer';
 import { CelebrationProvider, CelebrationCountdown } from '@/components/Celebration';
 
+/**
+ * Running joke celebration: always appended to every takeover cycle.
+ * Down the line we'll replace this with a real Zendesk metric (tickets
+ * ignored / overdue SLA / longest idle) — for now, hard-coded lolz.
+ */
+const JOKE_AGENTS = [
+  {
+    widgetId: '__joke__',
+    name:     'Hugo Blythman-Row 💤💤💤',
+    emojis:   ['💤', '🛌', '🦥', '😴', '☕', '🫠', '🧘', '🙈', '💤', '💤'],
+    stats: [
+      { label: 'Deals Today',      value: '0'    },
+      { label: 'Coffee Breaks',    value: '∞'    },
+      { label: 'Out-of-Office',    value: '365d' },
+    ],
+    banner: '😴  LAZIEST MANAGER  😴',
+  },
+];
+
 function Clock() {
   const [time, setTime] = useState('');
   useEffect(() => {
@@ -74,7 +93,7 @@ export default function KioskView({ board }: Props) {
   );
 
   return (
-    <CelebrationProvider intervalMs={600_000}>
+    <CelebrationProvider intervalMs={300_000} extraAgents={JOKE_AGENTS}>
     <div style={{ width: '100vw', height: '100vh', background, overflow: 'hidden', fontFamily: 'var(--font-raleway, sans-serif)', display: 'flex', flexDirection: 'column' }}>
       {/* Minimal header bar */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', borderBottom: '1px solid rgba(255,255,255,0.04)', flexShrink: 0 }}>

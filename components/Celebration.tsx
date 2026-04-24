@@ -20,6 +20,8 @@ export interface HighlightRow {
   name:     string;            // full first-column text with emojis
   emojis:   string[];          // unique decorative emojis only
   stats:    Array<{ label: string; value: string }>; // pulled from numeric cols
+  /** Optional override for the banner at the top of this agent's slide. */
+  banner?:  string;
 }
 
 interface Ctx {
@@ -36,7 +38,16 @@ const CelebrationCtx = createContext<Ctx | null>(null);
 // (Previously excluded 🥇🥈🥉 from celebration; now medals count too so
 // position-based winners get their moment alongside achievement-based ones.)
 
-export function CelebrationProvider({ children, intervalMs = 600_000 }: { children: ReactNode; intervalMs?: number }) {
+export function CelebrationProvider({
+  children,
+  intervalMs   = 600_000,
+  extraAgents  = [],
+}: {
+  children:    ReactNode;
+  intervalMs?: number;
+  /** Always appended to each celebration cycle (e.g. running jokes). */
+  extraAgents?: HighlightRow[];
+}) {
   const registry = useRef<Map<string, HighlightRow[]>>(new Map());
   const [activeAgents, setActiveAgents] = useState<HighlightRow[] | null>(null);
   const [nextFireAt,   setNextFireAt]   = useState<number | null>(null);
@@ -44,6 +55,7 @@ export function CelebrationProvider({ children, intervalMs = 600_000 }: { childr
   const snapshot = (): HighlightRow[] => {
     const all: HighlightRow[] = [];
     for (const rows of registry.current.values()) all.push(...rows);
+    all.push(...extraAgents);
     return all.filter(r => r.emojis.length > 0);
   };
 
@@ -58,8 +70,8 @@ export function CelebrationProvider({ children, intervalMs = 600_000 }: { childr
       seen.add(key);
       return true;
     });
-    // Cap to 8 to keep the sequence under a minute
-    setActiveAgents(uniq.slice(0, 8));
+    // Cap to 10 to keep the sequence around 30s
+    setActiveAgents(uniq.slice(0, 10));
   };
 
   const ctx: Ctx = {
@@ -187,8 +199,9 @@ function CelebrationOverlay({ agents, onDone }: { agents: HighlightRow[]; onDone
         color: '#fbbf24', letterSpacing: '0.35em', textTransform: 'uppercase',
         textShadow: '0 0 24px rgba(251,191,36,0.6)',
         animation: 'wb-celeb-banner 3.2s ease-out forwards',
+        whiteSpace: 'nowrap',
       }}>
-        ⭐  Hall of Fame  ⭐
+        {agent.banner ? agent.banner : '⭐  Hall of Fame  ⭐'}
       </div>
 
       {/* Name */}
