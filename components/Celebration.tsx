@@ -23,6 +23,8 @@ export interface HighlightRow {
   stats:    Array<{ label: string; value: string }>; // pulled from numeric cols
   /** Optional override for the banner at the top of this agent's slide. */
   banner?:  string;
+  /** Leaderboard position (1-based). Shown as a large "#N" badge. */
+  rank?:    number;
 }
 
 interface Ctx {
@@ -135,7 +137,7 @@ export function CelebrationRegistrar({
   const ctx = useContext(CelebrationCtx);
   useEffect(() => {
     if (!ctx) return;
-    const highlights: HighlightRow[] = rows.map(r => {
+    const highlights: HighlightRow[] = rows.map((r, idx) => {
       const fullName = String(r[nameCol] ?? '');
       const emojis   = [...extractEmojis(fullName)];
       return {
@@ -143,6 +145,7 @@ export function CelebrationRegistrar({
         name:   fullName,
         emojis,
         stats:  statCols.slice(0, 3).map(s => ({ label: s.label, value: s.format(r[s.col]) })),
+        rank:   idx + 1,
       };
     });
     ctx.register(widgetId, highlights);
@@ -258,6 +261,29 @@ function AgentSlide({ agent, isFirst }: { agent: HighlightRow; isFirst: boolean 
           background: 'radial-gradient(circle, rgba(251,191,36,0.35) 0%, rgba(251,191,36,0) 65%)',
           animation: 'wb-celeb-burst 2s ease-out forwards',
         }} />
+
+        {/* Rank badge — e.g. "#1" above the name. Colour tints by podium
+            tier (gold / silver / bronze) so the position reads instantly. */}
+        {typeof agent.rank === 'number' && agent.rank > 0 && (() => {
+          const tier = agent.rank === 1 ? { fg: '#fde68a', glow: 'rgba(251,191,36,0.55)' }
+                     : agent.rank === 2 ? { fg: '#e5e7eb', glow: 'rgba(229,231,235,0.45)' }
+                     : agent.rank === 3 ? { fg: '#fdba74', glow: 'rgba(253,186,116,0.45)' }
+                     :                    { fg: '#a5b4fc', glow: 'rgba(99,102,241,0.45)' };
+          return (
+            <div style={{
+              position: 'relative',
+              fontSize: 'clamp(20px, 2.4vw, 40px)',
+              fontWeight: 900,
+              letterSpacing: '0.12em',
+              color: tier.fg,
+              textShadow: `0 0 22px ${tier.glow}`,
+              marginBottom: 'clamp(4px, 0.8vh, 10px)',
+              animation: 'wb-celeb-stats 5s ease-out forwards',
+            }}>
+              #{agent.rank}
+            </div>
+          );
+        })()}
 
         <div style={{
           position: 'relative',

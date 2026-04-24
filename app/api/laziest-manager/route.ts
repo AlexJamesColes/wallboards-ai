@@ -65,9 +65,18 @@ export async function GET() {
   });
   const laziest = results[0];
   const other   = results[1];
-  const gap     = other.count === Number.POSITIVE_INFINITY || laziest.count === Number.POSITIVE_INFINITY
-    ? '?'
-    : String(Math.max(0, other.count - laziest.count));
+
+  // Skip the slide when we don't have a real signal:
+  //   - Zendesk lookup failed for either manager → no meaningful comparison
+  //   - Both at 0 updates (early morning / weekend) → don't call anyone lazy
+  //     just because nobody's started work yet.
+  const lookupFailed = laziest.count === Number.POSITIVE_INFINITY || other.count === Number.POSITIVE_INFINITY;
+  const bothAtZero   = laziest.count === 0 && other.count === 0;
+  if (lookupFailed || bothAtZero) {
+    return NextResponse.json({ agent: null });
+  }
+
+  const gap = String(Math.max(0, other.count - laziest.count));
 
   const firstName = (name: string) => name.split(' ')[0];
 
