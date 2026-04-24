@@ -171,9 +171,31 @@ function isComedySlide(agent: HighlightRow): boolean {
 
 function CelebrationOverlay({ agents, onDone }: { agents: HighlightRow[]; onDone: () => void }) {
   const [idx, setIdx] = useState(0);
+  const [summaries, setSummaries] = useState<Record<string, string | null>>({});
 
   // Opening fanfare on mount
   useEffect(() => { playFanfare(); }, []);
+
+  // Fire off summary requests for every agent in parallel the moment the
+  // overlay opens. Answers land as they come back and render on whichever
+  // slide is currently showing (or catch up on later slides for free).
+  useEffect(() => {
+    let cancelled = false;
+    Promise.all(agents.map(async a => {
+      try {
+        const res = await fetch('/api/celebration/summary', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: a.name, emojis: a.emojis, stats: a.stats }),
+        });
+        const d = await res.json();
+        if (cancelled) return;
+        setSummaries(s => ({ ...s, [a.name]: d?.summary ?? null }));
+      } catch { /* ignore — summary is nice-to-have */ }
+    }));
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (idx >= agents.length) { onDone(); return; }
@@ -184,6 +206,7 @@ function CelebrationOverlay({ agents, onDone }: { agents: HighlightRow[]; onDone
   if (idx >= agents.length) return null;
 
   const agent   = agents[idx];
+  const summary = summaries[agent.name];
   const isFirst = idx === 0;
   const isLast  = idx === agents.length - 1;
 
@@ -207,7 +230,7 @@ function CelebrationOverlay({ agents, onDone }: { agents: HighlightRow[]; onDone
       {/* Key-on-idx forces a fresh mount per slide so every keyframe
           animation restarts — otherwise `forwards` fill keeps the previous
           agent's end-state and subsequent slides appear frozen. */}
-      <AgentSlide key={idx} agent={agent} isFirst={isFirst} />
+      <AgentSlide key={idx} agent={agent} isFirst={isFirst} summary={summary} />
 
       {/* Progress dots (unkeyed — stay mounted across slides) */}
       <div style={{
@@ -226,7 +249,7 @@ function CelebrationOverlay({ agents, onDone }: { agents: HighlightRow[]; onDone
   );
 }
 
-function AgentSlide({ agent, isFirst }: { agent: HighlightRow; isFirst: boolean }) {
+function AgentSlide({ agent, isFirst, summary }: { agent: HighlightRow; isFirst: boolean; summary?: string | null }) {
   const nameClean = agent.name.replace(/\p{Extended_Pictographic}(?:\uFE0F)?/gu, '').trim();
   const seed      = hash(agent.name);
   const count     = Math.max(agent.emojis.length, 1);
@@ -311,6 +334,27 @@ function AgentSlide({ agent, isFirst }: { agent: HighlightRow; isFirst: boolean 
                 <div style={{ fontSize: 'clamp(11px, 1vw, 16px)', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em', marginTop: 4 }}>{s.label}</div>
               </div>
             ))}
+          </div>
+        )}
+
+        {/* AI-generated celebratory sentence. Fades in whenever the API
+            responds — no summary = no slot (avoids an empty placeholder). */}
+        {summary && (
+          <div style={{
+            marginTop: 'clamp(18px, 2.4vh, 34px)',
+            padding: '0 min(8vw, 140px)',
+            fontSize: 'clamp(16px, 1.9vw, 32px)',
+            fontStyle: 'italic',
+            fontWeight: 500,
+            color: '#cbd5e1',
+            lineHeight: 1.35,
+            textShadow: '0 2px 12px rgba(0,0,0,0.4)',
+            maxWidth: '80vw',
+            margin: 'clamp(18px, 2.4vh, 34px) auto 0',
+            textWrap: 'balance',
+            animation: 'wb-celeb-stats 5s 0.3s ease-out both',
+          }}>
+            “{summary}”
           </div>
         )}
 
