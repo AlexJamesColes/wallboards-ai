@@ -76,9 +76,21 @@ export async function GET() {
     return NextResponse.json({ agent: null });
   }
 
-  const gap = String(Math.max(0, other.count - laziest.count));
+  const gapN = Math.max(0, other.count - laziest.count);
+  const gap  = String(gapN);
 
   const firstName = (name: string) => name.split(' ')[0];
+  const otherFirst = firstName(other.name);
+
+  // Pre-computed, deterministic sentence — no AI, just the right quip for
+  // whichever of the handful of possible states we're in.
+  const summary = laziest.count === 0 && other.count > 0
+    ? `Not a single ticket touched today while ${otherFirst} knocked out ${other.count}.`
+    : gapN === 0
+      ? `Neck-and-neck with ${otherFirst} at ${laziest.count} updates — retaining the crown on tiebreak.`
+      : gapN >= 10
+        ? `Quietly coasting on ${laziest.count} updates while ${otherFirst} smashed out ${other.count} — behind by ${gapN}.`
+        : `Just ${laziest.count} updates today — ${otherFirst} is ahead by ${gapN}.`;
 
   return NextResponse.json({
     agent: {
@@ -88,9 +100,10 @@ export async function GET() {
       banner:   '😴  LAZIEST MANAGER  😴',
       stats: [
         { label: 'Updates Today', value: laziest.count === Number.POSITIVE_INFINITY ? '?' : String(laziest.count) },
-        { label: 'vs. ' + firstName(other.name), value: other.count === Number.POSITIVE_INFINITY ? '?' : String(other.count) },
+        { label: 'vs. ' + otherFirst, value: other.count === Number.POSITIVE_INFINITY ? '?' : String(other.count) },
         { label: 'Behind by', value: gap },
       ],
+      summary,
     },
   });
 }

@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react';
 import { extractEmojis } from '@/lib/emoji';
+import { summarizeAgent } from '@/lib/emojiSummary';
 import { playFanfare, playSlideChime, playWompWomp } from '@/lib/sounds';
 
 /**
@@ -25,6 +26,9 @@ export interface HighlightRow {
   banner?:  string;
   /** Leaderboard position (1-based). Shown as a large "#N" badge. */
   rank?:    number;
+  /** Pre-computed celebration sentence. Overrides the emoji-template
+   *  default — useful for bespoke slides (e.g. the Laziest Manager). */
+  summary?: string;
 }
 
 interface Ctx {
@@ -192,31 +196,9 @@ function isComedySlide(agent: HighlightRow): boolean {
 
 function CelebrationOverlay({ agents, onDone }: { agents: HighlightRow[]; onDone: () => void }) {
   const [idx, setIdx] = useState(0);
-  const [summaries, setSummaries] = useState<Record<string, string | null>>({});
 
   // Opening fanfare on mount
   useEffect(() => { playFanfare(); }, []);
-
-  // Fire off summary requests for every agent in parallel the moment the
-  // overlay opens. Answers land as they come back and render on whichever
-  // slide is currently showing (or catch up on later slides for free).
-  useEffect(() => {
-    let cancelled = false;
-    Promise.all(agents.map(async a => {
-      try {
-        const res = await fetch('/api/celebration/summary', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: a.name, emojis: a.emojis, stats: a.stats }),
-        });
-        const d = await res.json();
-        if (cancelled) return;
-        setSummaries(s => ({ ...s, [a.name]: d?.summary ?? null }));
-      } catch { /* ignore — summary is nice-to-have */ }
-    }));
-    return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   useEffect(() => {
     if (idx >= agents.length) { onDone(); return; }
@@ -227,7 +209,10 @@ function CelebrationOverlay({ agents, onDone }: { agents: HighlightRow[]; onDone
   if (idx >= agents.length) return null;
 
   const agent   = agents[idx];
-  const summary = summaries[agent.name];
+  // Summary: use a pre-baked one if the row provides it (e.g. Laziest
+  // Manager's bespoke quip), otherwise derive from the emoji set via the
+  // static template. No AI, no network — deterministic per combo.
+  const summary = agent.summary ?? summarizeAgent(agent.emojis) ?? '';
   const isFirst = idx === 0;
   const isLast  = idx === agents.length - 1;
 
