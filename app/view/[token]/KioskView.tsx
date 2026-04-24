@@ -34,10 +34,38 @@ interface Props {
   board: WbBoard & { widgets: WbWidget[] };
 }
 
+/**
+ * Poll /api/version every 2 minutes. When the build ID changes (new Heroku
+ * release) we hard-reload so the TV picks up the latest bundle without
+ * anyone having to touch the screen. Stays silent on network hiccups.
+ */
+function useAutoReloadOnDeploy() {
+  useEffect(() => {
+    let firstId: string | null = null;
+    const check = async () => {
+      try {
+        const res = await fetch('/api/version', { cache: 'no-store' });
+        const { id } = await res.json();
+        if (!id) return;
+        if (firstId === null) { firstId = id; return; }
+        if (id !== firstId) {
+          // Hard-reload — bypasses the (already disabled) cache and pulls
+          // the new HTML + JS bundle.
+          window.location.reload();
+        }
+      } catch { /* ignore — TV may briefly lose internet */ }
+    };
+    check();
+    const iv = setInterval(check, 120_000);
+    return () => clearInterval(iv);
+  }, []);
+}
+
 export default function KioskView({ board }: Props) {
   const { cols = 4, rows = 3, background = '#0a0f1c', name, widgets } = board;
   const isMobile = useIsMobile();
   const [activeIdx, setActiveIdx] = useState(0);
+  useAutoReloadOnDeploy();
 
   // Order widgets top-to-bottom, left-to-right for a sensible swipe sequence.
   const ordered = [...widgets].sort((a, b) =>
