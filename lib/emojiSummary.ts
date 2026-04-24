@@ -15,42 +15,51 @@
  *   🍺           Biggest single policy today
  *   🚐           Most policies MTD
  *   🍾           Biggest single policy MTD
+ *
+ * Awards are merged across the today/MTD axis when an agent holds both
+ * versions of the same record, so we don't end up saying "most policies
+ * today, … most policies this month" — that reads as a duplicate even
+ * though it's two distinct awards.
  */
 
 export function summarizeAgent(emojis: string[]): string {
   const set = new Set(emojis);
   const parts: string[] = [];
 
-  // ── Monthly position (mutually exclusive) ────────────────────────────
-  if      (set.has('🥇')) parts.push('leading the month for income');
-  else if (set.has('🥈')) parts.push('sitting 2nd for income this month');
-  else if (set.has('🥉')) parts.push('holding 3rd for income this month');
-  else if (set.has('🍪')) parts.push('sneaking into 4th for income this month');
+  // ── Income: monthly position ± today's win ──────────────────────────
+  let position: string | null = null;
+  if      (set.has('🥇')) position = 'leading the month for income';
+  else if (set.has('🥈')) position = 'sitting 2nd for income this month';
+  else if (set.has('🥉')) position = 'holding 3rd for income this month';
+  else if (set.has('🍪')) position = 'breaking into 4th for income this month';
 
-  // ── Today's awards (can stack) ───────────────────────────────────────
-  const todayWins: string[] = [];
-  if (set.has('🔥')) todayWins.push('top income');
-  if (set.has('🎉')) todayWins.push('most policies');
-  if (set.has('🍺')) todayWins.push('biggest single policy');
-  if (todayWins.length === 1) parts.push(`${todayWins[0]} today`);
-  else if (todayWins.length === 2) parts.push(`${todayWins[0]} and ${todayWins[1]} today`);
-  else if (todayWins.length === 3) parts.push('every today award going');
+  const dayIncome = set.has('🔥');
+  if (position && dayIncome) parts.push(`${position} AND topping today's income`);
+  else if (position)         parts.push(position);
+  else if (dayIncome)        parts.push("topping today's income");
 
-  // ── MTD extras beyond position (can stack) ───────────────────────────
-  const mtdExtras: string[] = [];
-  if (set.has('🚐')) mtdExtras.push('most policies this month');
-  if (set.has('🍾')) mtdExtras.push('biggest single policy this month');
-  if (mtdExtras.length === 1) parts.push(mtdExtras[0]);
-  else if (mtdExtras.length === 2) parts.push('most policies AND biggest policy this month');
+  // ── Policies records: today + MTD merged ────────────────────────────
+  const dayPol = set.has('🎉');
+  const mtdPol = set.has('🚐');
+  if (dayPol && mtdPol) parts.push('most policies today AND for the month');
+  else if (dayPol)      parts.push('most policies today');
+  else if (mtdPol)      parts.push('most policies this month');
+
+  // ── Biggest single policy: today + MTD merged ───────────────────────
+  const daySingle = set.has('🍺');
+  const mtdSingle = set.has('🍾');
+  if (daySingle && mtdSingle) parts.push('biggest single policy today AND of the month');
+  else if (daySingle)         parts.push('biggest single policy today');
+  else if (mtdSingle)         parts.push('biggest single policy of the month');
 
   if (parts.length === 0) return '';
 
-  // ── Prefix sets the energy level based on how many awards stack ──────
+  // ── Prefix sets the energy level based on how many awards stack ─────
   const prefix = parts.length >= 3 ? 'On absolute fire — '
                : parts.length === 2 ? 'Having a belter — '
                :                      'Smashing it — ';
 
-  // ── Natural "A, B, and C" join ───────────────────────────────────────
+  // ── Natural "A, B, and C" join ──────────────────────────────────────
   let joined: string;
   if (parts.length === 1) {
     joined = parts[0];
