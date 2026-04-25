@@ -231,56 +231,42 @@ function CelebrationOverlay({ agents, onDone }: { agents: HighlightRow[]; onDone
       aria-label={`Celebrating ${agent.name}`}
       style={{
         position: 'fixed', inset: 0, zIndex: 1000,
-        // Dim + blur the wallboard so the pop-up has full focus without
-        // a chaotic field of leaderboard text fighting for attention.
-        background: 'rgba(4,6,14,0.55)',
-        backdropFilter: 'blur(14px)',
-        WebkitBackdropFilter: 'blur(14px)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        // Full-screen takeover: dim + blur the wallboard hard so the
+        // celebration has the entire stage to itself.
+        background: 'rgba(4,6,14,0.78)',
+        backdropFilter: 'blur(18px)',
+        WebkitBackdropFilter: 'blur(18px)',
+        display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center',
         pointerEvents: 'none',
         animation: (isFirst ? 'wb-celeb-backdrop-in 0.4s ease-out forwards'
                   : isLast  ? 'wb-celeb-backdrop-out 0.5s 6.4s ease-in forwards'
                   :           'none'),
       }}
     >
-      {/* The pop-up card itself — sized so the animations have room to
-          breathe but the wallboard underneath stays visible around it. */}
-      <div style={{
-        position: 'relative',
-        width:  'min(78vw, 1300px)',
-        height: 'min(64vh, 720px)',
-        background: 'linear-gradient(180deg, rgba(20,26,42,0.97) 0%, rgba(10,15,28,0.97) 100%)',
-        border: '2px solid rgba(99,102,241,0.45)',
-        borderRadius: 28,
-        boxShadow: '0 30px 90px rgba(0,0,0,0.7), 0 0 80px rgba(251,191,36,0.18), inset 0 1px 0 rgba(255,255,255,0.08)',
-        overflow: 'hidden',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-      }}>
-        {/* Key-on-idx forces a fresh mount per slide so every keyframe
-            animation restarts — otherwise `forwards` fill keeps the
-            previous agent's end-state and subsequent slides appear frozen. */}
-        <AgentSlide key={idx} agent={agent} isFirst={isFirst} summary={summary} />
+      {/* Key-on-idx forces a fresh mount per slide so every keyframe
+          animation restarts — otherwise `forwards` fill keeps the
+          previous agent's end-state and subsequent slides appear frozen. */}
+      <AgentSlide key={idx} agent={agent} isFirst={isFirst} summary={summary} />
 
-        {/* Progress dots — pinned to the bottom of the card */}
-        <div style={{
-          position: 'absolute', bottom: 18,
-          display: 'flex', gap: 7,
-        }}>
-          {agents.map((_, i) => (
-            <span key={i} style={{
-              width: i === idx ? 22 : 7, height: 7, borderRadius: 4,
-              background: i === idx ? '#fbbf24' : i < idx ? 'rgba(251,191,36,0.4)' : 'rgba(255,255,255,0.15)',
-              transition: 'all 0.3s ease',
-            }} />
-          ))}
-        </div>
-      </div>
-
-      {/* Emoji explosion — rendered at the dialog level (sibling to the
-          card) so it can fly OUT past the card edges and over the blurred
-          backdrop without being clipped. Keyed on idx so each new slide
-          gets a fresh burst. */}
+      {/* Emoji explosion — sibling layer so it overlays the whole stage
+          and can fly anywhere across the viewport. Keyed on idx so each
+          new slide gets a fresh burst. */}
       <EmojiBurst key={`emoji-${idx}`} agent={agent} />
+
+      {/* Progress dots — pinned to the bottom of the viewport */}
+      <div style={{
+        position: 'absolute', bottom: 'clamp(20px, 4vh, 56px)',
+        display: 'flex', gap: 8,
+      }}>
+        {agents.map((_, i) => (
+          <span key={i} style={{
+            width: i === idx ? 24 : 8, height: 8, borderRadius: 4,
+            background: i === idx ? '#fbbf24' : i < idx ? 'rgba(251,191,36,0.4)' : 'rgba(255,255,255,0.15)',
+            transition: 'all 0.3s ease',
+          }} />
+        ))}
+      </div>
     </div>
   );
 }
@@ -330,8 +316,6 @@ function EmojiBurst({ agent }: { agent: HighlightRow }) {
 
 function AgentSlide({ agent, isFirst, summary }: { agent: HighlightRow; isFirst: boolean; summary?: string | null }) {
   const nameClean = agent.name.replace(/\p{Extended_Pictographic}(?:\uFE0F)?/gu, '').trim();
-  const seed      = hash(agent.name);
-  const count     = Math.max(agent.emojis.length, 1);
 
   // Per-slide sound effect (skip the first because the fanfare already fired)
   useEffect(() => {
@@ -342,11 +326,11 @@ function AgentSlide({ agent, isFirst, summary }: { agent: HighlightRow; isFirst:
 
   return (
     <>
-      {/* Banner — pinned to the top of the pop-up card */}
+      {/* Banner — pinned to the top of the viewport */}
       <div style={{
-        position: 'absolute', top: 'clamp(14px, 3vh, 32px)', left: 0, right: 0, textAlign: 'center',
-        fontSize: 'clamp(14px, 1.6vw, 24px)', fontWeight: 700,
-        color: '#fbbf24', letterSpacing: '0.3em', textTransform: 'uppercase',
+        position: 'absolute', top: 'clamp(24px, 6vh, 80px)', left: 0, right: 0, textAlign: 'center',
+        fontSize: 'clamp(16px, 2vw, 32px)', fontWeight: 700,
+        color: '#fbbf24', letterSpacing: '0.35em', textTransform: 'uppercase',
         textShadow: '0 0 24px rgba(251,191,36,0.6)',
         animation: 'wb-celeb-banner 7s ease-out forwards',
         whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
@@ -414,32 +398,9 @@ function AgentSlide({ agent, isFirst, summary }: { agent: HighlightRow; isFirst:
           </div>
         )}
 
-        {/* Exploding emojis — radius tuned so the burst stays largely
-            inside the pop-up card while still feeling explosive. The
-            card's overflow:hidden trims any that go a fraction past the
-            edge for the "bursting out" feel. */}
-        {agent.emojis.map((emoji, i) => {
-          const angle  = (seed + i * 360 / count) * (Math.PI / 180);
-          const radius = 24 + ((seed * (i + 3)) % 10);  // 24-34 vmin
-          const dx     = Math.cos(angle) * radius;
-          const dy     = Math.sin(angle) * radius * 0.75;
-          const spin   = ((seed + i * 97) % 720) - 360;
-          const delay  = i * 0.08;
-          return (
-            <span key={i} aria-hidden style={{
-              position: 'absolute', left: '50%', top: '50%',
-              fontSize: 'clamp(40px, 5.5vw, 96px)',
-              animation: `wb-celeb-emoji 2.6s ${delay}s cubic-bezier(0.22, 1, 0.36, 1) forwards`,
-              ['--dx'   as any]: `${dx}vmin`,
-              ['--dy'   as any]: `${dy}vmin`,
-              ['--spin' as any]: `${spin}deg`,
-              filter: 'drop-shadow(0 4px 18px rgba(0,0,0,0.5))',
-              pointerEvents: 'none',
-            }}>
-              {emoji}
-            </span>
-          );
-        })}
+        {/* Emoji burst lives in <EmojiBurst> at the dialog level — that
+            way it can fly across the whole viewport rather than being
+            anchored to (and clipped by) the slide's content box. */}
       </div>
     </>
   );
