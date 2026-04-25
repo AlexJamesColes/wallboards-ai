@@ -759,8 +759,17 @@ function DayCountdown() {
     tone  = ms < 3_600_000 ? 'urgent' : 'normal';
   } else {
     const next = nextOpening(date);
-    label = next ? `Closed · opens ${next.dayLabel} ${fmtTime(openingHoursFor(next.at.getDay()).openH, openingHoursFor(next.at.getDay()).openM)}` : 'Closed';
-    value = '🎉';
+    // Promote the reopen time to the prominent "value" slot — that's
+    // what someone glancing at the screen actually wants to know. Drop
+    // the emoji so it doesn't collide visually with the celebration
+    // award icons elsewhere on the board.
+    if (next) {
+      label = `Closed · reopens ${next.dayLabel}`;
+      value = fmtTime(openingHoursFor(next.at.getDay()).openH, openingHoursFor(next.at.getDay()).openM);
+    } else {
+      label = 'Closed';
+      value = '';
+    }
     tone  = 'closed';
   }
 
