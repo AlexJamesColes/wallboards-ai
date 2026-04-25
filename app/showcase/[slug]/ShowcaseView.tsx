@@ -351,13 +351,13 @@ export default function ShowcaseView({ board, widgetId }: Props) {
         if (!was) continue;
         const displayName = cleanName(String(data.rows[cur.rank - 1]?.[nameCol] ?? key));
 
-        // Per-card delta — fires on every non-zero income change so the
-        // card itself shows a "+£X" / "−£X" floater + tinted glow. The
-        // big ticker only celebrates jumps ≥ £1k (below); these silent
-        // card-level animations cover everything in between so the board
-        // feels alive even on small tickers.
+        // Per-card delta — fires on any income change ≥ £1 so the card
+        // itself shows a "+£X" / "−£X" floater + tinted glow. The £1
+        // floor filters float-noise (49512.5 vs 49512.4 between polls)
+        // without hiding any real deal — even a £100 add-on still pops.
+        // The big ticker only celebrates jumps ≥ £1k separately (below).
         const incomeDelta = cur.income - was.income;
-        if (incomeDelta !== 0) {
+        if (Math.abs(incomeDelta) >= 1) {
           newDeltas.push({
             id:       `${key}-${now}-${incomeDelta}`,
             agentKey: key,
