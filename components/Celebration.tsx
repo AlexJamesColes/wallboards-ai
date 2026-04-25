@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect, useRef, useState, ReactNode } fro
 import { extractEmojis } from '@/lib/emoji';
 import { summarizeAgent } from '@/lib/emojiSummary';
 import { playFanfare, playSlideChime, playWompWomp } from '@/lib/sounds';
+import { isWithinTradingHours } from '@/lib/tradingHours';
 
 /**
  * "Hall of fame" takeover that runs every 10 minutes. Any TableWidget can
@@ -110,13 +111,19 @@ export function CelebrationProvider({
     nextFireAt,
   };
 
-  // Auto-trigger on a clock-aligned schedule. With the default 30-min
-  // cadence this fires on every :00 and :30 of local time (e.g. 14:00,
-  // 14:30, 15:00…). Aligning to the clock — rather than to "intervalMs
-  // after page load + intervalMs after that" — means every TV in the
-  // building celebrates the same agent at the same moment regardless of
-  // when each one was last reloaded, and the rhythm matches how the
-  // sales floor reads the clock anyway.
+  // Auto-trigger on a clock-aligned schedule. With the default 1-hour
+  // cadence this fires on every :00 of local time (14:00, 15:00, 16:00…).
+  // Aligning to the clock — rather than to "intervalMs after page load
+  // + intervalMs after that" — means every TV in the building
+  // celebrates the same agent at the same moment regardless of when
+  // each one was last reloaded, and the rhythm matches how the sales
+  // floor reads the clock anyway.
+  //
+  // Trading-hours gate: the boundary timer keeps ticking 24/7 so DST /
+  // overnight rollovers don't drift, but we only call trigger() when
+  // the boundary lands inside today's trading window. A 6am
+  // celebration playing to an empty office is the noisiest possible
+  // way to look broken.
   //
   // We chain setTimeout (rather than setInterval) so the nextFireAt
   // exposed to <CelebrationCountdown> is always exactly the upcoming
@@ -126,7 +133,7 @@ export function CelebrationProvider({
     let timer: ReturnType<typeof setTimeout>;
     const nextBoundary = (now: number): number => {
       // Align relative to local midnight so DST doesn't pull the boundary
-      // off the half-hour. (The period itself is short enough that DST
+      // off the hour. (The period itself is short enough that DST
       // doesn't create gaps anyway.)
       const d = new Date(now);
       const startOfDay = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0).getTime();
@@ -139,7 +146,10 @@ export function CelebrationProvider({
       setNextFireAt(fireAt);
       const wait  = Math.max(0, fireAt - Date.now());
       timer = setTimeout(() => {
-        trigger();
+        // Skip the trigger when the office is closed; the countdown
+        // visual still ticks down to the next boundary so anyone glancing
+        // at the screen knows when celebrations resume.
+        if (isWithinTradingHours(new Date())) trigger();
         schedule();
       }, wait);
     };

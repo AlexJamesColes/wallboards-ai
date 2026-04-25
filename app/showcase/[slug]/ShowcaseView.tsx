@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { WbBoard } from '@/lib/db';
 import { extractEmojis, tokenize } from '@/lib/emoji';
 import { CelebrationProvider, CelebrationCountdown, CelebrationRegistrar } from '@/components/Celebration';
+import { openingHoursFor as openingHoursForLib } from '@/lib/tradingHours';
 
 interface Props { board: WbBoard; widgetId: string; }
 
@@ -514,7 +515,7 @@ export default function ShowcaseView({ board, widgetId }: Props) {
 
   return (
     <ZoomWrap>
-    <CelebrationProvider intervalMs={1_800_000} extraAgents={laziestSlide}>
+    <CelebrationProvider intervalMs={3_600_000} extraAgents={laziestSlide}>
       {/* Push the showcase agents into the celebration context so the Hall
           of Fame has real candidates (the bespoke showcase doesn't render a
           TableWidget, so without this only Hugo would ever appear). */}
@@ -685,15 +686,10 @@ function Header({ boardName, teamTotal, target, targetPct, isMobile }: {
   );
 }
 
-/** Sales floor opening hours by day of week. People do trade outside
- *  these (early starts / overtime), so the wallboard still works — it
- *  just shifts to a "Closed · opens X" state. */
-function openingHoursFor(day: number): { openH: number; openM: number; closeH: number; closeM: number } {
-  // 0=Sun, 1=Mon, …, 6=Sat
-  if (day === 0)            return { openH: 10, openM: 0,  closeH: 17, closeM: 0 };
-  if (day === 6)            return { openH:  9, openM: 0,  closeH: 17, closeM: 0 };
-  /* Mon–Fri */              return { openH:  8, openM: 30, closeH: 20, closeM: 0 };
-}
+/** Re-exposed under the local name the rest of this file already uses;
+ *  the canonical definition lives in lib/tradingHours so the celebration
+ *  component (and anything else server-side) can share it. */
+const openingHoursFor = openingHoursForLib;
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
