@@ -530,6 +530,7 @@ export default function ShowcaseView({ board, widgetId }: Props) {
           rows={sortedRows}
           cols={{ nameCol, incomeTodayCol, polTodayCol }}
           isMobile={isMobile}
+          boardSlug={board.slug}
         />
 
         {/* ── Podium (MTD position) ────────────────────────────────── */}
@@ -870,74 +871,25 @@ function Clock() {
 //  Today strip — fast-moving daily race ranked by Income Today
 // ────────────────────────────────────────────────────────────────────────
 
-// ── Day-baseline persistence ───────────────────────────────────────────
-// "First rank we saw this agent at, today" — the anchor for the persistent
-// ▲N/▼N chip. We keep it in localStorage so a TV reload doesn't wipe the
-// day's progression, and reset at midnight (local time). Scoped per-board
-// via window.location.pathname so London and Guildford don't share state.
-
-interface BaselineRecord {
-  date:      string;                       // YYYY-MM-DD, local
-  baselines: Record<string, number>;       // agent key → first-observed rank today
-}
-
-function todayKey(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
-
-function baselineStorageKey(): string {
-  if (typeof window === 'undefined') return 'wb-rank-baselines-v1';
-  return `wb-rank-baselines-v1:${window.location.pathname}`;
-}
-
-function loadBaselines(): { map: Map<string, number>; date: string } {
-  const fallback = { map: new Map<string, number>(), date: todayKey() };
-  if (typeof window === 'undefined') return fallback;
-  try {
-    const raw = window.localStorage.getItem(baselineStorageKey());
-    if (!raw) return fallback;
-    const parsed: BaselineRecord = JSON.parse(raw);
-    if (parsed?.date !== todayKey() || !parsed.baselines) return fallback;
-    return { map: new Map(Object.entries(parsed.baselines)), date: parsed.date };
-  } catch {
-    return fallback;
-  }
-}
-
-function saveBaselines(map: Map<string, number>): void {
-  if (typeof window === 'undefined') return;
-  try {
-    const obj: Record<string, number> = {};
-    map.forEach((v, k) => { obj[k] = v; });
-    const record: BaselineRecord = { date: todayKey(), baselines: obj };
-    window.localStorage.setItem(baselineStorageKey(), JSON.stringify(record));
-  } catch {
-    // Private mode / quota — best effort only.
-  }
-}
-
-function TodayStrip({ rows, cols, isMobile }: {
+function TodayStrip({ rows, cols, isMobile, boardSlug }: {
   rows: Row[];
   cols: { nameCol: string; incomeTodayCol: string; polTodayCol: string };
   isMobile: boolean;
+  /** Public board slug (e.g. 'london-agents'). Drives the server-side
+   *  baseline lookup so every device shares the same ▲N/▼N anchor — the
+   *  rank an agent was at when their first booking landed today, agreed
+   *  across all TVs. Null = baselines disabled (no chip). */
+  boardSlug: string | null;
 }) {
-  // Two refs that work together:
-  //   prevRef     — rank at the last poll. Used to flash the green/red
-  //                 row-up / row-down animation in the moment a position
-  //                 actually changes. Updates every poll.
-  //   baselineRef — the rank we first saw each agent at TODAY. Persisted
-  //                 to localStorage so reloads don't reset the chip; the
-  //                 baselineDateRef tracks which day the map belongs to so
-  //                 we wipe at midnight rollover.
-  const prevRef         = useRef<Map<string, number>>(new Map());
-  const baselineRef     = useRef<Map<string, number> | null>(null);
-  const baselineDateRef = useRef<string>('');
-  if (baselineRef.current === null) {
-    const loaded = loadBaselines();
-    baselineRef.current     = loaded.map;
-    baselineDateRef.current = loaded.date;
-  }
+  // prevRef — rank at the last poll. Drives the green/red row flash
+  // animation in the moment a position changes (separate from the
+  // baseline-derived persistent chip).
+  const prevRef = useRef<Map<string, number>>(new Map());
+  // baselines — server-side map of "first-observed rank today" keyed by
+  // agent name. Refreshed each data poll via /api/baselines/<slug>; the
+  // POST is dedupe-safe (ON CONFLICT DO NOTHING) so any TV that joins
+  // late just reads the canonical baselines without overwriting them.
+  const [baselines, setBaselines] = useState<Record<string, number>>({});
 
   if (!cols.incomeTodayCol) return null;
 
@@ -967,43 +919,43 @@ function TodayStrip({ rows, cols, isMobile }: {
     return best > 0 && bestCount === 1 ? bestName.toLowerCase() : null;
   })();
 
-  // Wipe baselines if the day rolled over (TV ran through midnight).
-  const today = todayKey();
-  if (baselineDateRef.current && baselineDateRef.current !== today) {
-    baselineRef.current = new Map();
-  }
-  baselineDateRef.current = today;
-
   // Snapshot ranks for booked agents so we can animate position changes
   const newPrev = new Map<string, number>();
-  let baselineChanged = false;
-  booked.forEach((a, i) => {
-    const key = a.name.toLowerCase();
-    newPrev.set(key, i + 1);
-    // First sighting today → seed the baseline. Subsequent polls don't
-    // touch it, so the chip shows true day-wide net movement even after
-    // a page reload.
-    if (!baselineRef.current!.has(key)) {
-      baselineRef.current!.set(key, i + 1);
-      baselineChanged = true;
-    }
-  });
-  // Drop baselines for agents who fell off the booked list (e.g. all
-  // their bookings refunded back to £0) — if they come back later we
-  // re-baseline at their re-entry rank rather than carry stale state.
-  for (const key of Array.from(baselineRef.current!.keys())) {
-    if (!newPrev.has(key)) {
-      baselineRef.current!.delete(key);
-      baselineChanged = true;
-    }
-  }
-  if (baselineChanged) {
-    // Defer the write so we don't synchronously hit localStorage during
-    // a render path; queue it for after commit.
-    setTimeout(() => saveBaselines(baselineRef.current!), 0);
-  }
+  booked.forEach((a, i) => newPrev.set(a.name.toLowerCase(), i + 1));
   const oldRanks  = prevRef.current;
-  const baselines = baselineRef.current!;
+
+  // Sync today's baselines with the server. POST current ranks so the
+  // server seeds any agents not yet recorded for today (ON CONFLICT DO
+  // NOTHING — first observation wins across all TVs); reads back the
+  // canonical day's map. Build a stable signature for the deps array
+  // so this only fires when the booked roster or rank order actually
+  // changes, not on every parent re-render.
+  const bookedSignature = booked.map(a => `${a.name.toLowerCase()}@${newPrev.get(a.name.toLowerCase())}`).join('|');
+  useEffect(() => {
+    if (!boardSlug) return;
+    if (booked.length === 0) return;
+    const entries = booked.map((a, i) => ({
+      agent_key: a.name.toLowerCase(),
+      rank:      i + 1,
+    }));
+    let cancelled = false;
+    fetch(`/api/baselines/${encodeURIComponent(boardSlug)}`, {
+      method:  'POST',
+      headers: { 'content-type': 'application/json' },
+      body:    JSON.stringify({ entries }),
+      cache:   'no-store',
+    })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => {
+        if (cancelled) return;
+        if (d && d.baselines && typeof d.baselines === 'object') {
+          setBaselines(d.baselines);
+        }
+      })
+      .catch(() => { /* keep last known on transient errors */ });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [boardSlug, bookedSignature]);
   // Use a layout-effect-equivalent trick — we set after build so the
   // next render sees the snapshot we just produced.
   setTimeout(() => { prevRef.current = newPrev; }, 0);
@@ -1058,10 +1010,11 @@ function TodayStrip({ rows, cols, isMobile }: {
           const was  = oldRanks.get(key);
           const climbed = was !== undefined && was > rank;     // last poll → flash anim
           const dropped = was !== undefined && was < rank;
-          // Net movement vs the rank we first saw them at this session —
-          // drives the persistent ▲N / ▼N chip.
-          const baseline = baselines.get(key);
-          const netChange = baseline !== undefined ? baseline - rank : 0;
+          // Net movement vs the rank the server has recorded as this
+          // agent's first booking today — drives the persistent ▲N/▼N
+          // chip. Shared across all TVs.
+          const baseline = baselines[key];
+          const netChange = typeof baseline === 'number' ? baseline - rank : 0;
           const isIncomeLeader = rank === 1;
           const isUnitsLeader  = unitsLeaderName === a.name.toLowerCase();
           // Income leader = gold tint (the prestige money slot)

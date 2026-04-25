@@ -81,6 +81,22 @@ async function initPool(databaseUrl) {
       )
     `);
 
+    // Per-board, per-day "rank when this agent first booked today".
+    // Drives the persistent ▲N/▼N chip on the showcase. Rows are keyed
+    // (board_slug, day, agent_key) and inserted with ON CONFLICT DO
+    // NOTHING so the FIRST observation wins — same agent across two
+    // TVs ends up with one shared baseline.
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS wb_rank_baselines (
+        board_slug    VARCHAR(120) NOT NULL,
+        day           DATE NOT NULL,
+        agent_key     VARCHAR(200) NOT NULL,
+        baseline_rank INTEGER NOT NULL,
+        created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        PRIMARY KEY (board_slug, day, agent_key)
+      )
+    `);
+
     await client.query('COMMIT');
     console.log('[wb-db] tables ready');
   } catch (e) {
@@ -287,9 +303,51 @@ async function deleteDataset(name) {
   await p.query('DELETE FROM wb_datasets WHERE id = $1', [rows[0].id]);
 }
 
+// ─── Rank baselines (showcase ▲N/▼N chips) ────────────────────────────
+
+/** Insert today's first-observed ranks for any agents not yet recorded
+ *  for this board today. ON CONFLICT DO NOTHING means the FIRST client
+ *  to POST a given (board, day, agent) wins — every later TV sees the
+ *  same baseline. Returns nothing; caller is expected to follow up with
+ *  getBaselines() to read the canonical map. */
+async function recordBaselines(boardSlug, day, entries) {
+  if (!entries || entries.length === 0) return;
+  const p = getPool();
+  const values = [];
+  const params = [boardSlug, day];
+  entries.forEach((e, i) => {
+    const a = i * 2 + 3; // $3, $5, $7… for agent_key
+    const r = i * 2 + 4; // $4, $6, $8… for baseline_rank
+    values.push(`($1, $2, $${a}, $${r})`);
+    params.push(String(e.agent_key).slice(0, 200));
+    params.push(Math.max(1, Math.min(9999, Math.floor(Number(e.rank)))));
+  });
+  await p.query(
+    `INSERT INTO wb_rank_baselines (board_slug, day, agent_key, baseline_rank)
+     VALUES ${values.join(', ')}
+     ON CONFLICT (board_slug, day, agent_key) DO NOTHING`,
+    params
+  );
+}
+
+/** Returns { agent_key: baseline_rank } for the given board+day. */
+async function getBaselines(boardSlug, day) {
+  const p = getPool();
+  const { rows } = await p.query(
+    `SELECT agent_key, baseline_rank
+     FROM wb_rank_baselines
+     WHERE board_slug = $1 AND day = $2`,
+    [boardSlug, day]
+  );
+  const out = {};
+  for (const r of rows) out[r.agent_key] = r.baseline_rank;
+  return out;
+}
+
 module.exports = {
   initPool,
   getBoard, getBoardByToken, getBoardBySlug, listBoards, createBoard, updateBoard, deleteBoard,
   getWidget, createWidget, updateWidget, deleteWidget,
   upsertDataset, setDatasetData, getDatasetData, listDatasets, deleteDataset,
+  recordBaselines, getBaselines,
 };

@@ -81,3 +81,7 @@ export const setDatasetData: (datasetId: string, rows: any[]) => Promise<any> = 
 export const getDatasetData: (datasetId: string) => Promise<any> = wbDb.getDatasetData;
 export const listDatasets: () => Promise<WbDataset[]> = wbDb.listDatasets;
 export const deleteDataset: (name: string) => Promise<void> = wbDb.deleteDataset;
+
+export interface BaselineEntry { agent_key: string; rank: number; }
+export const recordBaselines: (boardSlug: string, day: string, entries: BaselineEntry[]) => Promise<void> = wbDb.recordBaselines;
+export const getBaselines: (boardSlug: string, day: string) => Promise<Record<string, number>> = wbDb.getBaselines;
