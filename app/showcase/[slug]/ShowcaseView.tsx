@@ -870,6 +870,53 @@ function Clock() {
 //  Today strip — fast-moving daily race ranked by Income Today
 // ────────────────────────────────────────────────────────────────────────
 
+// ── Day-baseline persistence ───────────────────────────────────────────
+// "First rank we saw this agent at, today" — the anchor for the persistent
+// ▲N/▼N chip. We keep it in localStorage so a TV reload doesn't wipe the
+// day's progression, and reset at midnight (local time). Scoped per-board
+// via window.location.pathname so London and Guildford don't share state.
+
+interface BaselineRecord {
+  date:      string;                       // YYYY-MM-DD, local
+  baselines: Record<string, number>;       // agent key → first-observed rank today
+}
+
+function todayKey(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function baselineStorageKey(): string {
+  if (typeof window === 'undefined') return 'wb-rank-baselines-v1';
+  return `wb-rank-baselines-v1:${window.location.pathname}`;
+}
+
+function loadBaselines(): { map: Map<string, number>; date: string } {
+  const fallback = { map: new Map<string, number>(), date: todayKey() };
+  if (typeof window === 'undefined') return fallback;
+  try {
+    const raw = window.localStorage.getItem(baselineStorageKey());
+    if (!raw) return fallback;
+    const parsed: BaselineRecord = JSON.parse(raw);
+    if (parsed?.date !== todayKey() || !parsed.baselines) return fallback;
+    return { map: new Map(Object.entries(parsed.baselines)), date: parsed.date };
+  } catch {
+    return fallback;
+  }
+}
+
+function saveBaselines(map: Map<string, number>): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const obj: Record<string, number> = {};
+    map.forEach((v, k) => { obj[k] = v; });
+    const record: BaselineRecord = { date: todayKey(), baselines: obj };
+    window.localStorage.setItem(baselineStorageKey(), JSON.stringify(record));
+  } catch {
+    // Private mode / quota — best effort only.
+  }
+}
+
 function TodayStrip({ rows, cols, isMobile }: {
   rows: Row[];
   cols: { nameCol: string; incomeTodayCol: string; polTodayCol: string };
@@ -879,13 +926,18 @@ function TodayStrip({ rows, cols, isMobile }: {
   //   prevRef     — rank at the last poll. Used to flash the green/red
   //                 row-up / row-down animation in the moment a position
   //                 actually changes. Updates every poll.
-  //   baselineRef — the FIRST rank we saw an agent at this session.
-  //                 Drives the persistent ▲/▼ chip — "you're up 2 from
-  //                 where you started" — so anyone glancing at the wall
-  //                 sees the day's net movement at a glance, not just a
-  //                 60-second sliver.
-  const prevRef     = useRef<Map<string, number>>(new Map());
-  const baselineRef = useRef<Map<string, number>>(new Map());
+  //   baselineRef — the rank we first saw each agent at TODAY. Persisted
+  //                 to localStorage so reloads don't reset the chip; the
+  //                 baselineDateRef tracks which day the map belongs to so
+  //                 we wipe at midnight rollover.
+  const prevRef         = useRef<Map<string, number>>(new Map());
+  const baselineRef     = useRef<Map<string, number> | null>(null);
+  const baselineDateRef = useRef<string>('');
+  if (baselineRef.current === null) {
+    const loaded = loadBaselines();
+    baselineRef.current     = loaded.map;
+    baselineDateRef.current = loaded.date;
+  }
 
   if (!cols.incomeTodayCol) return null;
 
@@ -915,25 +967,43 @@ function TodayStrip({ rows, cols, isMobile }: {
     return best > 0 && bestCount === 1 ? bestName.toLowerCase() : null;
   })();
 
+  // Wipe baselines if the day rolled over (TV ran through midnight).
+  const today = todayKey();
+  if (baselineDateRef.current && baselineDateRef.current !== today) {
+    baselineRef.current = new Map();
+  }
+  baselineDateRef.current = today;
+
   // Snapshot ranks for booked agents so we can animate position changes
   const newPrev = new Map<string, number>();
+  let baselineChanged = false;
   booked.forEach((a, i) => {
     const key = a.name.toLowerCase();
     newPrev.set(key, i + 1);
-    // First sighting → seed the baseline. Subsequent polls don't touch
-    // it, so the chip shows true session-wide net movement.
-    if (!baselineRef.current.has(key)) {
-      baselineRef.current.set(key, i + 1);
+    // First sighting today → seed the baseline. Subsequent polls don't
+    // touch it, so the chip shows true day-wide net movement even after
+    // a page reload.
+    if (!baselineRef.current!.has(key)) {
+      baselineRef.current!.set(key, i + 1);
+      baselineChanged = true;
     }
   });
   // Drop baselines for agents who fell off the booked list (e.g. all
   // their bookings refunded back to £0) — if they come back later we
   // re-baseline at their re-entry rank rather than carry stale state.
-  for (const key of Array.from(baselineRef.current.keys())) {
-    if (!newPrev.has(key)) baselineRef.current.delete(key);
+  for (const key of Array.from(baselineRef.current!.keys())) {
+    if (!newPrev.has(key)) {
+      baselineRef.current!.delete(key);
+      baselineChanged = true;
+    }
+  }
+  if (baselineChanged) {
+    // Defer the write so we don't synchronously hit localStorage during
+    // a render path; queue it for after commit.
+    setTimeout(() => saveBaselines(baselineRef.current!), 0);
   }
   const oldRanks  = prevRef.current;
-  const baselines = baselineRef.current;
+  const baselines = baselineRef.current!;
   // Use a layout-effect-equivalent trick — we set after build so the
   // next render sees the snapshot we just produced.
   setTimeout(() => { prevRef.current = newPrev; }, 0);
@@ -1023,8 +1093,8 @@ function TodayStrip({ rows, cols, isMobile }: {
               )}
               {netChange > 0 && (
                 <span
-                  aria-label={`up ${netChange} from start`}
-                  title={`Up ${netChange} from where they started today`}
+                  aria-label={`up ${netChange} today`}
+                  title={`Up ${netChange} from where they first booked today`}
                   style={{
                     fontSize: isMobile ? 12 : 'clamp(10px, 0.85vw, 12px)',
                     color: '#10b981', fontWeight: 800,
@@ -1039,8 +1109,8 @@ function TodayStrip({ rows, cols, isMobile }: {
               )}
               {netChange < 0 && (
                 <span
-                  aria-label={`down ${-netChange} from start`}
-                  title={`Down ${-netChange} from where they started today`}
+                  aria-label={`down ${-netChange} today`}
+                  title={`Down ${-netChange} from where they first booked today`}
                   style={{
                     fontSize: isMobile ? 12 : 'clamp(10px, 0.85vw, 12px)',
                     color: '#f87171', fontWeight: 800,
