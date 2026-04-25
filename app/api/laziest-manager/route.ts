@@ -58,38 +58,35 @@ export async function GET() {
     return { name, count };
   }));
 
-  // Laziest = fewest updates. On a tie, Hugo keeps the joke running.
-  results.sort((a, b) => {
-    if (a.count !== b.count) return a.count - b.count;
-    return a.name === 'Hugo Blythman-Rowe' ? -1 : 1;
-  });
+  // Sort by fewest updates (the laziest)
+  results.sort((a, b) => a.count - b.count);
   const laziest = results[0];
   const other   = results[1];
 
-  // Only skip when we have no signal at all (Zendesk lookup failed for
-  // either manager). Both-at-zero is now allowed through — the running
-  // joke gets stronger when neither has touched a single ticket, and the
-  // summary already handles the tied-at-zero case with a tiebreak quip.
+  // Skip the slide unless ALL of these hold:
+  //   1. Both managers' Zendesk lookups succeeded.
+  //   2. BOTH have ≥1 update today (proves both are actually working —
+  //      we don't want to mock someone who's on leave or hasn't logged
+  //      in yet).
+  //   3. There's a clear winner — equal counts skip (no laziest to crown).
   const lookupFailed = laziest.count === Number.POSITIVE_INFINITY || other.count === Number.POSITIVE_INFINITY;
-  if (lookupFailed) {
+  const eitherIdle   = laziest.count === 0 || other.count === 0;
+  const tied         = laziest.count === other.count;
+  if (lookupFailed || eitherIdle || tied) {
     return NextResponse.json({ agent: null });
   }
 
-  const gapN = Math.max(0, other.count - laziest.count);
+  const gapN = other.count - laziest.count;   // always > 0 here
   const gap  = String(gapN);
 
   const firstName = (name: string) => name.split(' ')[0];
   const otherFirst = firstName(other.name);
 
-  // Pre-computed, deterministic sentence — no AI, just the right quip for
-  // whichever of the handful of possible states we're in.
-  const summary = laziest.count === 0 && other.count > 0
-    ? `Not a single ticket touched today while ${otherFirst} knocked out ${other.count}.`
-    : gapN === 0
-      ? `Neck-and-neck with ${otherFirst} at ${laziest.count} updates — retaining the crown on tiebreak.`
-      : gapN >= 10
-        ? `Quietly coasting on ${laziest.count} updates while ${otherFirst} smashed out ${other.count} — behind by ${gapN}.`
-        : `Just ${laziest.count} updates today — ${otherFirst} is ahead by ${gapN}.`;
+  // Pre-computed, deterministic quip — both have updates, the gap tells
+  // the story.
+  const summary = gapN >= 10
+    ? `Quietly coasting on ${laziest.count} updates while ${otherFirst} smashed out ${other.count} — behind by ${gapN}.`
+    : `Just ${laziest.count} updates today — ${otherFirst} is ahead by ${gapN}.`;
 
   return NextResponse.json({
     agent: {
