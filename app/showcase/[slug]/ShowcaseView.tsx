@@ -1055,7 +1055,7 @@ function TodayStrip({ rows, cols, isMobile, boardSlug }: {
                   fontSize: isMobile ? 10 : 'clamp(9px, 0.75vw, 11px)', fontWeight: 700,
                   color: isUnitsLeader ? '#5eead4' : '#94a3b8',
                 }}>
-                  · {a.policies}{isUnitsLeader ? '★' : ''}
+                  · {a.policies} {a.policies === 1 ? 'unit' : 'units'}{isUnitsLeader ? ' ★' : ''}
                 </span>
               )}
               {netChange > 0 && (
