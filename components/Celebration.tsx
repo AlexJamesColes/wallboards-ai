@@ -141,14 +141,27 @@ export function CelebrationProvider({
       const offset     = Math.floor(sinceStart / intervalMs) * intervalMs + intervalMs;
       return startOfDay + offset;
     };
+    /** First boundary >= now whose moment falls inside trading hours.
+     *  Walks forward through closed boundaries so the countdown always
+     *  points at a real fire. Cap at 14 days of look-ahead as a safety
+     *  belt — way longer than any realistic closed window. */
+    const nextFiringBoundary = (now: number): number => {
+      let candidate = nextBoundary(now);
+      const limit   = now + 14 * 24 * 60 * 60_000;
+      while (candidate < limit) {
+        if (isWithinTradingHours(new Date(candidate))) return candidate;
+        candidate = nextBoundary(candidate);
+      }
+      return candidate;
+    };
     const schedule = () => {
-      const fireAt = nextBoundary(Date.now());
+      const fireAt = nextFiringBoundary(Date.now());
       setNextFireAt(fireAt);
       const wait  = Math.max(0, fireAt - Date.now());
       timer = setTimeout(() => {
-        // Skip the trigger when the office is closed; the countdown
-        // visual still ticks down to the next boundary so anyone glancing
-        // at the screen knows when celebrations resume.
+        // Belt-and-braces — even though nextFiringBoundary already
+        // skipped closed boundaries, a clock-skew nudge could still
+        // land us a second early. Trigger only when actually open.
         if (isWithinTradingHours(new Date())) trigger();
         schedule();
       }, wait);
