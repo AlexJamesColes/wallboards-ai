@@ -1044,20 +1044,8 @@ function TodayStrip({ rows, cols, isMobile, boardSlug }: {
               <span style={{ fontSize: isMobile ? 11 : 'clamp(10px, 0.9vw, 13px)', fontWeight: 800, color: tint.rankColor, fontVariantNumeric: 'tabular-nums' }}>
                 #{rank}
               </span>
-              <span style={{ fontSize: isMobile ? 12 : 'clamp(10px, 0.9vw, 14px)', fontWeight: 600, color: '#f1f5f9', whiteSpace: 'nowrap' }}>
-                {a.name}
-              </span>
-              <span style={{ fontSize: isMobile ? 12 : 'clamp(10px, 0.95vw, 14px)', fontWeight: 800, color: tint.moneyColor, fontVariantNumeric: 'tabular-nums' }}>
-                {formatMoney(a.income)}
-              </span>
-              {a.policies > 0 && (
-                <span style={{
-                  fontSize: isMobile ? 10 : 'clamp(9px, 0.75vw, 11px)', fontWeight: 700,
-                  color: isUnitsLeader ? '#5eead4' : '#94a3b8',
-                }}>
-                  · {a.policies} {a.policies === 1 ? 'unit' : 'units'}{isUnitsLeader ? ' ★' : ''}
-                </span>
-              )}
+              {/* Position-movement chip lives next to the rank so it
+                  reads as "they're up 2 places", not "up 2 units". */}
               {netChange > 0 && (
                 <span
                   aria-label={`up ${netChange} today`}
@@ -1089,6 +1077,20 @@ function TodayStrip({ rows, cols, isMobile, boardSlug }: {
                     lineHeight: 1,
                   }}
                 >▼{-netChange}</span>
+              )}
+              <span style={{ fontSize: isMobile ? 12 : 'clamp(10px, 0.9vw, 14px)', fontWeight: 600, color: '#f1f5f9', whiteSpace: 'nowrap' }}>
+                {a.name}
+              </span>
+              <span style={{ fontSize: isMobile ? 12 : 'clamp(10px, 0.95vw, 14px)', fontWeight: 800, color: tint.moneyColor, fontVariantNumeric: 'tabular-nums' }}>
+                {formatMoney(a.income)}
+              </span>
+              {a.policies > 0 && (
+                <span style={{
+                  fontSize: isMobile ? 10 : 'clamp(9px, 0.75vw, 11px)', fontWeight: 700,
+                  color: isUnitsLeader ? '#5eead4' : '#94a3b8',
+                }}>
+                  · {a.policies} {a.policies === 1 ? 'unit' : 'units'}{isUnitsLeader ? ' ★' : ''}
+                </span>
               )}
             </div>
           );
