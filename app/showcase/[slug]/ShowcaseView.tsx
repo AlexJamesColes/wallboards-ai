@@ -76,6 +76,11 @@ interface Snapshot {
   emojis: Set<string>;
   income: number;
   policies: number;
+  /** Latest policy reference issued by this agent (e.g. 'D12345-1').
+   *  Optional — only populated if the source SQL exposes the column.
+   *  When the value differs from the prior snapshot, we treat that as
+   *  the ref for the deal that landed in this poll window. */
+  latestPolicyRef?: string;
 }
 
 type TickerKind = 'climb' | 'drop' | 'emoji' | 'first-policy' | 'milestone' | 'alert';
@@ -93,10 +98,15 @@ interface TickerItem {
  *  agent's card to render a floating +£X / −£X badge. Auto-cleaned after
  *  the animation finishes so old events don't pile up. */
 interface CardDelta {
-  id:       string;             // unique per event
-  agentKey: string;             // normalised agent name → matches a card
-  amount:   number;             // signed £ delta (positive = earn, negative = drop)
-  at:       number;             // createdAt ms
+  id:        string;            // unique per event
+  agentKey:  string;            // normalised agent name → matches a card
+  amount:    number;            // signed £ delta (positive = earn, negative = drop)
+  at:        number;            // createdAt ms
+  /** Latest policy reference at the moment the delta fired (optional).
+   *  When the source SQL exposes a `latest_policy_ref` column we tag the
+   *  chip with the actual ref so the floor sees "+£300 D12345-1" instead
+   *  of an anonymous amount. */
+  policyRef?: string;
 }
 
 /** How long a delta badge / glow stays on screen. Match wb-delta-rise +
@@ -328,16 +338,23 @@ export default function ShowcaseView({ board, widgetId }: Props) {
     const nameCol    = cols[0] || 'name';
     const incomeCol  = cols.find(c => /income.*mtd|mtd.*income/i.test(c)) || cols.find(c => /income/i.test(c)) || '';
     const polCol     = cols.find(c => /policies.*today|today.*policies/i.test(c)) || cols.find(c => /policies/i.test(c)) || '';
+    // Optional column — when the source SQL exposes the agent's most
+    // recently-issued policy reference, we surface it on the delta chip
+    // so a deal pop reads "+£300 D12345-1" instead of an anonymous £.
+    // Match common naming patterns; first match wins.
+    const policyRefCol = cols.find(c => /^policy.?ref|^pol.?ref|latest.*pol|latest.*ref|recent.*pol|recent.*ref/i.test(c)) || '';
 
     const current = new Map<string, Snapshot>();
     data.rows.forEach((r, i) => {
       const key = String(r[nameCol] ?? '').toLowerCase().replace(/\p{Extended_Pictographic}(?:\uFE0F)?/gu, '').trim();
       if (!key) return;
+      const refRaw = policyRefCol ? r[policyRefCol] : undefined;
       current.set(key, {
         rank:     i + 1,
         emojis:   extractEmojis(String(r[nameCol] ?? '')),
         income:   parseMoney(r[incomeCol]),
         policies: parseMoney(r[polCol]),
+        latestPolicyRef: refRaw != null && String(refRaw).trim() !== '' ? String(refRaw).trim() : undefined,
       });
     });
 
@@ -358,11 +375,20 @@ export default function ShowcaseView({ board, widgetId }: Props) {
         // The big ticker only celebrates jumps ≥ £1k separately (below).
         const incomeDelta = cur.income - was.income;
         if (Math.abs(incomeDelta) >= 1) {
+          // Attach the policy ref only when (a) the column exists,
+          // (b) the income went up (an actual new deal — refunds don't
+          // get tagged with the latest deal's ref, that'd be misleading),
+          // and (c) the ref actually changed since last poll. If the
+          // ref is unchanged, this is likely a re-quoted figure on an
+          // existing deal rather than a new one.
+          const refChanged   = !!cur.latestPolicyRef && cur.latestPolicyRef !== was.latestPolicyRef;
+          const attachRef    = incomeDelta > 0 && refChanged ? cur.latestPolicyRef : undefined;
           newDeltas.push({
-            id:       `${key}-${now}-${incomeDelta}`,
-            agentKey: key,
-            amount:   incomeDelta,
-            at:       now,
+            id:        `${key}-${now}-${incomeDelta}`,
+            agentKey:  key,
+            amount:    incomeDelta,
+            at:        now,
+            policyRef: attachRef,
           });
         }
 
@@ -1427,7 +1453,7 @@ function DeltaChip({ delta, staggerIndex }: { delta: CardDelta; staggerIndex: nu
   const abs  = Math.abs(delta.amount);
   return (
     <span style={{
-      display: 'inline-flex', alignItems: 'center',
+      display: 'inline-flex', alignItems: 'center', gap: 6,
       padding: '3px 8px', borderRadius: 99,
       fontSize: 'clamp(11px, 0.95vw, 14px)', fontWeight: 800,
       fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap',
@@ -1440,7 +1466,18 @@ function DeltaChip({ delta, staggerIndex }: { delta: CardDelta; staggerIndex: nu
       animation: `${positive ? 'wb-delta-rise' : 'wb-delta-sink'} ${DELTA_TTL_MS}ms ease-out forwards`,
       animationDelay: `${staggerIndex * 80}ms`,
     }}>
-      {sign}{`£${Math.round(abs).toLocaleString('en-GB')}`}
+      <span>{sign}{`£${Math.round(abs).toLocaleString('en-GB')}`}</span>
+      {/* Policy reference (if known) — slightly faded and same colour
+          family as the chip so it reads as supporting detail, not a
+          competing piece of info. */}
+      {delta.policyRef && (
+        <span style={{
+          fontSize: '0.78em', fontWeight: 700, opacity: 0.75,
+          letterSpacing: '0.04em',
+        }}>
+          {delta.policyRef}
+        </span>
+      )}
     </span>
   );
 }
