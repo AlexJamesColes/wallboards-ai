@@ -461,8 +461,10 @@ export function useCelebration() {
 
 /**
  * Small countdown indicator — shows time remaining until the next auto
- * celebration. Renders nothing if celebrations are disabled or the timer
- * hasn't been set yet. Pulses on the final 10 seconds to tee up the moment.
+ * celebration. Renders nothing if celebrations are disabled, the timer
+ * hasn't been set yet, or the office is closed (the next fire is hours
+ * or days away — the countdown would just be visual noise). Pulses on
+ * the final 10 seconds to tee up the moment.
  */
 export function CelebrationCountdown({ style }: { style?: React.CSSProperties } = {}) {
   const ctx = useCelebration();
@@ -474,6 +476,7 @@ export function CelebrationCountdown({ style }: { style?: React.CSSProperties } 
   }, []);
 
   if (!ctx?.nextFireAt) return null;
+  if (!isWithinTradingHours()) return null;
   const remaining = Math.max(0, ctx.nextFireAt - Date.now());
   if (remaining <= 0) return null;
 
