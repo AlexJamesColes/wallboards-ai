@@ -124,27 +124,45 @@ function useLaziestManagerSlide(): any[] {
  * viewport size to the browser so 1vw/1vh map to fewer real pixels than
  * the screen has — making everything look chunky and wasting space.
  *
- * Default is 0.7 so the office Samsung Frame fits the maximum number of
- * agents without any URL tweaking. Override per TV by appending
- * ?zoom=0.85 / ?zoom=1 / etc. to the wallboard URL.
+ * Default is 0.7. Override per TV with ?zoom=0.85 / ?zoom=1 / etc.
  *
- * Implemented via the CSS `zoom` property — well supported in Chromium
- * (which is what Samsung Tizen / smart TV browsers use).
+ * Implementation: <ZoomWrap> wraps the whole showcase in a scaling box.
+ * The inner box is sized to (100/z)vw × (100/z)vh and then transformed
+ * with scale(z) from the top-left, so the visible area equals one
+ * viewport but the layout thinks it has more space — the agent grid
+ * naturally packs more cards. (CSS `zoom` does NOT work reliably here
+ * because vw/vh don't update with the property — content overflows
+ * the viewport, exactly the problem we were seeing.)
  */
 const DEFAULT_ZOOM = 0.7;
 
-function useZoom() {
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const q = new URLSearchParams(window.location.search).get('zoom');
-    const z = q !== null && Number.isFinite(Number(q)) && Number(q) > 0
-      ? Number(q)
-      : DEFAULT_ZOOM;
-    if (z !== 1) {
-      (document.documentElement.style as any).zoom = String(z);
-      return () => { (document.documentElement.style as any).zoom = ''; };
-    }
-  }, []);
+function readZoom(): number {
+  if (typeof window === 'undefined') return 1;
+  const q = new URLSearchParams(window.location.search).get('zoom');
+  const z = q !== null && Number.isFinite(Number(q)) && Number(q) > 0 ? Number(q) : DEFAULT_ZOOM;
+  return z > 0 ? z : 1;
+}
+
+function ZoomWrap({ children }: { children: React.ReactNode }) {
+  const [z, setZ] = useState<number>(1);
+  useEffect(() => { setZ(readZoom()); }, []);
+  if (z === 1) return <>{children}</>;
+  const inv = 100 / z;
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, overflow: 'hidden',
+      background: '#0a0f1c',
+    }}>
+      <div style={{
+        width:  `${inv}vw`,
+        height: `${inv}vh`,
+        transform: `scale(${z})`,
+        transformOrigin: 'top left',
+      }}>
+        {children}
+      </div>
+    </div>
+  );
 }
 
 /**
@@ -175,7 +193,6 @@ export default function ShowcaseView({ board, widgetId }: Props) {
   const [tickerItems, setTicker] = useState<TickerItem[]>([]);
   const teamTarget            = useTeamTarget();
   const laziestSlide          = useLaziestManagerSlide();
-  useZoom();
   useAutoReloadOnDeploy();
 
   // Poll /api/alerts for anything IT has pushed (Teams webhook forwards etc.)
@@ -370,6 +387,7 @@ export default function ShowcaseView({ board, widgetId }: Props) {
   const rest = sortedRows.slice(3);
 
   return (
+    <ZoomWrap>
     <CelebrationProvider intervalMs={300_000} extraAgents={laziestSlide}>
       {/* Push the showcase agents into the celebration context so the Hall
           of Fame has real candidates (the bespoke showcase doesn't render a
@@ -385,7 +403,10 @@ export default function ShowcaseView({ board, widgetId }: Props) {
         ].filter(s => s.col)}
       />
       <div style={{
-        width: '100vw', height: '100vh',
+        // Width/height: 100% so we fill the ZoomWrap inner box (which is
+        // 100/z vw × 100/z vh) rather than the actual viewport. That's
+        // what lets the zoom param actually pack more agents in.
+        width: '100%', height: '100%',
         background: 'radial-gradient(ellipse at 20% 10%, #1a1f3a 0%, #0a0f1c 60%, #050813 100%)',
         color: '#f1f5f9', overflow: 'hidden',
         fontFamily: 'var(--font-raleway, sans-serif)',
@@ -422,6 +443,7 @@ export default function ShowcaseView({ board, widgetId }: Props) {
         <ActivityTicker items={tickerItems} />
       </div>
     </CelebrationProvider>
+    </ZoomWrap>
   );
 }
 
