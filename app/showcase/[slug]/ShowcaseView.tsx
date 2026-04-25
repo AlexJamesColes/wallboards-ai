@@ -451,41 +451,113 @@ function Header({ boardName, teamTotal, target, targetPct }: {
   );
 }
 
-/** Self-contained countdown to 6pm + clock + celebration timer. Owns its
- *  own setInterval so the parent ShowcaseView only re-renders when actual
- *  data changes (not every second just for the clock). */
+/** Sales floor opening hours by day of week. People do trade outside
+ *  these (early starts / overtime), so the wallboard still works — it
+ *  just shifts to a "Closed · opens X" state. */
+function openingHoursFor(day: number): { openH: number; openM: number; closeH: number; closeM: number } {
+  // 0=Sun, 1=Mon, …, 6=Sat
+  if (day === 0)            return { openH: 10, openM: 0,  closeH: 17, closeM: 0 };
+  if (day === 6)            return { openH:  9, openM: 0,  closeH: 17, closeM: 0 };
+  /* Mon–Fri */              return { openH:  8, openM: 30, closeH: 20, closeM: 0 };
+}
+
+const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+function fmtTime(h: number, m: number): string {
+  // 8:30am / 5pm — drop minutes when 0 for readability
+  const period = h >= 12 ? 'pm' : 'am';
+  const hh     = ((h + 11) % 12) + 1;
+  return m === 0 ? `${hh}${period}` : `${hh}:${String(m).padStart(2, '0')}${period}`;
+}
+
+/** Find the next opening window strictly after `from`. Returns the open
+ *  Date plus the day name for display ("Mon"), or null if (impossibly)
+ *  no future window exists. */
+function nextOpening(from: Date): { at: Date; dayLabel: string } | null {
+  for (let i = 0; i < 8; i++) {
+    const d = new Date(from.getFullYear(), from.getMonth(), from.getDate() + i, 0, 0, 0);
+    const { openH, openM } = openingHoursFor(d.getDay());
+    const open = new Date(d.getFullYear(), d.getMonth(), d.getDate(), openH, openM, 0);
+    if (open > from) {
+      const today = new Date(from.getFullYear(), from.getMonth(), from.getDate());
+      const isTomorrow = i === 1 || (i === 0 && open > from);
+      const sameDay    = open.toDateString() === today.toDateString();
+      const dayLabel   = sameDay ? 'today' : isTomorrow ? 'tomorrow' : DAY_NAMES[d.getDay()];
+      return { at: open, dayLabel };
+    }
+  }
+  return null;
+}
+
+/** Self-contained countdown — clock + celebration timer + per-day
+ *  opening-hours aware "time left today". Owns its own setInterval so
+ *  the parent ShowcaseView only re-renders when actual data changes. */
 function DayCountdown() {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
-    const iv = setInterval(() => setNow(Date.now()), 30_000); // 30s — fine for hr/min display
+    const iv = setInterval(() => setNow(Date.now()), 30_000);
     return () => clearInterval(iv);
   }, []);
 
-  const date     = new Date(now);
-  const endOfDay = new Date(date);
-  endOfDay.setHours(18, 0, 0, 0);
-  const msLeft   = Math.max(0, endOfDay.getTime() - date.getTime());
-  const closed   = msLeft === 0;
-  const hrsLeft  = Math.floor(msLeft / 3_600_000);
-  const minsLeft = Math.floor((msLeft % 3_600_000) / 60_000);
-  const isUrgent = !closed && msLeft < 3_600_000;
+  const date  = new Date(now);
+  const day   = date.getDay();
+  const hours = openingHoursFor(day);
+  const open  = new Date(date.getFullYear(), date.getMonth(), date.getDate(), hours.openH,  hours.openM,  0);
+  const close = new Date(date.getFullYear(), date.getMonth(), date.getDate(), hours.closeH, hours.closeM, 0);
+
+  // ── State machine ──────────────────────────────────────────────
+  // pre-open  → counting down to today's opening
+  // open      → counting down to today's closing
+  // closed    → showing the next opening window
+  let label: string;
+  let value: string;
+  let tone: 'normal' | 'urgent' | 'closed' | 'preopen' = 'normal';
+
+  if (date < open) {
+    const ms = open.getTime() - date.getTime();
+    const h  = Math.floor(ms / 3_600_000);
+    const m  = Math.floor((ms % 3_600_000) / 60_000);
+    label = `Opens at ${fmtTime(hours.openH, hours.openM)}`;
+    value = h > 0 ? `${h}h ${String(m).padStart(2, '0')}m` : `${m}m`;
+    tone  = 'preopen';
+  } else if (date < close) {
+    const ms = close.getTime() - date.getTime();
+    const h  = Math.floor(ms / 3_600_000);
+    const m  = Math.floor((ms % 3_600_000) / 60_000);
+    label = `Time left today`;
+    value = h > 0 ? `${h}h ${String(m).padStart(2, '0')}m` : `${m}m`;
+    tone  = ms < 3_600_000 ? 'urgent' : 'normal';
+  } else {
+    const next = nextOpening(date);
+    label = next ? `Closed · opens ${next.dayLabel} ${fmtTime(openingHoursFor(next.at.getDay()).openH, openingHoursFor(next.at.getDay()).openM)}` : 'Closed';
+    value = '🎉';
+    tone  = 'closed';
+  }
+
+  const labelColor = tone === 'closed'  ? '#10b981'
+                   : tone === 'urgent'  ? '#fbbf24'
+                   : tone === 'preopen' ? '#a5b4fc'
+                   :                       '#64748b';
+  const valueColor = tone === 'closed'  ? '#10b981'
+                   : tone === 'urgent'  ? '#fbbf24'
+                   : tone === 'preopen' ? '#a5b4fc'
+                   :                       '#f1f5f9';
+  const animation  = tone === 'urgent'  ? 'wb-celeb-banner 1.2s ease-in-out infinite' : undefined;
 
   return (
     <div style={{ textAlign: 'right', flexShrink: 0 }}>
       <div style={{
         fontSize: 'clamp(10px, 0.9vw, 14px)', fontWeight: 700,
-        color: closed ? '#10b981' : isUrgent ? '#fbbf24' : '#64748b',
-        letterSpacing: '0.2em', textTransform: 'uppercase',
-        animation: isUrgent ? 'wb-celeb-banner 1.2s ease-in-out infinite' : undefined,
+        color: labelColor, letterSpacing: '0.2em', textTransform: 'uppercase',
+        animation,
       }}>
-        {closed ? 'Day done · see you Mon' : 'Time left today'}
+        {label}
       </div>
       <div style={{
         fontSize: 'clamp(18px, 1.8vw, 28px)', fontWeight: 900,
-        color: closed ? '#10b981' : isUrgent ? '#fbbf24' : '#f1f5f9',
-        fontVariantNumeric: 'tabular-nums', marginTop: 2,
+        color: valueColor, fontVariantNumeric: 'tabular-nums', marginTop: 2,
       }}>
-        {closed ? '🎉' : `${hrsLeft}h ${String(minsLeft).padStart(2, '0')}m`}
+        {value}
       </div>
       <div style={{ marginTop: 4, display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
         <CelebrationCountdown />
