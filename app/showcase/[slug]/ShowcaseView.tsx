@@ -6,7 +6,17 @@ import { extractEmojis, tokenize } from '@/lib/emoji';
 import { CelebrationProvider, CelebrationCountdown, CelebrationRegistrar } from '@/components/Celebration';
 import { openingHoursFor as openingHoursForLib } from '@/lib/tradingHours';
 
-interface Props { board: WbBoard; widgetId: string; }
+interface Props {
+  board:          WbBoard;
+  /** Showcase slug — drives /api/board-data/<slug> and /api/baselines/<slug>.
+   *  Same value as board.slug for widget-backed boards; for synthetic
+   *  combined boards (e.g. sales-group) it's the only routing key. */
+  slug:           string;
+  /** Optional per-board target override (combined boards have a much
+   *  bigger one). Falls through to DEFAULT_TEAM_TARGET. URL `?target=`
+   *  still wins above either. */
+  defaultTarget?: number;
+}
 
 // ────────────────────────────────────────────────────────────────────────
 //  Config + helpers
@@ -241,14 +251,15 @@ function useIsMobile(): boolean {
  * (e.g. the London wallboard shows the London-only split of the combined
  * L+G budget) without a redeploy.
  */
-function useTeamTarget(): number {
-  const [val, setVal] = useState<number>(DEFAULT_TEAM_TARGET);
+function useTeamTarget(fallback: number): number {
+  const [val, setVal] = useState<number>(fallback);
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const q = new URLSearchParams(window.location.search).get('target');
     const n = q ? Number(q) : NaN;
     if (Number.isFinite(n) && n > 0) setVal(n);
-  }, []);
+    else setVal(fallback);
+  }, [fallback]);
   return val;
 }
 
@@ -256,13 +267,13 @@ function useTeamTarget(): number {
 //  Main view
 // ────────────────────────────────────────────────────────────────────────
 
-export default function ShowcaseView({ board, widgetId }: Props) {
+export default function ShowcaseView({ board, slug, defaultTarget }: Props) {
   const [data, setData]       = useState<WidgetData | null>(null);
   const [error, setError]     = useState<string | null>(null);
   const prevRef               = useRef<Map<string, Snapshot>>(new Map());
   const [tickerItems, setTicker] = useState<TickerItem[]>([]);
   const [cardDeltas, setCardDeltas] = useState<CardDelta[]>([]);
-  const teamTarget            = useTeamTarget();
+  const teamTarget            = useTeamTarget(defaultTarget ?? DEFAULT_TEAM_TARGET);
   // Opt-out per board — display_config.laziest_manager === false skips
   // the slide. Guildford uses this so only the London board mocks the
   // managers (since the Zendesk update count is global to a person, not
@@ -310,13 +321,15 @@ export default function ShowcaseView({ board, widgetId }: Props) {
     return () => { cancelled = true; clearTimeout(timer); };
   }, []);
 
-  // Poll the widget's existing data endpoint — same contract as the kiosk
+  // Poll the unified showcase data endpoint. Resolves to either the
+  // board's leaderboard widget (widget-backed boards) or the merged
+  // rows from a combined board's source slugs.
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout>;
     let cancelled = false;
     const fetchIt = async () => {
       try {
-        const res = await fetch(`/api/widgets/${widgetId}/data`, { cache: 'no-store' });
+        const res = await fetch(`/api/board-data/${encodeURIComponent(slug)}`, { cache: 'no-store' });
         const d   = await res.json();
         if (cancelled) return;
         if (d?.error) setError(d.error);
@@ -329,7 +342,7 @@ export default function ShowcaseView({ board, widgetId }: Props) {
     };
     fetchIt();
     return () => { cancelled = true; clearTimeout(timer); };
-  }, [widgetId]);
+  }, [slug]);
 
   // Detect changes between renders → ticker events
   useEffect(() => {
@@ -520,7 +533,7 @@ export default function ShowcaseView({ board, widgetId }: Props) {
           of Fame has real candidates (the bespoke showcase doesn't render a
           TableWidget, so without this only Hugo would ever appear). */}
       <CelebrationRegistrar
-        widgetId={widgetId}
+        widgetId={`board:${slug}`}
         rows={sortedRows}
         nameCol={nameCol}
         statCols={[
@@ -557,7 +570,7 @@ export default function ShowcaseView({ board, widgetId }: Props) {
           rows={sortedRows}
           cols={{ nameCol, incomeTodayCol, polTodayCol }}
           isMobile={isMobile}
-          boardSlug={board.slug}
+          boardSlug={slug}
         />
 
         {/* ── Podium (MTD position) ────────────────────────────────── */}

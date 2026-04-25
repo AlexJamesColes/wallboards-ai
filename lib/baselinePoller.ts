@@ -23,7 +23,7 @@
  */
 
 import { getBoardBySlug, recordBaselines } from './db';
-import { SHOWCASE_SLUGS } from './showcaseSlugs';
+import { SHOWCASE_BOARDS, type ShowcaseBoard } from './showcaseBoards';
 
 let started = false;
 
@@ -48,40 +48,74 @@ function cleanName(raw: string): string {
     .trim();
 }
 
-async function tickOne(slug: string): Promise<void> {
-  // runQuery is dynamically imported so client bundles never see it
-  // (this file is server-only via the require('../wb-db') chain in db.ts)
+/** Run the leaderboard SQL for a single widget-backed slug. Returns
+ *  the raw rows + name column so combined boards can stitch results
+ *  together. Returns null if the board / widget can't be resolved. */
+async function fetchSlugRows(slug: string): Promise<{
+  rows: any[]; nameCol: string; incomeTodayCol: string;
+} | null> {
   const { runQuery } = await import('./mssql');
 
   const board = await getBoardBySlug(slug);
-  if (!board) return;
+  if (!board) return null;
 
   const tables = (board.widgets || []).filter(w =>
     w.type === 'table' && !(w.display_config as any)?.hide_header
   );
   tables.sort((a, b) => (b.col_span * b.row_span) - (a.col_span * a.row_span));
   const main = tables[0];
-  if (!main) return;
-  if (main.data_source_type !== 'sql') return;
+  if (!main || main.data_source_type !== 'sql') return null;
 
   const query = (main.data_source_config as any)?.query;
-  if (!query) return;
+  if (!query) return null;
 
   const result = await runQuery(query);
   const cols   = result.columns || [];
   const rows   = result.rows    || [];
-  if (cols.length === 0 || rows.length === 0) return;
+  if (cols.length === 0 || rows.length === 0) return null;
 
   const nameCol        = cols[0] || 'name';
   const incomeTodayCol = cols.find((c: string) => /income.*today|today.*income/i.test(c)) || '';
-  if (!incomeTodayCol) return;
+  if (!incomeTodayCol) return null;
 
-  // Same shape the showcase produces — booked agents (income today > 0),
-  // ranked by Income Today desc.
-  const booked = rows
+  return { rows, nameCol, incomeTodayCol };
+}
+
+async function tickOne(board: ShowcaseBoard): Promise<void> {
+  let combined: { rows: any[]; nameCol: string; incomeTodayCol: string } | null = null;
+
+  if (board.data.type === 'widget') {
+    combined = await fetchSlugRows(board.slug);
+  } else if (board.data.type === 'combined') {
+    // Concatenate every source's rows. We trust each source uses the
+    // same column layout (they all come from variants of the same
+    // showcase SQL); fall back to the first source's columns.
+    const allRows: any[] = [];
+    let nameCol = 'name';
+    let incomeTodayCol = '';
+    for (const sourceSlug of board.data.sources) {
+      const part = await fetchSlugRows(sourceSlug);
+      if (!part) continue;
+      allRows.push(...part.rows);
+      if (!incomeTodayCol) {
+        nameCol        = part.nameCol;
+        incomeTodayCol = part.incomeTodayCol;
+      }
+    }
+    if (allRows.length > 0 && incomeTodayCol) {
+      combined = { rows: allRows, nameCol, incomeTodayCol };
+    }
+  }
+
+  if (!combined) return;
+
+  // Booked agents (income today > 0), ranked by Income Today desc —
+  // same ordering the showcase will apply, so the baseline matches
+  // what the floor sees.
+  const booked = combined.rows
     .map((r: any) => ({
-      name:   cleanName(String(r[nameCol] ?? '')),
-      income: parseMoney(r[incomeTodayCol]),
+      name:   cleanName(String(r[combined!.nameCol] ?? '')),
+      income: parseMoney(r[combined!.incomeTodayCol]),
     }))
     .filter((a: { name: string; income: number }) => a.name && a.income > 0)
     .sort((a: { income: number }, b: { income: number }) => b.income - a.income);
@@ -93,18 +127,17 @@ async function tickOne(slug: string): Promise<void> {
     rank:      i + 1,
   }));
 
-  const day = todayLondon();
-  await recordBaselines(slug, day, entries);
+  await recordBaselines(board.slug, todayLondon(), entries);
 }
 
 async function tick(): Promise<void> {
-  for (const slug of SHOWCASE_SLUGS) {
+  for (const board of SHOWCASE_BOARDS) {
     try {
-      await tickOne(slug);
+      await tickOne(board);
     } catch (e) {
       // Network blip on the SQL server, schema change, etc — log and
       // move on. Next tick will try again.
-      console.error('[baselinePoller]', slug, e);
+      console.error('[baselinePoller]', board.slug, e);
     }
   }
 }
