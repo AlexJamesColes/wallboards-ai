@@ -930,8 +930,30 @@ function TodayStrip({ rows, cols, isMobile }: {
                   · {a.policies}{isUnitsLeader ? '★' : ''}
                 </span>
               )}
-              {climbed && was !== undefined && <span aria-hidden style={{ fontSize: 10, color: '#10b981', fontWeight: 800 }}>▲{was - rank}</span>}
-              {dropped && was !== undefined && <span aria-hidden style={{ fontSize: 10, color: '#f87171', fontWeight: 800 }}>▼{rank - was}</span>}
+              {climbed && was !== undefined && (
+                <span aria-hidden style={{
+                  fontSize: isMobile ? 12 : 'clamp(10px, 0.85vw, 12px)',
+                  color: '#10b981', fontWeight: 800,
+                  display: 'inline-flex', alignItems: 'center',
+                  padding: isMobile ? '1px 5px' : '1px 4px',
+                  borderRadius: 6,
+                  background: 'rgba(16,185,129,0.15)',
+                  border: '1px solid rgba(16,185,129,0.4)',
+                  lineHeight: 1,
+                }}>▲{was - rank}</span>
+              )}
+              {dropped && was !== undefined && (
+                <span aria-hidden style={{
+                  fontSize: isMobile ? 12 : 'clamp(10px, 0.85vw, 12px)',
+                  color: '#f87171', fontWeight: 800,
+                  display: 'inline-flex', alignItems: 'center',
+                  padding: isMobile ? '1px 5px' : '1px 4px',
+                  borderRadius: 6,
+                  background: 'rgba(248,113,113,0.15)',
+                  border: '1px solid rgba(248,113,113,0.4)',
+                  lineHeight: 1,
+                }}>▼{rank - was}</span>
+              )}
             </div>
           );
         })}
