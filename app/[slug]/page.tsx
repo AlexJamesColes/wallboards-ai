@@ -11,7 +11,7 @@ export const dynamic = 'force-dynamic';
  * Add a slug to opt-in. Everything else falls through to the standard
  * widget-grid kiosk.
  */
-const SHOWCASE_SLUGS = new Set(['london-agents']);
+const SHOWCASE_SLUGS = new Set(['london-agents', 'guildford-agents']);
 
 /**
  * Root-level human-readable kiosk route.

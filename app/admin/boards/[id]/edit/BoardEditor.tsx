@@ -660,6 +660,30 @@ export default function BoardEditor({ board: init, datasets }: Props) {
             />
           </div>
 
+          {/* Display type — drives which tab the public /browse page lists
+              this board under (Mobile vs Desktop). */}
+          <div style={card}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: C.primary, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12 }}>Display Type</div>
+            <CustomSelect
+              value={(board.display_config as any)?.display_type || 'desktop'}
+              onChange={v => {
+                const dc = { ...(board.display_config as any || {}), display_type: v };
+                setBoard(b => ({ ...b, display_config: dc }));
+                fetch(`/api/boards/${board.id}`, {
+                  method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ display_config: dc }),
+                }).catch(() => {});
+              }}
+              options={[
+                { value: 'desktop', label: 'Desktop' },
+                { value: 'mobile',  label: 'Mobile'  },
+              ]}
+            />
+            <div style={{ fontSize: 11, color: '#475569', marginTop: 8 }}>
+              Boards appear under their type on the public /browse page. Phones default to Mobile, laptops/desktops default to Desktop.
+            </div>
+          </div>
+
           {/* Kiosk URL / slug */}
           <div style={card}>
             <div style={{ fontSize: 11, fontWeight: 700, color: C.primary, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12 }}>Kiosk URL</div>

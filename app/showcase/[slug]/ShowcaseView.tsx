@@ -192,7 +192,13 @@ export default function ShowcaseView({ board, widgetId }: Props) {
   const prevRef               = useRef<Map<string, Snapshot>>(new Map());
   const [tickerItems, setTicker] = useState<TickerItem[]>([]);
   const teamTarget            = useTeamTarget();
-  const laziestSlide          = useLaziestManagerSlide();
+  // Opt-out per board — display_config.laziest_manager === false skips
+  // the slide. Guildford uses this so only the London board mocks the
+  // managers (since the Zendesk update count is global to a person, not
+  // tied to which office's wallboard you're looking at).
+  const allowLaziest          = ((board.display_config as any) || {}).laziest_manager !== false;
+  const laziestSlideRaw       = useLaziestManagerSlide();
+  const laziestSlide          = allowLaziest ? laziestSlideRaw : [];
   useAutoReloadOnDeploy();
 
   // Poll /api/alerts for anything IT has pushed (Teams webhook forwards etc.)
