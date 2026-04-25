@@ -123,18 +123,24 @@ function useLaziestManagerSlide(): any[] {
  * Per-TV zoom override. Some big TVs (e.g. Samsung Frame) report a small
  * viewport size to the browser so 1vw/1vh map to fewer real pixels than
  * the screen has — making everything look chunky and wasting space.
- * Append ?zoom=0.85 (or any positive number) to the URL on that TV and
- * the whole page scales down accordingly so more fits.
+ *
+ * Default is 0.7 so the office Samsung Frame fits the maximum number of
+ * agents without any URL tweaking. Override per TV by appending
+ * ?zoom=0.85 / ?zoom=1 / etc. to the wallboard URL.
  *
  * Implemented via the CSS `zoom` property — well supported in Chromium
  * (which is what Samsung Tizen / smart TV browsers use).
  */
+const DEFAULT_ZOOM = 0.7;
+
 function useZoom() {
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const q = new URLSearchParams(window.location.search).get('zoom');
-    const z = q ? Number(q) : NaN;
-    if (Number.isFinite(z) && z > 0 && z !== 1) {
+    const z = q !== null && Number.isFinite(Number(q)) && Number(q) > 0
+      ? Number(q)
+      : DEFAULT_ZOOM;
+    if (z !== 1) {
       (document.documentElement.style as any).zoom = String(z);
       return () => { (document.documentElement.style as any).zoom = ''; };
     }
