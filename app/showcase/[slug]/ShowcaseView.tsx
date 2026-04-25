@@ -139,8 +139,17 @@ const DEFAULT_ZOOM = 0.7;
 function readZoom(): number {
   if (typeof window === 'undefined') return 1;
   const q = new URLSearchParams(window.location.search).get('zoom');
-  const z = q !== null && Number.isFinite(Number(q)) && Number(q) > 0 ? Number(q) : DEFAULT_ZOOM;
-  return z > 0 ? z : 1;
+  if (q !== null && Number.isFinite(Number(q)) && Number(q) > 0) return Number(q);
+  // Phone viewports already have very little room — scaling them down with
+  // the TV-targeted 0.7 default crushes the podium and packs cards into a
+  // hard-to-read pair of columns. Real viewport (zoom 1) on mobile.
+  // ?mode=mobile lets a laptop preview the same path. ?mode=desktop forces
+  // the TV layout. Explicit ?zoom= above always wins.
+  const mode = new URLSearchParams(window.location.search).get('mode');
+  if (mode === 'mobile') return 1;
+  if (mode === 'desktop') return DEFAULT_ZOOM;
+  if (window.innerWidth < 768) return 1;
+  return DEFAULT_ZOOM;
 }
 
 function ZoomWrap({ children }: { children: React.ReactNode }) {
@@ -163,6 +172,28 @@ function ZoomWrap({ children }: { children: React.ReactNode }) {
       </div>
     </div>
   );
+}
+
+/**
+ * Live-tracking phone viewport flag. < 768px = mobile. Honours the
+ * ?mode=mobile|desktop URL override the directory uses for previews.
+ * Showcase scales the podium and pill bar around this — the TV layout
+ * stays untouched.
+ */
+function useIsMobile(): boolean {
+  const [mobile, setMobile] = useState(false);
+  useEffect(() => {
+    const force = typeof window !== 'undefined'
+      ? new URLSearchParams(window.location.search).get('mode')
+      : null;
+    if (force === 'mobile')  { setMobile(true);  return; }
+    if (force === 'desktop') { setMobile(false); return; }
+    const check = () => setMobile(window.innerWidth < 768);
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
+  return mobile;
 }
 
 /**
@@ -199,6 +230,7 @@ export default function ShowcaseView({ board, widgetId }: Props) {
   const allowLaziest          = ((board.display_config as any) || {}).laziest_manager !== false;
   const laziestSlideRaw       = useLaziestManagerSlide();
   const laziestSlide          = allowLaziest ? laziestSlideRaw : [];
+  const isMobile              = useIsMobile();
   useAutoReloadOnDeploy();
 
   // Poll /api/alerts for anything IT has pushed (Teams webhook forwards etc.)
@@ -423,18 +455,20 @@ export default function ShowcaseView({ board, widgetId }: Props) {
         <div aria-hidden style={{ position: 'absolute', bottom: '-20%', right: '-10%', width: '50vw', height: '50vw', background: 'radial-gradient(circle, rgba(168,85,247,0.10) 0%, transparent 60%)', pointerEvents: 'none' }} />
 
         {/* ── Header ───────────────────────────────────────────────── */}
-        <Header boardName={board.name} teamTotal={teamTotal} target={teamTarget} targetPct={targetPct} />
+        <Header boardName={board.name} teamTotal={teamTotal} target={teamTarget} targetPct={targetPct} isMobile={isMobile} />
 
         {/* ── Today's leaderboard strip — fast-moving daily race ────── */}
         <TodayStrip
           rows={sortedRows}
           cols={{ nameCol, incomeTodayCol, polTodayCol }}
+          isMobile={isMobile}
         />
 
         {/* ── Podium (MTD position) ────────────────────────────────── */}
         <Podium
           rows={top3}
           cols={{ nameCol, incomeMtdCol, polMtdCol, polTodayCol, incomeTodayCol, ippCol, gwpCol, addonsCol }}
+          isMobile={isMobile}
         />
 
         {/* ── Rest of the pack ────────────────────────────────────── */}
@@ -443,6 +477,7 @@ export default function ShowcaseView({ board, widgetId }: Props) {
           startIndex={4}
           cols={{ nameCol, incomeMtdCol, polMtdCol, polTodayCol, incomeTodayCol, ippCol, gwpCol, addonsCol }}
           teamLeaderIncome={parseMoney(top3[0]?.[incomeMtdCol]) || 1}
+          isMobile={isMobile}
         />
 
         {/* ── Activity ticker ─────────────────────────────────────── */}
@@ -457,9 +492,54 @@ export default function ShowcaseView({ board, widgetId }: Props) {
 //  Header with team target + countdown
 // ────────────────────────────────────────────────────────────────────────
 
-function Header({ boardName, teamTotal, target, targetPct }: {
-  boardName: string; teamTotal: number; target: number; targetPct: number;
+function Header({ boardName, teamTotal, target, targetPct, isMobile }: {
+  boardName: string; teamTotal: number; target: number; targetPct: number; isMobile: boolean;
 }) {
+  // Mobile: stack to two rows. The TV layout fits everything on one row
+  // because there's plenty of horizontal space; phones don't.
+  // Row 1 → board name + countdown
+  // Row 2 → team target progress
+  if (isMobile) {
+    return (
+      <div style={{
+        display: 'flex', flexDirection: 'column', gap: 8,
+        padding: '10px 14px',
+        borderBottom: '1px solid rgba(255,255,255,0.06)',
+        background: 'rgba(10,15,28,0.5)', backdropFilter: 'blur(12px)',
+        flexShrink: 0, zIndex: 2,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+          <div style={{ fontSize: 16, fontWeight: 800, color: '#f1f5f9', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {boardName}
+          </div>
+          <DayCountdown />
+        </div>
+        <div>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 4 }}>
+            <span style={{ fontSize: 10, color: '#94a3b8', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Team · MTD</span>
+            <span style={{ fontSize: 16, fontWeight: 900, color: '#fde68a', fontVariantNumeric: 'tabular-nums' }}>
+              {formatMoney(teamTotal)}
+            </span>
+            <span style={{ fontSize: 11, color: '#64748b' }}>of {formatMoney(target)}</span>
+            <span style={{ marginLeft: 'auto', fontSize: 13, fontWeight: 800, color: targetPct >= 100 ? '#10b981' : '#a5b4fc' }}>
+              {targetPct}%
+            </span>
+          </div>
+          <div style={{ height: 8, borderRadius: 99, background: 'rgba(255,255,255,0.06)', overflow: 'hidden' }}>
+            <div style={{
+              width: `${targetPct}%`, height: '100%',
+              background: targetPct >= 100
+                ? 'linear-gradient(90deg, #10b981 0%, #34d399 50%, #fbbf24 100%)'
+                : 'linear-gradient(90deg, #6366f1 0%, #a855f7 50%, #fbbf24 100%)',
+              boxShadow: '0 0 16px rgba(251,191,36,0.3)',
+              transition: 'width 1.2s cubic-bezier(0.34, 1.56, 0.64, 1)',
+            }} />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={{
       display: 'flex', alignItems: 'center', gap: 18,
@@ -720,9 +800,10 @@ function Clock() {
 //  Today strip — fast-moving daily race ranked by Income Today
 // ────────────────────────────────────────────────────────────────────────
 
-function TodayStrip({ rows, cols }: {
+function TodayStrip({ rows, cols, isMobile }: {
   rows: Row[];
   cols: { nameCol: string; incomeTodayCol: string; polTodayCol: string };
+  isMobile: boolean;
 }) {
   // Track each booked agent's previous rank so we can flag climbers / droppers.
   const prevRef = useRef<Map<string, number>>(new Map());
@@ -769,19 +850,20 @@ function TodayStrip({ rows, cols }: {
 
   return (
     <div style={{
-      flexShrink: 0, padding: 'clamp(6px, 0.7vh, 10px) clamp(16px, 2.2vw, 36px) clamp(8px, 0.9vh, 12px)',
+      flexShrink: 0,
+      padding: isMobile ? '8px 14px 10px' : 'clamp(6px, 0.7vh, 10px) clamp(16px, 2.2vw, 36px) clamp(8px, 0.9vh, 12px)',
       borderBottom: '1px solid rgba(255,255,255,0.05)',
       background: 'rgba(10,15,28,0.55)', backdropFilter: 'blur(10px)',
-      display: 'flex', flexDirection: 'column', gap: 'clamp(4px, 0.5vh, 8px)',
+      display: 'flex', flexDirection: 'column', gap: isMobile ? 6 : 'clamp(4px, 0.5vh, 8px)',
       position: 'relative', zIndex: 2,
     }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 14, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: isMobile ? 8 : 14, flexWrap: 'wrap' }}>
         <span style={{
-          fontSize: 'clamp(10px, 0.95vw, 14px)', fontWeight: 800,
+          fontSize: isMobile ? 11 : 'clamp(10px, 0.95vw, 14px)', fontWeight: 800,
           color: '#fbbf24', letterSpacing: '0.22em', textTransform: 'uppercase',
           flexShrink: 0,
         }}>🔥 Today's Earn &amp; Units</span>
-        <span style={{ fontSize: 'clamp(10px, 0.85vw, 13px)', color: '#64748b', fontWeight: 600 }}>
+        <span style={{ fontSize: isMobile ? 11 : 'clamp(10px, 0.85vw, 13px)', color: '#64748b', fontWeight: 600 }}>
           {headline}
         </span>
       </div>
@@ -790,7 +872,7 @@ function TodayStrip({ rows, cols }: {
           "race in progress" group without being mixed in with zeros. */}
       <div style={{
         display: 'flex', flexWrap: 'wrap',
-        gap: 'clamp(4px, 0.5vw, 8px) clamp(5px, 0.6vw, 10px)',
+        gap: isMobile ? '6px 6px' : 'clamp(4px, 0.5vw, 8px) clamp(5px, 0.6vw, 10px)',
       }}>
         {booked.map((a, i) => {
           const rank = i + 1;
@@ -816,26 +898,26 @@ function TodayStrip({ rows, cols }: {
                 rankColor: '#a5b4fc', moneyColor: '#e2e8f0' };
           return (
             <div key={'b|' + a.name} style={{
-              display: 'inline-flex', alignItems: 'center', gap: 6,
-              padding: 'clamp(3px, 0.4vh, 6px) clamp(7px, 0.8vw, 11px)',
+              display: 'inline-flex', alignItems: 'center', gap: isMobile ? 5 : 6,
+              padding: isMobile ? '4px 8px' : 'clamp(3px, 0.4vh, 6px) clamp(7px, 0.8vw, 11px)',
               borderRadius: 99, flexShrink: 0,
               background: tint.bg,
               border: `1px solid ${tint.border}`,
               animation: climbed ? 'wb-row-up 1.2s ease-out' : dropped ? 'wb-row-down 1.2s ease-out' : undefined,
               boxShadow: tint.glow,
             }}>
-              <span style={{ fontSize: 'clamp(10px, 0.9vw, 13px)', fontWeight: 800, color: tint.rankColor, fontVariantNumeric: 'tabular-nums' }}>
+              <span style={{ fontSize: isMobile ? 11 : 'clamp(10px, 0.9vw, 13px)', fontWeight: 800, color: tint.rankColor, fontVariantNumeric: 'tabular-nums' }}>
                 #{rank}
               </span>
-              <span style={{ fontSize: 'clamp(10px, 0.9vw, 14px)', fontWeight: 600, color: '#f1f5f9', whiteSpace: 'nowrap' }}>
+              <span style={{ fontSize: isMobile ? 12 : 'clamp(10px, 0.9vw, 14px)', fontWeight: 600, color: '#f1f5f9', whiteSpace: 'nowrap' }}>
                 {a.name}
               </span>
-              <span style={{ fontSize: 'clamp(10px, 0.95vw, 14px)', fontWeight: 800, color: tint.moneyColor, fontVariantNumeric: 'tabular-nums' }}>
+              <span style={{ fontSize: isMobile ? 12 : 'clamp(10px, 0.95vw, 14px)', fontWeight: 800, color: tint.moneyColor, fontVariantNumeric: 'tabular-nums' }}>
                 {formatMoney(a.income)}
               </span>
               {a.policies > 0 && (
                 <span style={{
-                  fontSize: 'clamp(9px, 0.75vw, 11px)', fontWeight: 700,
+                  fontSize: isMobile ? 10 : 'clamp(9px, 0.75vw, 11px)', fontWeight: 700,
                   color: isUnitsLeader ? '#5eead4' : '#94a3b8',
                 }}>
                   · {a.policies}{isUnitsLeader ? '★' : ''}
@@ -914,8 +996,39 @@ function bracketFor(income: number): BracketState {
   return { current, next, pct, toNext };
 }
 
-function Podium({ rows, cols }: { rows: Row[]; cols: ColMap }) {
+function Podium({ rows, cols, isMobile }: { rows: Row[]; cols: ColMap; isMobile: boolean }) {
   if (rows.length === 0) return null;
+
+  // Mobile: stack into two rows so each card has real width to breathe.
+  //   ┌──────────────┐
+  //   │      #1      │   full-width leader
+  //   ├──────┬───────┤
+  //   │  #2  │  #3   │   side-by-side
+  //   └──────┴───────┘
+  // The TV layout (the else branch below) keeps the original 3-across
+  // podium at fixed vh so nothing changes on the wallboards.
+  if (isMobile) {
+    return (
+      <div style={{
+        flex: '0 0 auto', display: 'flex', flexDirection: 'column',
+        gap: 10, padding: '14px 14px 0',
+        position: 'relative', zIndex: 1,
+      }}>
+        {rows[0] && (
+          <PodiumCard
+            key={String(rows[0][cols.nameCol])}
+            row={rows[0]} rank={1} cols={cols} isMobile fullWidth
+          />
+        )}
+        {(rows[1] || rows[2]) && (
+          <div style={{ display: 'flex', gap: 10 }}>
+            {rows[1] && <PodiumCard key={String(rows[1][cols.nameCol])} row={rows[1]} rank={2} cols={cols} isMobile />}
+            {rows[2] && <PodiumCard key={String(rows[2][cols.nameCol])} row={rows[2]} rank={3} cols={cols} isMobile />}
+          </div>
+        )}
+      </div>
+    );
+  }
 
   // Re-arrange so #2 is left, #1 centre, #3 right. The leader is now
   // properly taller (1.0 vs 0.78/0.7) so a glance from across the room
@@ -938,7 +1051,10 @@ function Podium({ rows, cols }: { rows: Row[]; cols: ColMap }) {
   );
 }
 
-function PodiumCard({ row, rank, heightPct, cols }: { row: Row; rank: number; heightPct: number; cols: ColMap }) {
+function PodiumCard({ row, rank, heightPct, cols, isMobile, fullWidth }: {
+  row: Row; rank: number; heightPct?: number; cols: ColMap;
+  isMobile?: boolean; fullWidth?: boolean;
+}) {
   const rawName = String(row[cols.nameCol] ?? '');
   const name    = cleanName(rawName);
   // Filter the rank's own medal out of the shelf — the tier label up top
@@ -959,29 +1075,46 @@ function PodiumCard({ row, rank, heightPct, cols }: { row: Row; rank: number; he
              : rank === 2 ? { ring: '#e5e7eb', ringGlow: 'rgba(229,231,235,0.45)', label: '🥈 2nd', labelColor: '#e5e7eb' }
              :              { ring: '#fdba74', ringGlow: 'rgba(253,186,116,0.45)', label: '🥉 3rd', labelColor: '#fdba74' };
 
+  // Pixel-based sizing on mobile so vw-clamps don't collapse at narrow
+  // widths. Leader gets bigger numbers and avatar; #2/#3 stay readable in
+  // their half-width row.
+  const mobileSize = rank === 1
+    ? { avatar: 64, name: 24, money: 38, label: 13, statValue: 18, statLabel: 10, emoji: 22 }
+    : { avatar: 44, name: 17, money: 24, label: 11, statValue: 14, statLabel:  9, emoji: 16 };
+
   return (
     <div style={{
-      flex: `1 1 0`, maxWidth: '24vw',
-      height: `${heightPct * 100}%`,
+      flex: isMobile ? (fullWidth ? '0 0 auto' : '1 1 0') : `1 1 0`,
+      width: isMobile && fullWidth ? '100%' : undefined,
+      maxWidth: isMobile ? undefined : '24vw',
+      minWidth: 0,
+      height: isMobile ? 'auto' : `${(heightPct ?? 1) * 100}%`,
       background: 'linear-gradient(180deg, rgba(26,33,54,0.85) 0%, rgba(14,20,39,0.85) 100%)',
       border: `2px solid ${tier.ring}`,
-      borderRadius: 18, padding: 'clamp(10px, 1.1vh, 16px) clamp(12px, 1.4vw, 22px)',
-      boxShadow: `0 0 60px ${tier.ringGlow}, 0 14px 40px rgba(0,0,0,0.55)`,
+      borderRadius: isMobile ? 14 : 18,
+      padding: isMobile ? '12px 14px' : 'clamp(10px, 1.1vh, 16px) clamp(12px, 1.4vw, 22px)',
+      boxShadow: `0 0 ${isMobile ? 30 : 60}px ${tier.ringGlow}, 0 ${isMobile ? 8 : 14}px ${isMobile ? 24 : 40}px rgba(0,0,0,0.55)`,
       backdropFilter: 'blur(14px)',
-      display: 'grid',
-      // Header row (tier label + avatar + name) | primary metric | stats | emojis
-      gridTemplateColumns: '1fr',
-      gridAutoRows: 'auto',
-      alignContent: 'space-between',
-      justifyItems: 'center',
+      display: isMobile ? 'flex' : 'grid',
+      flexDirection: isMobile ? 'column' : undefined,
+      gap: isMobile ? 8 : undefined,
+      gridTemplateColumns: isMobile ? undefined : '1fr',
+      gridAutoRows: isMobile ? undefined : 'auto',
+      alignContent: isMobile ? undefined : 'space-between',
+      justifyItems: isMobile ? undefined : 'center',
+      alignItems: isMobile ? 'center' : undefined,
       textAlign: 'center', position: 'relative', overflow: 'hidden',
       animation: rank === 1 ? 'wb-leader-pulse 3.2s ease-in-out infinite' : undefined,
     }}>
       {/* Tier label + avatar inline */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <Avatar name={name} size={rank === 1 ? 'clamp(48px, 5vw, 78px)' : 'clamp(42px, 4.4vw, 66px)'} gradient={grad} />
+      <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 10 }}>
+        <Avatar
+          name={name}
+          size={isMobile ? `${mobileSize.avatar}px` : (rank === 1 ? 'clamp(48px, 5vw, 78px)' : 'clamp(42px, 4.4vw, 66px)')}
+          gradient={grad}
+        />
         <div style={{
-          fontSize: 'clamp(11px, 1vw, 18px)', fontWeight: 900,
+          fontSize: isMobile ? mobileSize.label : 'clamp(11px, 1vw, 18px)', fontWeight: 900,
           letterSpacing: '0.3em', color: tier.labelColor,
           textShadow: `0 0 18px ${tier.ringGlow}`,
           whiteSpace: 'nowrap',
@@ -990,7 +1123,9 @@ function PodiumCard({ row, rank, heightPct, cols }: { row: Row; rank: number; he
 
       {/* Name — never collapses */}
       <div style={{
-        fontSize: rank === 1 ? 'clamp(20px, 2.1vw, 34px)' : 'clamp(17px, 1.8vw, 28px)',
+        fontSize: isMobile
+          ? mobileSize.name
+          : (rank === 1 ? 'clamp(20px, 2.1vw, 34px)' : 'clamp(17px, 1.8vw, 28px)'),
         fontWeight: 900, color: '#f1f5f9',
         textShadow: '0 4px 20px rgba(0,0,0,0.5)', lineHeight: 1.1,
         maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
@@ -1000,12 +1135,17 @@ function PodiumCard({ row, rank, heightPct, cols }: { row: Row; rank: number; he
       {/* Primary metric */}
       <div>
         <div style={{
-          fontSize: rank === 1 ? 'clamp(28px, 3.4vw, 60px)' : 'clamp(24px, 2.8vw, 44px)',
+          fontSize: isMobile
+            ? mobileSize.money
+            : (rank === 1 ? 'clamp(28px, 3.4vw, 60px)' : 'clamp(24px, 2.8vw, 44px)'),
           fontWeight: 900, color: '#fde68a',
           textShadow: '0 0 30px rgba(251,191,36,0.35)',
           fontVariantNumeric: 'tabular-nums', lineHeight: 1,
         }}>{formatMoney(incomeMtd)}</div>
-        <div style={{ fontSize: 'clamp(8px, 0.75vw, 11px)', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.14em', marginTop: 3 }}>Income MTD</div>
+        <div style={{
+          fontSize: isMobile ? mobileSize.statLabel : 'clamp(8px, 0.75vw, 11px)',
+          color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.14em', marginTop: 3,
+        }}>Income MTD</div>
       </div>
 
       {/* Compact stat row — MTD only. Today's leaderboard up top covers
@@ -1017,8 +1157,18 @@ function PodiumCard({ row, rank, heightPct, cols }: { row: Row; rank: number; he
         if (cols.gwpCol  && gwp > 0)   stats.push({ label: 'GWP MTD',  value: formatMoney(gwp) });
         if (stats.length === 0) return null;
         return (
-          <div style={{ display: 'flex', gap: 'clamp(10px, 1.2vw, 22px)', justifyContent: 'center', flexWrap: 'wrap' }}>
-            {stats.map((s, i) => <Stat key={i} label={s.label} value={s.value} />)}
+          <div style={{
+            display: 'flex',
+            gap: isMobile ? 12 : 'clamp(10px, 1.2vw, 22px)',
+            justifyContent: 'center', flexWrap: 'wrap',
+          }}>
+            {stats.map((s, i) => (
+              <Stat
+                key={i} label={s.label} value={s.value}
+                valueSize={isMobile ? mobileSize.statValue : undefined}
+                labelSize={isMobile ? mobileSize.statLabel : undefined}
+              />
+            ))}
           </div>
         );
       })()}
@@ -1027,7 +1177,8 @@ function PodiumCard({ row, rank, heightPct, cols }: { row: Row; rank: number; he
       {emojis.length > 0 && (
         <div style={{
           display: 'flex', gap: 3,
-          fontSize: 'clamp(16px, 1.7vw, 28px)', flexWrap: 'wrap', justifyContent: 'center',
+          fontSize: isMobile ? mobileSize.emoji : 'clamp(16px, 1.7vw, 28px)',
+          flexWrap: 'wrap', justifyContent: 'center',
         }}>
           {emojis.map((e, i) => <span key={i}>{e}</span>)}
         </div>
@@ -1036,11 +1187,19 @@ function PodiumCard({ row, rank, heightPct, cols }: { row: Row; rank: number; he
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+function Stat({ label, value, valueSize, labelSize }: {
+  label: string; value: string; valueSize?: number; labelSize?: number;
+}) {
   return (
     <div>
-      <div style={{ fontSize: 'clamp(14px, 1.4vw, 22px)', fontWeight: 800, color: '#e2e8f0', fontVariantNumeric: 'tabular-nums' }}>{value}</div>
-      <div style={{ fontSize: 'clamp(9px, 0.8vw, 12px)', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.1em' }}>{label}</div>
+      <div style={{
+        fontSize: valueSize ?? 'clamp(14px, 1.4vw, 22px)',
+        fontWeight: 800, color: '#e2e8f0', fontVariantNumeric: 'tabular-nums',
+      }}>{value}</div>
+      <div style={{
+        fontSize: labelSize ?? 'clamp(9px, 0.8vw, 12px)',
+        color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.1em',
+      }}>{label}</div>
     </div>
   );
 }
@@ -1063,8 +1222,8 @@ function Avatar({ name, size, gradient }: { name: string; size: string; gradient
 //  Agent grid — rank 4+
 // ────────────────────────────────────────────────────────────────────────
 
-function AgentGrid({ rows, startIndex, cols, teamLeaderIncome }: {
-  rows: Row[]; startIndex: number; cols: ColMap; teamLeaderIncome: number;
+function AgentGrid({ rows, startIndex, cols, teamLeaderIncome, isMobile }: {
+  rows: Row[]; startIndex: number; cols: ColMap; teamLeaderIncome: number; isMobile: boolean;
 }) {
   // Give cards a firm minimum height so they can actually breathe — content
   // (avatar + big number + progress bar + emoji shelf) needs ~110px. The
@@ -1075,7 +1234,9 @@ function AgentGrid({ rows, startIndex, cols, teamLeaderIncome }: {
   return (
     <div style={{
       flex: 1, minHeight: 0,
-      padding: 'clamp(16px, 2vh, 28px) clamp(20px, 3vw, 60px) 0',
+      padding: isMobile
+        ? '14px 14px 0'
+        : 'clamp(16px, 2vh, 28px) clamp(20px, 3vw, 60px) 0',
       overflowY: 'auto',
       position: 'relative', zIndex: 1,
       // Hide the scrollbar — TVs can't scroll anyway, this just prevents a
@@ -1084,9 +1245,13 @@ function AgentGrid({ rows, startIndex, cols, teamLeaderIncome }: {
     }}>
       <div style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fill, minmax(clamp(200px, 19vw, 300px), 1fr))',
-        gridAutoRows: 'minmax(clamp(104px, 13vh, 140px), auto)',
-        gap: 'clamp(10px, 1.2vh, 16px)',
+        // Mobile: single full-width column so each row is tappable and
+        // numbers stay legible. Desktop/TV keeps the auto-fill packing.
+        gridTemplateColumns: isMobile
+          ? '1fr'
+          : 'repeat(auto-fill, minmax(clamp(200px, 19vw, 300px), 1fr))',
+        gridAutoRows: isMobile ? 'auto' : 'minmax(clamp(104px, 13vh, 140px), auto)',
+        gap: isMobile ? 10 : 'clamp(10px, 1.2vh, 16px)',
       }}>
         {rows.map((row, i) => (
           <AgentCard key={String(row[cols.nameCol])} row={row} rank={startIndex + i} cols={cols} leaderIncome={teamLeaderIncome} />
