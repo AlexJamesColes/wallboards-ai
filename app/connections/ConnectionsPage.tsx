@@ -3,42 +3,20 @@
 import { useEffect, useState } from 'react';
 import BrowseHeader from '../_browse/BrowseHeader';
 
-interface Health { ok: boolean; error: string | null; count?: number; }
+interface Health { ok: boolean; error: string | null; }
+interface MssqlHealth   extends Health { database?: string;  user?: string; }
+interface ZendeskHealth extends Health { subdomain?: string; accountName?: string; }
+interface NoeticaHealth extends Health { count: number; names: string[]; }
+
 interface Payload {
-  mssql:   Health;
-  zendesk: Health;
-  noetica: Health;
+  mssql:   MssqlHealth;
+  zendesk: ZendeskHealth;
+  noetica: NoeticaHealth;
 }
 
-const SOURCES: Array<{
-  key:         keyof Payload;
-  name:        string;
-  description: string;
-  icon:        string;
-}> = [
-  {
-    key: 'mssql',
-    name: 'MS-SQL · Sales database',
-    description: 'Drives the agent leaderboards (Income MTD, Income Today, Policies). Queried on every showcase data poll.',
-    icon: '🗄️',
-  },
-  {
-    key: 'zendesk',
-    name: 'Zendesk · Support tickets',
-    description: 'Source for ticket counts, leaderboards and the Laziest Manager comedy slide. Fetched per-widget.',
-    icon: '🎫',
-  },
-  {
-    key: 'noetica',
-    name: 'Datasets · Webhook push',
-    description: 'Generic key/value dataset store. Anything pushed to /api/datasets/<name>/data ends up here for widgets to consume.',
-    icon: '📥',
-  },
-];
-
 export default function ConnectionsPage() {
-  const [data, setData]   = useState<Payload | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [data, setData]       = useState<Payload | null>(null);
+  const [error, setError]     = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshTick, setRefreshTick] = useState(0);
 
@@ -91,25 +69,139 @@ export default function ConnectionsPage() {
       )}
 
       {!error && (
-        <div style={{ display: 'grid', gap: 14, gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))' }}>
-          {SOURCES.map(s => {
-            const h: Health | undefined = data ? data[s.key] : undefined;
-            return <ConnectionCard key={s.key} name={s.name} description={s.description} icon={s.icon} health={h} loading={loading && !data} />;
-          })}
+        <div style={{ display: 'grid', gap: 14, gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))' }}>
+          <MssqlCard   health={data?.mssql}   loading={loading && !data} />
+          <ZendeskCard health={data?.zendesk} loading={loading && !data} />
+          <NoeticaCard health={data?.noetica} loading={loading && !data} />
         </div>
       )}
     </div>
   );
 }
 
-function ConnectionCard({ name, description, icon, health, loading }: {
-  name: string; description: string; icon: string;
-  health: Health | undefined; loading: boolean;
+// ────────────────────────────────────────────────────────────────────────
+//  Per-source cards. Each one knows enough about its own data shape to
+//  surface the identifying detail (database name / subdomain / dataset
+//  names) prominently — that's the whole point of the page.
+// ────────────────────────────────────────────────────────────────────────
+
+function MssqlCard({ health, loading }: { health: MssqlHealth | undefined; loading: boolean }) {
+  const status = pickStatus(health);
+  return (
+    <ConnectionCard
+      icon="🗄️"
+      name="MS-SQL · Sales database"
+      status={status}
+      headline={health?.database
+        ? <>Database <code style={codeStyle}>{health.database}</code>{health.user && <> · user <code style={codeStyle}>{health.user}</code></>}</>
+        : null}
+      description="Drives the agent leaderboards (Income MTD, Income Today, Policies). Queried on every showcase data poll."
+      detail={statusDetail(status, health, loading)}
+    />
+  );
+}
+
+function ZendeskCard({ health, loading }: { health: ZendeskHealth | undefined; loading: boolean }) {
+  const status = pickStatus(health);
+  const headline = health?.subdomain ? (
+    <>
+      Account{health.accountName && <> <strong style={{ color: '#f1f5f9' }}>{health.accountName}</strong></>}
+      {' '}· <code style={codeStyle}>{health.subdomain}.zendesk.com</code>
+    </>
+  ) : null;
+  return (
+    <ConnectionCard
+      icon="🎫"
+      name="Zendesk · Support tickets"
+      status={status}
+      headline={headline}
+      description="Source for ticket counts, leaderboards and the Laziest Manager comedy slide. Fetched per-widget."
+      detail={statusDetail(status, health, loading)}
+    />
+  );
+}
+
+function NoeticaCard({ health, loading }: { health: NoeticaHealth | undefined; loading: boolean }) {
+  const status = pickStatus(health);
+  return (
+    <ConnectionCard
+      icon="📥"
+      name="Datasets · Webhook push"
+      status={status}
+      headline={
+        health && health.count > 0
+          ? <>{health.count} {health.count === 1 ? 'dataset' : 'datasets'} stored</>
+          : null
+      }
+      description="Generic key/value dataset store. Anything pushed to /api/datasets/<name>/data ends up here for widgets to consume."
+      detail={
+        // For datasets, the "detail" is the list of names rather than the
+        // generic status line — much more informative.
+        loading && !health ? (
+          <span style={{ color: '#64748b' }}>Querying…</span>
+        ) : health && health.names.length > 0 ? (
+          <DatasetChips names={health.names} />
+        ) : (
+          <span style={{ color: '#64748b' }}>{health?.error || 'No datasets'}</span>
+        )
+      }
+    />
+  );
+}
+
+function DatasetChips({ names }: { names: string[] }) {
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+      {names.map(n => (
+        <code key={n} style={{
+          ...codeStyle,
+          padding: '4px 8px', fontSize: 11, color: '#cbd5e1',
+        }}>{n}</code>
+      ))}
+    </div>
+  );
+}
+
+// ────────────────────────────────────────────────────────────────────────
+//  Shared card chrome
+// ────────────────────────────────────────────────────────────────────────
+
+type Status = 'ok' | 'down' | 'unknown';
+
+const codeStyle: React.CSSProperties = {
+  fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+  fontSize: 11.5, fontWeight: 700,
+  color: '#a5b4fc',
+  background: 'rgba(99,102,241,0.12)',
+  border: '1px solid rgba(99,102,241,0.22)',
+  padding: '2px 6px', borderRadius: 5,
+  letterSpacing: 0,
+};
+
+function pickStatus(health: Health | undefined): Status {
+  if (!health) return 'unknown';
+  return health.ok ? 'ok' : 'down';
+}
+
+function statusDetail(status: Status, health: Health | undefined, loading: boolean): React.ReactNode {
+  if (loading && !health) return 'Querying…';
+  if (status === 'ok')    return 'Healthy — last check just now';
+  if (status === 'down')  return health?.error || 'Not reachable';
+  return null;
+}
+
+function ConnectionCard({ icon, name, status, headline, description, detail }: {
+  icon:        string;
+  name:        string;
+  status:      Status;
+  headline:    React.ReactNode;
+  description: string;
+  detail:      React.ReactNode;
 }) {
-  const status: 'ok' | 'down' | 'unknown' = !health ? 'unknown' : health.ok ? 'ok' : 'down';
-  const tint = status === 'ok'    ? { dot: '#10b981', glow: 'rgba(16,185,129,0.4)',  border: 'rgba(16,185,129,0.35)', label: 'Connected' }
-             : status === 'down'  ? { dot: '#f87171', glow: 'rgba(248,113,113,0.4)', border: 'rgba(248,113,113,0.35)', label: 'Not available' }
-             :                       { dot: '#64748b', glow: 'rgba(100,116,139,0.4)', border: 'rgba(255,255,255,0.08)', label: 'Checking…' };
+  const tint =
+    status === 'ok'    ? { dot: '#10b981', glow: 'rgba(16,185,129,0.4)',  border: 'rgba(16,185,129,0.35)', label: 'Connected' }
+  : status === 'down'  ? { dot: '#f87171', glow: 'rgba(248,113,113,0.4)', border: 'rgba(248,113,113,0.35)', label: 'Not available' }
+  :                       { dot: '#64748b', glow: 'rgba(100,116,139,0.4)', border: 'rgba(255,255,255,0.08)', label: 'Checking…' };
 
   return (
     <div style={{
@@ -143,11 +235,16 @@ function ConnectionCard({ name, description, icon, health, loading }: {
         </span>
       </div>
 
+      {headline && (
+        <div style={{ fontSize: 13, color: '#cbd5e1', lineHeight: 1.5 }}>
+          {headline}
+        </div>
+      )}
+
       <p style={{ fontSize: 12.5, color: '#94a3b8', lineHeight: 1.5, margin: 0 }}>
         {description}
       </p>
 
-      {/* Status detail line — error message when down, count when up */}
       <div style={{
         fontSize: 11, color: '#64748b', fontWeight: 600,
         background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)',
@@ -155,11 +252,7 @@ function ConnectionCard({ name, description, icon, health, loading }: {
         fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
         wordBreak: 'break-word',
       }}>
-        {loading && !health && 'Querying…'}
-        {!loading && health && health.ok && (
-          health.count !== undefined ? `${health.count} dataset${health.count === 1 ? '' : 's'} pushed` : 'Healthy — last check just now'
-        )}
-        {!loading && health && !health.ok && (health.error || 'Not reachable')}
+        {detail}
       </div>
     </div>
   );
