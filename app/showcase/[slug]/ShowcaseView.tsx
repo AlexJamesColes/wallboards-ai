@@ -875,8 +875,17 @@ function TodayStrip({ rows, cols, isMobile }: {
   cols: { nameCol: string; incomeTodayCol: string; polTodayCol: string };
   isMobile: boolean;
 }) {
-  // Track each booked agent's previous rank so we can flag climbers / droppers.
-  const prevRef = useRef<Map<string, number>>(new Map());
+  // Two refs that work together:
+  //   prevRef     — rank at the last poll. Used to flash the green/red
+  //                 row-up / row-down animation in the moment a position
+  //                 actually changes. Updates every poll.
+  //   baselineRef — the FIRST rank we saw an agent at this session.
+  //                 Drives the persistent ▲/▼ chip — "you're up 2 from
+  //                 where you started" — so anyone glancing at the wall
+  //                 sees the day's net movement at a glance, not just a
+  //                 60-second sliver.
+  const prevRef     = useRef<Map<string, number>>(new Map());
+  const baselineRef = useRef<Map<string, number>>(new Map());
 
   if (!cols.incomeTodayCol) return null;
 
@@ -908,8 +917,23 @@ function TodayStrip({ rows, cols, isMobile }: {
 
   // Snapshot ranks for booked agents so we can animate position changes
   const newPrev = new Map<string, number>();
-  booked.forEach((a, i) => newPrev.set(a.name.toLowerCase(), i + 1));
-  const oldRanks = prevRef.current;
+  booked.forEach((a, i) => {
+    const key = a.name.toLowerCase();
+    newPrev.set(key, i + 1);
+    // First sighting → seed the baseline. Subsequent polls don't touch
+    // it, so the chip shows true session-wide net movement.
+    if (!baselineRef.current.has(key)) {
+      baselineRef.current.set(key, i + 1);
+    }
+  });
+  // Drop baselines for agents who fell off the booked list (e.g. all
+  // their bookings refunded back to £0) — if they come back later we
+  // re-baseline at their re-entry rank rather than carry stale state.
+  for (const key of Array.from(baselineRef.current.keys())) {
+    if (!newPrev.has(key)) baselineRef.current.delete(key);
+  }
+  const oldRanks  = prevRef.current;
+  const baselines = baselineRef.current;
   // Use a layout-effect-equivalent trick — we set after build so the
   // next render sees the snapshot we just produced.
   setTimeout(() => { prevRef.current = newPrev; }, 0);
@@ -946,9 +970,14 @@ function TodayStrip({ rows, cols, isMobile }: {
       }}>
         {booked.map((a, i) => {
           const rank = i + 1;
-          const was  = oldRanks.get(a.name.toLowerCase());
-          const climbed = was !== undefined && was > rank;
+          const key  = a.name.toLowerCase();
+          const was  = oldRanks.get(key);
+          const climbed = was !== undefined && was > rank;     // last poll → flash anim
           const dropped = was !== undefined && was < rank;
+          // Net movement vs the rank we first saw them at this session —
+          // drives the persistent ▲N / ▼N chip.
+          const baseline = baselines.get(key);
+          const netChange = baseline !== undefined ? baseline - rank : 0;
           const isIncomeLeader = rank === 1;
           const isUnitsLeader  = unitsLeaderName === a.name.toLowerCase();
           // Income leader = gold tint (the prestige money slot)
@@ -992,29 +1021,37 @@ function TodayStrip({ rows, cols, isMobile }: {
                   · {a.policies}{isUnitsLeader ? '★' : ''}
                 </span>
               )}
-              {climbed && was !== undefined && (
-                <span aria-hidden style={{
-                  fontSize: isMobile ? 12 : 'clamp(10px, 0.85vw, 12px)',
-                  color: '#10b981', fontWeight: 800,
-                  display: 'inline-flex', alignItems: 'center',
-                  padding: isMobile ? '1px 5px' : '1px 4px',
-                  borderRadius: 6,
-                  background: 'rgba(16,185,129,0.15)',
-                  border: '1px solid rgba(16,185,129,0.4)',
-                  lineHeight: 1,
-                }}>▲{was - rank}</span>
+              {netChange > 0 && (
+                <span
+                  aria-label={`up ${netChange} from start`}
+                  title={`Up ${netChange} from where they started today`}
+                  style={{
+                    fontSize: isMobile ? 12 : 'clamp(10px, 0.85vw, 12px)',
+                    color: '#10b981', fontWeight: 800,
+                    display: 'inline-flex', alignItems: 'center',
+                    padding: isMobile ? '1px 5px' : '1px 4px',
+                    borderRadius: 6,
+                    background: 'rgba(16,185,129,0.15)',
+                    border: '1px solid rgba(16,185,129,0.4)',
+                    lineHeight: 1,
+                  }}
+                >▲{netChange}</span>
               )}
-              {dropped && was !== undefined && (
-                <span aria-hidden style={{
-                  fontSize: isMobile ? 12 : 'clamp(10px, 0.85vw, 12px)',
-                  color: '#f87171', fontWeight: 800,
-                  display: 'inline-flex', alignItems: 'center',
-                  padding: isMobile ? '1px 5px' : '1px 4px',
-                  borderRadius: 6,
-                  background: 'rgba(248,113,113,0.15)',
-                  border: '1px solid rgba(248,113,113,0.4)',
-                  lineHeight: 1,
-                }}>▼{rank - was}</span>
+              {netChange < 0 && (
+                <span
+                  aria-label={`down ${-netChange} from start`}
+                  title={`Down ${-netChange} from where they started today`}
+                  style={{
+                    fontSize: isMobile ? 12 : 'clamp(10px, 0.85vw, 12px)',
+                    color: '#f87171', fontWeight: 800,
+                    display: 'inline-flex', alignItems: 'center',
+                    padding: isMobile ? '1px 5px' : '1px 4px',
+                    borderRadius: 6,
+                    background: 'rgba(248,113,113,0.15)',
+                    border: '1px solid rgba(248,113,113,0.4)',
+                    lineHeight: 1,
+                  }}
+                >▼{-netChange}</span>
               )}
             </div>
           );
