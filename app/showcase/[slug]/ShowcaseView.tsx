@@ -486,9 +486,6 @@ export default function ShowcaseView({ board, widgetId }: Props) {
           isMobile={isMobile}
         />
 
-        {/* ── Emoji legend ─────────────────────────────────────────── */}
-        <EmojiLegend isMobile={isMobile} />
-
         {/* ── Activity ticker ─────────────────────────────────────── */}
         <ActivityTicker items={tickerItems} />
       </div>
@@ -1180,14 +1177,32 @@ function PodiumCard({ row, rank, heightPct, cols, isMobile, fullWidth }: {
         );
       })()}
 
-      {/* Emoji shelf — compact */}
+      {/* Emoji shelf — each award gets a tiny inline label. Centred to
+          match the rest of the podium card; chips wrap onto multiple
+          rows on narrow viewports so a leader with several awards
+          still reads cleanly. */}
       {emojis.length > 0 && (
         <div style={{
-          display: 'flex', gap: 3,
-          fontSize: isMobile ? mobileSize.emoji : 'clamp(16px, 1.7vw, 28px)',
-          flexWrap: 'wrap', justifyContent: 'center',
+          display: 'flex', flexWrap: 'wrap', justifyContent: 'center',
+          gap: isMobile ? '4px 10px' : 'clamp(4px, 0.4vh, 6px) clamp(8px, 0.9vw, 14px)',
         }}>
-          {emojis.map((e, i) => <span key={i}>{e}</span>)}
+          {emojis.map((e, i) => {
+            const label = EMOJI_LABELS[e];
+            return (
+              <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                <span style={{
+                  fontSize: isMobile ? mobileSize.emoji : 'clamp(16px, 1.7vw, 28px)',
+                }}>{e}</span>
+                {label && (
+                  <span style={{
+                    fontSize: isMobile ? 10 : 'clamp(9px, 0.8vw, 12px)',
+                    color: '#94a3b8', fontWeight: 600,
+                    whiteSpace: 'nowrap',
+                  }}>{label}</span>
+                )}
+              </span>
+            );
+          })}
         </div>
       )}
     </div>
@@ -1368,14 +1383,32 @@ function AgentCard({ row, rank, cols, leaderIncome }: { row: Row; rank: number; 
         </div>
       </div>
 
-      {/* Emoji shelf */}
+      {/* Emoji shelf — each award gets a tiny inline label so the
+          meaning is always at hand. Stacks vertically; cap at 4 so a
+          rare quadruple-award card doesn't push past its row height. */}
       {emojis.length > 0 && (
         <div style={{
-          display: 'flex', gap: 4, marginTop: 'auto',
-          fontSize: 'clamp(14px, 1.3vw, 20px)',
-          filter: 'drop-shadow(0 2px 6px rgba(0,0,0,0.4))',
+          display: 'flex', flexDirection: 'column', gap: 2, marginTop: 'auto',
         }}>
-          {emojis.slice(0, 6).map((e, i) => <span key={i}>{e}</span>)}
+          {emojis.slice(0, 4).map((e, i) => {
+            const label = EMOJI_LABELS[e];
+            return (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                <span style={{
+                  fontSize: 'clamp(13px, 1.2vw, 18px)',
+                  filter: 'drop-shadow(0 2px 6px rgba(0,0,0,0.4))',
+                  flexShrink: 0,
+                }}>{e}</span>
+                {label && (
+                  <span style={{
+                    fontSize: 'clamp(9px, 0.75vw, 11px)',
+                    color: '#64748b', fontWeight: 600,
+                    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                  }}>{label}</span>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
@@ -1383,53 +1416,22 @@ function AgentCard({ row, rank, cols, leaderIncome }: { row: Row; rank: number; 
 }
 
 // ────────────────────────────────────────────────────────────────────────
-//  Emoji legend — quiet key explaining the awards on the cards
+//  Emoji award labels — used inline next to each emoji on a card so the
+//  floor never has to guess what an award means. Keep in sync with
+//  lib/emojiSummary's legend comment; both should change together.
 // ────────────────────────────────────────────────────────────────────────
 
-// Mirrors the awards used by lib/emojiSummary. Order matches how a reader
-// scans the cards: monthly position first, then today's wins, then the
-// "biggest single deal" pair. If a new award is added there, add it here
-// too so the floor isn't left guessing.
-const LEGEND_ITEMS: Array<{ emoji: string; label: string }> = [
-  { emoji: '🥇🥈🥉', label: 'Top 3 MTD' },
-  { emoji: '🍪',       label: '4th MTD' },
-  { emoji: '🔥',       label: 'Most income today' },
-  { emoji: '🎉',       label: 'Most pols today' },
-  { emoji: '🚐',       label: 'Most pols MTD' },
-  { emoji: '🍺',       label: 'Biggest pol today' },
-  { emoji: '🍾',       label: 'Biggest pol MTD' },
-];
-
-function EmojiLegend({ isMobile }: { isMobile: boolean }) {
-  return (
-    <div style={{
-      flexShrink: 0,
-      padding: isMobile ? '10px 14px 12px' : 'clamp(8px, 1vh, 14px) clamp(20px, 3vw, 60px)',
-      borderTop: '1px solid rgba(255,255,255,0.04)',
-      background: 'rgba(10,15,28,0.4)',
-      display: 'flex', flexWrap: 'wrap', alignItems: 'center',
-      gap: isMobile ? '6px 14px' : 'clamp(6px, 0.6vh, 10px) clamp(10px, 1.2vw, 22px)',
-      position: 'relative', zIndex: 1,
-    }}>
-      <span style={{
-        fontSize: isMobile ? 9 : 'clamp(8px, 0.7vw, 11px)',
-        color: '#475569', fontWeight: 700,
-        textTransform: 'uppercase', letterSpacing: '0.18em',
-        flexShrink: 0,
-      }}>Awards</span>
-      {LEGEND_ITEMS.map(({ emoji, label }) => (
-        <span key={label} style={{
-          display: 'inline-flex', alignItems: 'baseline', gap: 5,
-          fontSize: isMobile ? 11 : 'clamp(10px, 0.85vw, 13px)',
-          color: '#64748b', fontWeight: 500,
-        }}>
-          <span aria-hidden style={{ fontSize: isMobile ? 13 : 'clamp(12px, 1vw, 15px)' }}>{emoji}</span>
-          {label}
-        </span>
-      ))}
-    </div>
-  );
-}
+const EMOJI_LABELS: Record<string, string> = {
+  '🥇': 'Leading MTD',
+  '🥈': '2nd MTD',
+  '🥉': '3rd MTD',
+  '🍪': '4th MTD',
+  '🔥': 'Most income today',
+  '🎉': 'Most pols today',
+  '🚐': 'Most pols MTD',
+  '🍺': 'Biggest pol today',
+  '🍾': 'Biggest pol MTD',
+};
 
 // ────────────────────────────────────────────────────────────────────────
 //  Activity ticker — scrolls recent events at the bottom
