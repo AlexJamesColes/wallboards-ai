@@ -88,6 +88,32 @@ interface TickerItem {
   source?: string;              // for 'alert' items: which system posted it
 }
 
+/** Ephemeral "agent's income just changed by £X" event. Pushed into state
+ *  whenever the data poll detects a non-zero diff and consumed by the
+ *  agent's card to render a floating +£X / −£X badge. Auto-cleaned after
+ *  the animation finishes so old events don't pile up. */
+interface CardDelta {
+  id:       string;             // unique per event
+  agentKey: string;             // normalised agent name → matches a card
+  amount:   number;             // signed £ delta (positive = earn, negative = drop)
+  at:       number;             // createdAt ms
+}
+
+/** How long a delta badge / glow stays on screen. Match wb-delta-rise +
+ *  wb-card-pulse-* durations in globals.css. */
+const DELTA_TTL_MS = 4_000;
+
+/** Same name normalisation used for the snapshot map and delta lookups —
+ *  emoji-stripped, lowercase, single-space trimmed so "Joe Bloggs 🍪"
+ *  and "joe  bloggs" hash to the same card. */
+function agentKey(rawName: string): string {
+  return String(rawName ?? '')
+    .toLowerCase()
+    .replace(/\p{Extended_Pictographic}(?:️)?/gu, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 // ────────────────────────────────────────────────────────────────────────
 //  Hour-ticking clock
 // ────────────────────────────────────────────────────────────────────────
@@ -224,6 +250,7 @@ export default function ShowcaseView({ board, widgetId }: Props) {
   const [error, setError]     = useState<string | null>(null);
   const prevRef               = useRef<Map<string, Snapshot>>(new Map());
   const [tickerItems, setTicker] = useState<TickerItem[]>([]);
+  const [cardDeltas, setCardDeltas] = useState<CardDelta[]>([]);
   const teamTarget            = useTeamTarget();
   // Opt-out per board — display_config.laziest_manager === false skips
   // the slide. Guildford uses this so only the London board mocks the
@@ -316,12 +343,28 @@ export default function ShowcaseView({ board, widgetId }: Props) {
 
     const prev = prevRef.current;
     if (prev.size > 0) {
-      const newItems: TickerItem[] = [];
+      const newItems:  TickerItem[] = [];
+      const newDeltas: CardDelta[]  = [];
       const now = Date.now();
       for (const [key, cur] of current) {
         const was = prev.get(key);
         if (!was) continue;
         const displayName = cleanName(String(data.rows[cur.rank - 1]?.[nameCol] ?? key));
+
+        // Per-card delta — fires on every non-zero income change so the
+        // card itself shows a "+£X" / "−£X" floater + tinted glow. The
+        // big ticker only celebrates jumps ≥ £1k (below); these silent
+        // card-level animations cover everything in between so the board
+        // feels alive even on small tickers.
+        const incomeDelta = cur.income - was.income;
+        if (incomeDelta !== 0) {
+          newDeltas.push({
+            id:       `${key}-${now}-${incomeDelta}`,
+            agentKey: key,
+            amount:   incomeDelta,
+            at:       now,
+          });
+        }
 
         // Rank moves
         if (was.rank !== cur.rank) {
@@ -370,9 +413,26 @@ export default function ShowcaseView({ board, widgetId }: Props) {
       if (newItems.length) {
         setTicker(items => [...items, ...newItems].slice(-30)); // keep last 30
       }
+      if (newDeltas.length) {
+        setCardDeltas(d => [...d, ...newDeltas]);
+      }
     }
     prevRef.current = current;
   }, [data]);
+
+  // Drop expired card-delta events. Run only while there's something
+  // active so we're not setting state on a 1s tick when the floor is
+  // quiet.
+  useEffect(() => {
+    if (cardDeltas.length === 0) return;
+    const iv = setInterval(() => {
+      setCardDeltas(d => {
+        const cutoff = Date.now() - DELTA_TTL_MS;
+        return d.filter(e => e.at >= cutoff);
+      });
+    }, 1000);
+    return () => clearInterval(iv);
+  }, [cardDeltas.length]);
 
   if (error)  return <BrandedSplash boardName={board.name} state="error" detail={error} />;
   if (!data)  return <BrandedSplash boardName={board.name} state="loading" />;
@@ -477,6 +537,7 @@ export default function ShowcaseView({ board, widgetId }: Props) {
           rows={top3}
           cols={{ nameCol, incomeMtdCol, polMtdCol, polTodayCol, incomeTodayCol, ippCol, gwpCol, addonsCol }}
           isMobile={isMobile}
+          deltas={cardDeltas}
         />
 
         {/* ── Rest of the pack ────────────────────────────────────── */}
@@ -486,6 +547,7 @@ export default function ShowcaseView({ board, widgetId }: Props) {
           cols={{ nameCol, incomeMtdCol, polMtdCol, polTodayCol, incomeTodayCol, ippCol, gwpCol, addonsCol }}
           teamLeaderIncome={parseMoney(top3[0]?.[incomeMtdCol]) || 1}
           isMobile={isMobile}
+          deltas={cardDeltas}
         />
 
         {/* ── Activity ticker ─────────────────────────────────────── */}
@@ -1024,7 +1086,7 @@ function bracketFor(income: number): BracketState {
   return { current, next, pct, toNext };
 }
 
-function Podium({ rows, cols, isMobile }: { rows: Row[]; cols: ColMap; isMobile: boolean }) {
+function Podium({ rows, cols, isMobile, deltas }: { rows: Row[]; cols: ColMap; isMobile: boolean; deltas: CardDelta[] }) {
   if (rows.length === 0) return null;
 
   // Mobile: stack into two rows so each card has real width to breathe.
@@ -1045,13 +1107,13 @@ function Podium({ rows, cols, isMobile }: { rows: Row[]; cols: ColMap; isMobile:
         {rows[0] && (
           <PodiumCard
             key={String(rows[0][cols.nameCol])}
-            row={rows[0]} rank={1} cols={cols} isMobile fullWidth
+            row={rows[0]} rank={1} cols={cols} isMobile fullWidth deltas={deltas}
           />
         )}
         {(rows[1] || rows[2]) && (
           <div style={{ display: 'flex', gap: 10 }}>
-            {rows[1] && <PodiumCard key={String(rows[1][cols.nameCol])} row={rows[1]} rank={2} cols={cols} isMobile />}
-            {rows[2] && <PodiumCard key={String(rows[2][cols.nameCol])} row={rows[2]} rank={3} cols={cols} isMobile />}
+            {rows[1] && <PodiumCard key={String(rows[1][cols.nameCol])} row={rows[1]} rank={2} cols={cols} isMobile deltas={deltas} />}
+            {rows[2] && <PodiumCard key={String(rows[2][cols.nameCol])} row={rows[2]} rank={3} cols={cols} isMobile deltas={deltas} />}
           </div>
         )}
       </div>
@@ -1073,18 +1135,21 @@ function Podium({ rows, cols, isMobile }: { rows: Row[]; cols: ColMap; isMobile:
       position: 'relative', zIndex: 1, minHeight: '30vh', maxHeight: '34vh',
     }}>
       {arranged.map(({ row, rank, height }) => (
-        <PodiumCard key={String(row[cols.nameCol])} row={row} rank={rank} heightPct={height} cols={cols} />
+        <PodiumCard key={String(row[cols.nameCol])} row={row} rank={rank} heightPct={height} cols={cols} deltas={deltas} />
       ))}
     </div>
   );
 }
 
-function PodiumCard({ row, rank, heightPct, cols, isMobile, fullWidth }: {
+function PodiumCard({ row, rank, heightPct, cols, isMobile, fullWidth, deltas }: {
   row: Row; rank: number; heightPct?: number; cols: ColMap;
-  isMobile?: boolean; fullWidth?: boolean;
+  isMobile?: boolean; fullWidth?: boolean; deltas?: CardDelta[];
 }) {
-  const rawName = String(row[cols.nameCol] ?? '');
-  const name    = cleanName(rawName);
+  const rawName  = String(row[cols.nameCol] ?? '');
+  const name     = cleanName(rawName);
+  const myKey    = agentKey(rawName);
+  const myDeltas = (deltas ?? []).filter(d => d.agentKey === myKey);
+  const latestDelta = myDeltas[myDeltas.length - 1];
   // Filter the rank's own medal out of the shelf — the tier label up top
   // already shows it.
   const myMedal = RANK_MEDALS[rank];
@@ -1131,9 +1196,17 @@ function PodiumCard({ row, rank, heightPct, cols, isMobile, fullWidth }: {
       alignContent: isMobile ? undefined : 'space-between',
       justifyItems: isMobile ? undefined : 'center',
       alignItems: isMobile ? 'center' : undefined,
-      textAlign: 'center', position: 'relative', overflow: 'hidden',
-      animation: rank === 1 ? 'wb-leader-pulse 3.2s ease-in-out infinite' : undefined,
+      textAlign: 'center', position: 'relative',
+      // overflow:visible so the floating £-delta badges can drift past the
+      // rounded corners; nothing else inside the card overflows so we
+      // don't lose anything by dropping the prior `overflow:hidden`.
+      overflow: 'visible',
+      animation: latestDelta
+        ? `wb-card-pulse-${latestDelta.amount > 0 ? 'up' : 'down'} ${DELTA_TTL_MS}ms ease-out${rank === 1 ? ', wb-leader-pulse 3.2s ease-in-out infinite' : ''}`
+        : (rank === 1 ? 'wb-leader-pulse 3.2s ease-in-out infinite' : undefined),
     }}>
+      <DeltaBadges deltas={myDeltas} />
+
       {/* Tier label + avatar inline */}
       <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 10 }}>
         <Avatar
@@ -1233,6 +1306,51 @@ function PodiumCard({ row, rank, heightPct, cols, isMobile, fullWidth }: {
   );
 }
 
+/**
+ * Per-card overlay that floats a small "+£X" or "−£X" chip whenever the
+ * agent's income changed in the most recent data poll. Silent — no audio,
+ * no celebration takeover. Each chip auto-removes when its animation
+ * completes (TTL enforced by ShowcaseView's cleanup interval). Multiple
+ * deltas in rapid succession stack vertically with a slight stagger so a
+ * burst of activity reads as several chips, not one fused blob.
+ */
+function DeltaBadges({ deltas }: { deltas: CardDelta[] }) {
+  if (deltas.length === 0) return null;
+  return (
+    <div style={{
+      position: 'absolute',
+      top: -4, right: 8,
+      display: 'flex', flexDirection: 'column', alignItems: 'flex-end',
+      gap: 3, zIndex: 10, pointerEvents: 'none',
+    }}>
+      {deltas.map((d, i) => {
+        const positive = d.amount > 0;
+        const sign     = positive ? '+' : '−';
+        const abs      = Math.abs(d.amount);
+        return (
+          <span key={d.id} style={{
+            display: 'inline-flex', alignItems: 'center',
+            padding: '3px 8px', borderRadius: 99,
+            fontSize: 'clamp(11px, 0.95vw, 14px)', fontWeight: 800,
+            fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap',
+            color:      positive ? '#10b981' : '#f87171',
+            background: positive ? 'rgba(16,185,129,0.18)' : 'rgba(248,113,113,0.18)',
+            border:     `1px solid ${positive ? 'rgba(16,185,129,0.55)' : 'rgba(248,113,113,0.55)'}`,
+            boxShadow:  positive
+              ? '0 0 16px rgba(16,185,129,0.35)'
+              : '0 0 16px rgba(248,113,113,0.35)',
+            animation: `${positive ? 'wb-delta-rise' : 'wb-delta-sink'} ${DELTA_TTL_MS}ms ease-out forwards`,
+            // Stagger so a clustered burst reads as several distinct chips
+            animationDelay: `${i * 80}ms`,
+          }}>
+            {sign}{`£${Math.round(abs).toLocaleString('en-GB')}`}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
 function Stat({ label, value, valueSize, labelSize }: {
   label: string; value: string; valueSize?: number; labelSize?: number;
 }) {
@@ -1268,8 +1386,8 @@ function Avatar({ name, size, gradient }: { name: string; size: string; gradient
 //  Agent grid — rank 4+
 // ────────────────────────────────────────────────────────────────────────
 
-function AgentGrid({ rows, startIndex, cols, teamLeaderIncome, isMobile }: {
-  rows: Row[]; startIndex: number; cols: ColMap; teamLeaderIncome: number; isMobile: boolean;
+function AgentGrid({ rows, startIndex, cols, teamLeaderIncome, isMobile, deltas }: {
+  rows: Row[]; startIndex: number; cols: ColMap; teamLeaderIncome: number; isMobile: boolean; deltas: CardDelta[];
 }) {
   // Give cards a firm minimum height so they can actually breathe — content
   // (avatar + big number + progress bar + emoji shelf) needs ~110px. The
@@ -1304,18 +1422,21 @@ function AgentGrid({ rows, startIndex, cols, teamLeaderIncome, isMobile }: {
         gap: isMobile ? 10 : 'clamp(10px, 1.2vh, 16px)',
       }}>
         {rows.map((row, i) => (
-          <AgentCard key={String(row[cols.nameCol])} row={row} rank={startIndex + i} cols={cols} leaderIncome={teamLeaderIncome} />
+          <AgentCard key={String(row[cols.nameCol])} row={row} rank={startIndex + i} cols={cols} leaderIncome={teamLeaderIncome} deltas={deltas} />
         ))}
       </div>
     </div>
   );
 }
 
-function AgentCard({ row, rank, cols, leaderIncome }: { row: Row; rank: number; cols: ColMap; leaderIncome: number }) {
+function AgentCard({ row, rank, cols, leaderIncome, deltas }: { row: Row; rank: number; cols: ColMap; leaderIncome: number; deltas?: CardDelta[] }) {
   const rawName = String(row[cols.nameCol] ?? '');
   const name    = cleanName(rawName);
   const emojis  = [...extractEmojis(rawName)];
   const grad    = avatarColors(name);
+  const myKey       = agentKey(rawName);
+  const myDeltas    = (deltas ?? []).filter(d => d.agentKey === myKey);
+  const latestDelta = myDeltas[myDeltas.length - 1];
 
   const incomeMtd     = parseMoney(row[cols.incomeMtdCol]);
   const polMtd        = parseMoney(row[cols.polMtdCol]);
@@ -1331,9 +1452,15 @@ function AgentCard({ row, rank, cols, leaderIncome }: { row: Row; rank: number; 
       border: '1px solid rgba(255,255,255,0.06)', borderRadius: 14,
       padding: 'clamp(8px, 1vh, 14px) clamp(10px, 1.1vw, 16px)',
       display: 'flex', flexDirection: 'column', gap: 5,
-      overflow: 'hidden', position: 'relative',
+      // overflow:visible so a "+£X" badge can drift past the rounded
+      // top edge of the card; nothing else inside ever overflows.
+      overflow: 'visible', position: 'relative',
       backdropFilter: 'blur(8px)',
+      animation: latestDelta
+        ? `wb-card-pulse-${latestDelta.amount > 0 ? 'up' : 'down'} ${DELTA_TTL_MS}ms ease-out`
+        : undefined,
     }}>
+      <DeltaBadges deltas={myDeltas} />
       {/* Top row: avatar + name + rank chip */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         <Avatar name={name} size="clamp(30px, 2.8vw, 44px)" gradient={grad} />

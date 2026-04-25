@@ -65,6 +65,37 @@ input, select, textarea, button { font-family: inherit; }
   100% { color: inherit; text-shadow: none; }
 }
 
+/* Floating "+£X" badge — drifts up + fades when an agent's income rises.
+   Silent: no audio cue, just an ambient "money in the air" feel. */
+@keyframes wb-delta-rise {
+  0%   { opacity: 0; transform: translateY(0)    scale(0.7); }
+  15%  { opacity: 1; transform: translateY(-6px) scale(1.08); }
+  30%  { opacity: 1; transform: translateY(-12px) scale(1); }
+  85%  { opacity: 1; transform: translateY(-36px) scale(1); }
+  100% { opacity: 0; transform: translateY(-50px) scale(0.95); }
+}
+
+/* Falling "−£X" badge — counterpart for drops / refunds / cancellations */
+@keyframes wb-delta-sink {
+  0%   { opacity: 0; transform: translateY(0)    scale(0.7); }
+  15%  { opacity: 1; transform: translateY(6px)  scale(1.08); }
+  30%  { opacity: 1; transform: translateY(12px) scale(1); }
+  85%  { opacity: 1; transform: translateY(36px) scale(1); }
+  100% { opacity: 0; transform: translateY(50px) scale(0.95); }
+}
+
+/* Quick green glow on a card whose agent just earned */
+@keyframes wb-card-pulse-up {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(16,185,129,0);    }
+  18%      { box-shadow: 0 0 28px 2px rgba(16,185,129,0.40); }
+}
+
+/* Quick red glow on a card whose agent just had income drop */
+@keyframes wb-card-pulse-down {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(248,113,113,0);    }
+  18%      { box-shadow: 0 0 28px 2px rgba(248,113,113,0.40); }
+}
+
 /* ─── Hall-of-fame takeover ────────────────────────────────────────────── */
 
 /* Dim the wallboard behind the celebration */
