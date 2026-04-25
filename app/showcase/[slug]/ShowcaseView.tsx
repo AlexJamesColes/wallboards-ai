@@ -1156,9 +1156,9 @@ function PodiumCard({ row, rank, heightPct, cols, isMobile, fullWidth }: {
           the daily race; the podium is about the month-long position. */}
       {(() => {
         const stats: Array<{ label: string; value: string }> = [];
-        if (cols.polMtdCol)            stats.push({ label: 'Pols MTD', value: String(Math.round(polMtd)) });
-        if (cols.ippCol  && ipp > 0)   stats.push({ label: 'IPP',      value: formatMoney(ipp) });
-        if (cols.gwpCol  && gwp > 0)   stats.push({ label: 'GWP MTD',  value: formatMoney(gwp) });
+        if (cols.polMtdCol)            stats.push({ label: 'Pols', value: String(Math.round(polMtd)) });
+        if (cols.ippCol  && ipp > 0)   stats.push({ label: 'IPP',  value: formatMoney(ipp) });
+        if (cols.gwpCol  && gwp > 0)   stats.push({ label: 'GWP',  value: formatMoney(gwp) });
         if (stats.length === 0) return null;
         return (
           <div style={{
@@ -1322,9 +1322,9 @@ function AgentCard({ row, rank, cols, leaderIncome }: { row: Row; rank: number; 
         fontSize: 'clamp(9px, 0.85vw, 12px)', color: '#94a3b8',
         fontVariantNumeric: 'tabular-nums', lineHeight: 1.2, flexWrap: 'wrap',
       }}>
-        {cols.polMtdCol && <span><strong style={{ color: '#cbd5e1' }}>{Math.round(polMtd)}</strong> pols MTD</span>}
+        {cols.polMtdCol && <span><strong style={{ color: '#cbd5e1' }}>{Math.round(polMtd)}</strong> pols</span>}
         {cols.ippCol    && ipp > 0 && <span><strong style={{ color: '#cbd5e1' }}>{formatMoney(ipp)}</strong> IPP</span>}
-        {cols.gwpCol    && gwp > 0 && <span><strong style={{ color: '#cbd5e1' }}>{formatMoney(gwp)}</strong> GWP MTD</span>}
+        {cols.gwpCol    && gwp > 0 && <span><strong style={{ color: '#cbd5e1' }}>{formatMoney(gwp)}</strong> GWP</span>}
       </div>
 
       {/* Commission bracket progress — shows how close this agent is to the
