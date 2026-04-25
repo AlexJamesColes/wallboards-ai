@@ -55,8 +55,10 @@ function parseMoney(v: any): number {
 }
 
 function formatMoney(n: number): string {
-  if (Math.abs(n) >= 1_000_000) return `£${(n / 1_000_000).toFixed(n % 1_000_000 === 0 ? 0 : 1)}M`;
-  if (Math.abs(n) >= 1000)      return `£${(n / 1000).toFixed(n % 1000 === 0 ? 0 : 1)}k`;
+  // Exact pounds with thousands separators — no k/M abbreviation. The
+  // sales floor wants to see what they've actually written, not a rounded
+  // headline (£49,512 reads very differently from £49.5k when you're 12
+  // quid off a milestone).
   return `£${Math.round(n).toLocaleString('en-GB')}`;
 }
 
