@@ -1331,6 +1331,13 @@ function AgentCard({ row, rank, cols, leaderIncome }: { row: Row; rank: number; 
           next rate tier. Maxed agents get a solid gold bar. */}
       <div>
         <div style={{
+          fontSize: 'clamp(8px, 0.7vw, 10px)', color: '#64748b',
+          textTransform: 'uppercase', letterSpacing: '0.14em', fontWeight: 700,
+          marginBottom: 3, lineHeight: 1,
+        }}>
+          Commission
+        </div>
+        <div style={{
           display: 'flex', justifyContent: 'space-between', alignItems: 'baseline',
           fontSize: 'clamp(9px, 0.85vw, 12px)', fontWeight: 800,
           fontVariantNumeric: 'tabular-nums', lineHeight: 1,
@@ -1340,7 +1347,7 @@ function AgentCard({ row, rank, cols, leaderIncome }: { row: Row; rank: number; 
             {bracket.current.rate}%
           </span>
           <span style={{ color: '#64748b', fontWeight: 500, fontSize: '0.92em' }}>
-            {maxed ? 'Max tier' : `${formatMoney(bracket.toNext)} to go`}
+            {maxed ? 'Max tier' : `${formatMoney(bracket.toNext)} to next tier`}
           </span>
           <span style={{ color: '#fde68a' }}>
             {maxed ? '🏆' : `${bracket.next!.rate}%`}
