@@ -48,6 +48,9 @@ export interface WbBoard {
   rows: number;
   background: string;
   created_by: string | null;
+  /** Free-form board-level settings: display_type ('mobile'|'desktop'),
+   *  laziest_manager (boolean opt-out), and anything else. */
+  display_config: Record<string, any>;
   widgets: WbWidget[];
 }
 
