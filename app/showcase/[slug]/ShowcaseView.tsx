@@ -388,7 +388,7 @@ export default function ShowcaseView({ board, widgetId }: Props) {
 
   return (
     <ZoomWrap>
-    <CelebrationProvider intervalMs={300_000} extraAgents={laziestSlide}>
+    <CelebrationProvider intervalMs={1_800_000} extraAgents={laziestSlide}>
       {/* Push the showcase agents into the celebration context so the Hall
           of Fame has real candidates (the bespoke showcase doesn't render a
           TableWidget, so without this only Hugo would ever appear). */}
