@@ -96,3 +96,22 @@ export function playWompWomp() {
   tone({ freq: 349, duration: 0.22, startAt: 0.44, volume: 0.30, type: 'sawtooth' }); // F4
   tone({ freq: 330, duration: 0.55, startAt: 0.66, volume: 0.35, type: 'sawtooth' }); // E4 drop
 }
+
+/** Bright bell "ka-ching" for an income up-tick. Short and quiet so a
+ *  busy minute of deals reads as a cheerful register, not a klaxon. */
+export function playCashTing() {
+  unlockAudio();
+  // Layered ting — high bell + an octave-lower body so it sounds like
+  // a real till bell rather than a single tone. Sub-180ms total.
+  tone({ freq: 2637, duration: 0.16, startAt: 0.00, volume: 0.16, type: 'sine'     }); // E7
+  tone({ freq: 1976, duration: 0.20, startAt: 0.03, volume: 0.13, type: 'triangle' }); // B6
+  tone({ freq: 3136, duration: 0.10, startAt: 0.02, volume: 0.07, type: 'sine'     }); // G7 sparkle
+}
+
+/** Soft "deflate" two-note dip for a drop / cancellation. Lower register
+ *  + triangle wave so it reads as disappointment without being harsh. */
+export function playCancelDrop() {
+  unlockAudio();
+  tone({ freq: 349, duration: 0.18, startAt: 0.00, volume: 0.16, type: 'triangle' }); // F4
+  tone({ freq: 262, duration: 0.28, startAt: 0.13, volume: 0.16, type: 'triangle' }); // C4
+}

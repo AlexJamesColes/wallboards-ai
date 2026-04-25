@@ -1308,11 +1308,15 @@ function PodiumCard({ row, rank, heightPct, cols, isMobile, fullWidth, deltas }:
 
 /**
  * Per-card overlay that floats a small "+£X" or "−£X" chip whenever the
- * agent's income changed in the most recent data poll. Silent — no audio,
- * no celebration takeover. Each chip auto-removes when its animation
- * completes (TTL enforced by ShowcaseView's cleanup interval). Multiple
- * deltas in rapid succession stack vertically with a slight stagger so a
- * burst of activity reads as several chips, not one fused blob.
+ * agent's income changed in the most recent data poll. Each chip plays
+ * a quiet sound on mount — bright "ka-ching" for an earn, two-note dip
+ * for a drop / cancellation. Auto-removes when its animation completes
+ * (TTL enforced by ShowcaseView's cleanup interval). Multiple deltas in
+ * rapid succession stack vertically with a slight stagger so a burst of
+ * activity reads as several chips and several tings, not one fused blob.
+ *
+ * Audio respects the global ?sound=off URL flag the celebration system
+ * already honours, so a quiet-office TV stays silent.
  */
 function DeltaBadges({ deltas }: { deltas: CardDelta[] }) {
   if (deltas.length === 0) return null;
@@ -1323,31 +1327,45 @@ function DeltaBadges({ deltas }: { deltas: CardDelta[] }) {
       display: 'flex', flexDirection: 'column', alignItems: 'flex-end',
       gap: 3, zIndex: 10, pointerEvents: 'none',
     }}>
-      {deltas.map((d, i) => {
-        const positive = d.amount > 0;
-        const sign     = positive ? '+' : '−';
-        const abs      = Math.abs(d.amount);
-        return (
-          <span key={d.id} style={{
-            display: 'inline-flex', alignItems: 'center',
-            padding: '3px 8px', borderRadius: 99,
-            fontSize: 'clamp(11px, 0.95vw, 14px)', fontWeight: 800,
-            fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap',
-            color:      positive ? '#10b981' : '#f87171',
-            background: positive ? 'rgba(16,185,129,0.18)' : 'rgba(248,113,113,0.18)',
-            border:     `1px solid ${positive ? 'rgba(16,185,129,0.55)' : 'rgba(248,113,113,0.55)'}`,
-            boxShadow:  positive
-              ? '0 0 16px rgba(16,185,129,0.35)'
-              : '0 0 16px rgba(248,113,113,0.35)',
-            animation: `${positive ? 'wb-delta-rise' : 'wb-delta-sink'} ${DELTA_TTL_MS}ms ease-out forwards`,
-            // Stagger so a clustered burst reads as several distinct chips
-            animationDelay: `${i * 80}ms`,
-          }}>
-            {sign}{`£${Math.round(abs).toLocaleString('en-GB')}`}
-          </span>
-        );
-      })}
+      {deltas.map((d, i) => <DeltaChip key={d.id} delta={d} staggerIndex={i} />)}
     </div>
+  );
+}
+
+function DeltaChip({ delta, staggerIndex }: { delta: CardDelta; staggerIndex: number }) {
+  const positive = delta.amount > 0;
+  // Fire the ting / dip once on mount, matching the visual stagger so a
+  // burst of three earns sounds like three distinct register pings.
+  useEffect(() => {
+    const t = setTimeout(() => {
+      import('@/lib/sounds').then(s => {
+        if (positive) s.playCashTing();
+        else          s.playCancelDrop();
+      }).catch(() => { /* sound is best-effort */ });
+    }, staggerIndex * 80);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [delta.id]);
+
+  const sign = positive ? '+' : '−';
+  const abs  = Math.abs(delta.amount);
+  return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center',
+      padding: '3px 8px', borderRadius: 99,
+      fontSize: 'clamp(11px, 0.95vw, 14px)', fontWeight: 800,
+      fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap',
+      color:      positive ? '#10b981' : '#f87171',
+      background: positive ? 'rgba(16,185,129,0.18)' : 'rgba(248,113,113,0.18)',
+      border:     `1px solid ${positive ? 'rgba(16,185,129,0.55)' : 'rgba(248,113,113,0.55)'}`,
+      boxShadow:  positive
+        ? '0 0 16px rgba(16,185,129,0.35)'
+        : '0 0 16px rgba(248,113,113,0.35)',
+      animation: `${positive ? 'wb-delta-rise' : 'wb-delta-sink'} ${DELTA_TTL_MS}ms ease-out forwards`,
+      animationDelay: `${staggerIndex * 80}ms`,
+    }}>
+      {sign}{`£${Math.round(abs).toLocaleString('en-GB')}`}
+    </span>
   );
 }
 
