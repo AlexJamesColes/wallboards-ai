@@ -120,6 +120,28 @@ function useLaziestManagerSlide(): any[] {
 }
 
 /**
+ * Per-TV zoom override. Some big TVs (e.g. Samsung Frame) report a small
+ * viewport size to the browser so 1vw/1vh map to fewer real pixels than
+ * the screen has — making everything look chunky and wasting space.
+ * Append ?zoom=0.85 (or any positive number) to the URL on that TV and
+ * the whole page scales down accordingly so more fits.
+ *
+ * Implemented via the CSS `zoom` property — well supported in Chromium
+ * (which is what Samsung Tizen / smart TV browsers use).
+ */
+function useZoom() {
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const q = new URLSearchParams(window.location.search).get('zoom');
+    const z = q ? Number(q) : NaN;
+    if (Number.isFinite(z) && z > 0 && z !== 1) {
+      (document.documentElement.style as any).zoom = String(z);
+      return () => { (document.documentElement.style as any).zoom = ''; };
+    }
+  }, []);
+}
+
+/**
  * Team income target — read from the URL's ?target= query param, otherwise
  * the compile-time default. Lets individual TVs show different targets
  * (e.g. the London wallboard shows the London-only split of the combined
@@ -147,6 +169,7 @@ export default function ShowcaseView({ board, widgetId }: Props) {
   const [tickerItems, setTicker] = useState<TickerItem[]>([]);
   const teamTarget            = useTeamTarget();
   const laziestSlide          = useLaziestManagerSlide();
+  useZoom();
   useAutoReloadOnDeploy();
 
   // Poll /api/alerts for anything IT has pushed (Teams webhook forwards etc.)
