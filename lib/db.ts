@@ -10,6 +10,15 @@ export function ensureDbReady(): Promise<void> {
     try {
       await wbDb.initPool(url);
       console.log('[db] ready');
+      // Boot the rank-baseline poller now that the DB is live. Runs
+      // in-process so showcase boards keep an authoritative day-anchor
+      // even when no TV is connected. Singleton — safe to re-call.
+      try {
+        const m = await import('./baselinePoller');
+        m.ensureBaselinePollerStarted();
+      } catch (e) {
+        console.error('[db] baseline poller failed to start:', e);
+      }
     } catch (e) {
       console.error('[db] init failed:', e);
       readyPromise = null;

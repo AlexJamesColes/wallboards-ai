@@ -1,17 +1,12 @@
 import { notFound } from 'next/navigation';
 import { ensureDbReady, getBoardBySlug } from '@/lib/db';
+import { SHOWCASE_SLUGS } from '@/lib/showcaseSlugs';
 import KioskView from '../view/[token]/KioskView';
 import ShowcaseView from '../showcase/[slug]/ShowcaseView';
 
 export const dynamic = 'force-dynamic';
 
-/**
- * Boards listed here serve the bespoke "showcase" view (podium + cards +
- * ticker + celebrations) at their public URL instead of the generic kiosk.
- * Add a slug to opt-in. Everything else falls through to the standard
- * widget-grid kiosk.
- */
-const SHOWCASE_SLUGS = new Set(['london-agents', 'guildford-agents']);
+const SHOWCASE_SLUG_SET: Set<string> = new Set(SHOWCASE_SLUGS);
 
 /**
  * Root-level human-readable kiosk route.
@@ -30,7 +25,7 @@ export default async function SlugKioskPage({ params }: { params: { slug: string
 
   // Showcase opt-in — pick the dominant table widget and render the fancy
   // view. Fall back to classic kiosk if there isn't a usable widget.
-  if (SHOWCASE_SLUGS.has(params.slug)) {
+  if (SHOWCASE_SLUG_SET.has(params.slug)) {
     const tables = (board.widgets || []).filter(w =>
       w.type === 'table' && !(w.display_config as any)?.hide_header
     );
