@@ -486,6 +486,9 @@ export default function ShowcaseView({ board, widgetId }: Props) {
           isMobile={isMobile}
         />
 
+        {/* ── Emoji legend ─────────────────────────────────────────── */}
+        <EmojiLegend isMobile={isMobile} />
+
         {/* ── Activity ticker ─────────────────────────────────────── */}
         <ActivityTicker items={tickerItems} />
       </div>
@@ -1375,6 +1378,55 @@ function AgentCard({ row, rank, cols, leaderIncome }: { row: Row; rank: number; 
           {emojis.slice(0, 6).map((e, i) => <span key={i}>{e}</span>)}
         </div>
       )}
+    </div>
+  );
+}
+
+// ────────────────────────────────────────────────────────────────────────
+//  Emoji legend — quiet key explaining the awards on the cards
+// ────────────────────────────────────────────────────────────────────────
+
+// Mirrors the awards used by lib/emojiSummary. Order matches how a reader
+// scans the cards: monthly position first, then today's wins, then the
+// "biggest single deal" pair. If a new award is added there, add it here
+// too so the floor isn't left guessing.
+const LEGEND_ITEMS: Array<{ emoji: string; label: string }> = [
+  { emoji: '🥇🥈🥉', label: 'Top 3 MTD' },
+  { emoji: '🍪',       label: '4th MTD' },
+  { emoji: '🔥',       label: 'Most income today' },
+  { emoji: '🎉',       label: 'Most pols today' },
+  { emoji: '🚐',       label: 'Most pols MTD' },
+  { emoji: '🍺',       label: 'Biggest pol today' },
+  { emoji: '🍾',       label: 'Biggest pol MTD' },
+];
+
+function EmojiLegend({ isMobile }: { isMobile: boolean }) {
+  return (
+    <div style={{
+      flexShrink: 0,
+      padding: isMobile ? '10px 14px 12px' : 'clamp(8px, 1vh, 14px) clamp(20px, 3vw, 60px)',
+      borderTop: '1px solid rgba(255,255,255,0.04)',
+      background: 'rgba(10,15,28,0.4)',
+      display: 'flex', flexWrap: 'wrap', alignItems: 'center',
+      gap: isMobile ? '6px 14px' : 'clamp(6px, 0.6vh, 10px) clamp(10px, 1.2vw, 22px)',
+      position: 'relative', zIndex: 1,
+    }}>
+      <span style={{
+        fontSize: isMobile ? 9 : 'clamp(8px, 0.7vw, 11px)',
+        color: '#475569', fontWeight: 700,
+        textTransform: 'uppercase', letterSpacing: '0.18em',
+        flexShrink: 0,
+      }}>Awards</span>
+      {LEGEND_ITEMS.map(({ emoji, label }) => (
+        <span key={label} style={{
+          display: 'inline-flex', alignItems: 'baseline', gap: 5,
+          fontSize: isMobile ? 11 : 'clamp(10px, 0.85vw, 13px)',
+          color: '#64748b', fontWeight: 500,
+        }}>
+          <span aria-hidden style={{ fontSize: isMobile ? 13 : 'clamp(12px, 1vw, 15px)' }}>{emoji}</span>
+          {label}
+        </span>
+      ))}
     </div>
   );
 }
