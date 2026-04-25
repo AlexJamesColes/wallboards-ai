@@ -1032,12 +1032,26 @@ function TodayStrip({ rows, cols, isMobile }: {
         </span>
       </div>
 
-      {/* Booked agents first — own wrapping row so they read as the
-          "race in progress" group without being mixed in with zeros. */}
-      <div style={{
-        display: 'flex', flexWrap: 'wrap',
-        gap: isMobile ? '6px 6px' : 'clamp(4px, 0.5vw, 8px) clamp(5px, 0.6vw, 10px)',
-      }}>
+      {/* Booked agents — wrap on TV (plenty of width) but scroll
+          sideways on mobile so we don't burn half the screen on a wall
+          of pills. flexShrink:0 on each pill keeps them at natural
+          width inside the scroller. */}
+      <div
+        className={isMobile ? 'wb-no-scrollbar' : undefined}
+        style={{
+          display: 'flex',
+          flexWrap: isMobile ? 'nowrap' : 'wrap',
+          overflowX: isMobile ? 'auto' : 'visible',
+          // Pair overflow-y so iOS/desktop don't over-render a vertical
+          // scrollbar; a small vertical padding leaves room for each
+          // pill's glow box-shadow without it getting clipped.
+          overflowY: isMobile ? 'hidden' : 'visible',
+          paddingTop: isMobile ? 4 : 0,
+          paddingBottom: isMobile ? 4 : 0,
+          WebkitOverflowScrolling: 'touch' as any,
+          gap: isMobile ? '6px' : 'clamp(4px, 0.5vw, 8px) clamp(5px, 0.6vw, 10px)',
+        }}
+      >
         {booked.map((a, i) => {
           const rank = i + 1;
           const key  = a.name.toLowerCase();

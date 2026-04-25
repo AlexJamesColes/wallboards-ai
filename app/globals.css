@@ -6,6 +6,12 @@ html, body { height: 100%; background: #0a0f1c; color: #f1f5f9; }
    this only affects the mobile layouts (which never want sideways
    scroll). */
 html, body { overflow-x: hidden; }
+
+/* Utility — hide native scrollbars on a horizontally-scrolling row
+   (Today's Earn pills on mobile). Content is still scrollable, just
+   without the visual track so the row reads as a clean strip. */
+.wb-no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
+.wb-no-scrollbar::-webkit-scrollbar { display: none; }
 body { font-family: var(--font-raleway, -apple-system, sans-serif); -webkit-font-smoothing: antialiased; }
 a { color: inherit; text-decoration: none; }
 input, select, textarea, button { font-family: inherit; }
