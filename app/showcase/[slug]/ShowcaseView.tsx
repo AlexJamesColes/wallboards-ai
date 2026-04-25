@@ -441,12 +441,18 @@ export default function ShowcaseView({ board, widgetId }: Props) {
         ].filter(s => s.col)}
       />
       <div style={{
-        // Width/height: 100% so we fill the ZoomWrap inner box (which is
-        // 100/z vw × 100/z vh) rather than the actual viewport. That's
-        // what lets the zoom param actually pack more agents in.
-        width: '100%', height: '100%',
+        // TV: fill the ZoomWrap inner box (100/z vw × 100/z vh) and clip
+        // overflow — wallboards never scroll. Mobile: let the document
+        // scroll naturally so a phone can swipe through the whole agent
+        // list (iOS Safari is unreliable about nested overflow:auto, so
+        // we drop the constraint instead of relying on the inner grid's
+        // own scroller).
+        width: '100%',
+        height: isMobile ? 'auto' : '100%',
+        minHeight: isMobile ? '100vh' : undefined,
         background: 'radial-gradient(ellipse at 20% 10%, #1a1f3a 0%, #0a0f1c 60%, #050813 100%)',
-        color: '#f1f5f9', overflow: 'hidden',
+        color: '#f1f5f9',
+        overflow: isMobile ? 'visible' : 'hidden',
         fontFamily: 'var(--font-raleway, sans-serif)',
         display: 'flex', flexDirection: 'column', position: 'relative',
       }}>
@@ -879,7 +885,6 @@ function TodayStrip({ rows, cols, isMobile }: {
           const was  = oldRanks.get(a.name.toLowerCase());
           const climbed = was !== undefined && was > rank;
           const dropped = was !== undefined && was < rank;
-          const isNew   = was === undefined;
           const isIncomeLeader = rank === 1;
           const isUnitsLeader  = unitsLeaderName === a.name.toLowerCase();
           // Income leader = gold tint (the prestige money slot)
@@ -925,7 +930,6 @@ function TodayStrip({ rows, cols, isMobile }: {
               )}
               {climbed && was !== undefined && <span aria-hidden style={{ fontSize: 10, color: '#10b981', fontWeight: 800 }}>▲{was - rank}</span>}
               {dropped && was !== undefined && <span aria-hidden style={{ fontSize: 10, color: '#f87171', fontWeight: 800 }}>▼{rank - was}</span>}
-              {isNew && <span aria-hidden style={{ fontSize: 10, color: '#fbbf24', fontWeight: 800 }}>NEW</span>}
             </div>
           );
         })}
@@ -1235,9 +1239,13 @@ function AgentGrid({ rows, startIndex, cols, teamLeaderIncome, isMobile }: {
     <div style={{
       flex: 1, minHeight: 0,
       padding: isMobile
-        ? '14px 14px 0'
+        ? '14px 14px 14px'
         : 'clamp(16px, 2vh, 28px) clamp(20px, 3vw, 60px) 0',
-      overflowY: 'auto',
+      // TV: own scroll container (TVs hide overflow at the page level so
+      // this is mostly a layout safety net). Mobile: defer to the document
+      // scroller — iOS Safari doesn't reliably hand touch gestures to a
+      // nested overflow:auto inside a flex column.
+      overflowY: isMobile ? 'visible' : 'auto',
       position: 'relative', zIndex: 1,
       // Hide the scrollbar — TVs can't scroll anyway, this just prevents a
       // visible track.

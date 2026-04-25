@@ -110,21 +110,40 @@ export function CelebrationProvider({
     nextFireAt,
   };
 
-  // Auto-trigger on a timer. Fire the first celebration ~90s after load
-  // (so data has time to settle) then repeat every `intervalMs`. We use a
-  // chained setTimeout (rather than setInterval) so we know exactly when
-  // the next fire is scheduled — needed for the countdown indicator.
+  // Auto-trigger on a clock-aligned schedule. With the default 30-min
+  // cadence this fires on every :00 and :30 of local time (e.g. 14:00,
+  // 14:30, 15:00…). Aligning to the clock — rather than to "intervalMs
+  // after page load + intervalMs after that" — means every TV in the
+  // building celebrates the same agent at the same moment regardless of
+  // when each one was last reloaded, and the rhythm matches how the
+  // sales floor reads the clock anyway.
+  //
+  // We chain setTimeout (rather than setInterval) so the nextFireAt
+  // exposed to <CelebrationCountdown> is always exactly the upcoming
+  // boundary.
   useEffect(() => {
     if (!intervalMs || intervalMs <= 0) { setNextFireAt(null); return; }
     let timer: ReturnType<typeof setTimeout>;
-    const schedule = (ms: number) => {
-      setNextFireAt(Date.now() + ms);
+    const nextBoundary = (now: number): number => {
+      // Align relative to local midnight so DST doesn't pull the boundary
+      // off the half-hour. (The period itself is short enough that DST
+      // doesn't create gaps anyway.)
+      const d = new Date(now);
+      const startOfDay = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0).getTime();
+      const sinceStart = now - startOfDay;
+      const offset     = Math.floor(sinceStart / intervalMs) * intervalMs + intervalMs;
+      return startOfDay + offset;
+    };
+    const schedule = () => {
+      const fireAt = nextBoundary(Date.now());
+      setNextFireAt(fireAt);
+      const wait  = Math.max(0, fireAt - Date.now());
       timer = setTimeout(() => {
         trigger();
-        schedule(intervalMs);
-      }, ms);
+        schedule();
+      }, wait);
     };
-    schedule(90_000);
+    schedule();
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [intervalMs]);
