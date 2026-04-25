@@ -156,12 +156,14 @@ async function createBoard(name, department) {
 
 async function updateBoard(id, fields) {
   const p = getPool();
-  const allowed = ['name', 'department', 'slug', 'cols', 'rows', 'background'];
+  const allowed = ['name', 'department', 'slug', 'cols', 'rows', 'background', 'display_config'];
   const sets = [];
   const vals = [];
   for (const k of allowed) {
     if (fields[k] !== undefined) {
-      vals.push(fields[k]);
+      // display_config is a JSONB column — stringify here so the pg driver
+      // doesn't try to bind a JS object as TEXT.
+      vals.push(k === 'display_config' ? JSON.stringify(fields[k]) : fields[k]);
       sets.push(`${k} = $${vals.length}`);
     }
   }

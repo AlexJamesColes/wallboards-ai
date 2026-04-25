@@ -42,10 +42,18 @@ function Clock() {
   return <span style={{ fontSize: 14, fontWeight: 700, color: '#64748b', letterSpacing: '0.05em' }}>{time}</span>;
 }
 
-/** Live-tracking "is this a phone?" flag. 768px is the common breakpoint. */
+/** Live-tracking "is this a phone?" flag. 768px is the common breakpoint.
+ *  A ?mode=mobile or ?mode=desktop URL param overrides viewport detection
+ *  so the directory's Mobile/Desktop toggle on a laptop actually shows
+ *  the mobile carousel layout. */
 function useIsMobile(): boolean {
   const [mobile, setMobile] = useState(false);
   useEffect(() => {
+    const force = typeof window !== 'undefined'
+      ? new URLSearchParams(window.location.search).get('mode')
+      : null;
+    if (force === 'mobile')  { setMobile(true);  return; }
+    if (force === 'desktop') { setMobile(false); return; }
     const check = () => setMobile(window.innerWidth < 768);
     check();
     window.addEventListener('resize', check);
