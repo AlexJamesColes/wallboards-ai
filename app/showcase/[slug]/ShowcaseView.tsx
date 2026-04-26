@@ -1926,9 +1926,9 @@ function OfficeTapeEntry({ office, isMobile }: { office: OfficeTotals; isMobile:
 
       <span aria-hidden style={{ fontSize: fs(10), color: sep }}>·</span>
 
-      {/* Avg units / agent — one decimal so partial-month feels honest */}
+      {/* Avg units / agent — whole number, decimal noise isn't useful here */}
       <span style={{ fontSize: fs(15), fontWeight: 800, color: '#a7f3d0' }}>
-        {office.unitsPerAgent.toFixed(1)}
+        {Math.round(office.unitsPerAgent)}
       </span>
       <span style={{ fontSize: fs(10), fontWeight: 700, color: dim }}>UNITS/AGENT</span>
 
