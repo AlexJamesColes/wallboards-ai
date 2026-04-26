@@ -29,6 +29,73 @@ type ResolvedRows = {
   widget_type:    string;
 };
 
+/** Award emojis the per-office SQL pre-stamps onto the agent's name.
+ *  All meaningless on a combined board until we re-derive them. */
+const AWARD_EMOJIS = ['🥇', '🥈', '🥉', '🍪', '🔥', '🎉', '🚐', '🍺', '🍾'];
+const RANK_MEDALS: string[] = ['🥇', '🥈', '🥉', '🍪'];
+
+function parseMoney(v: any): number {
+  if (v == null) return 0;
+  const s = String(v).replace(/[£$,\s]/g, '');
+  const n = Number(s);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function stripAwards(name: string): string {
+  let out = String(name ?? '');
+  for (const e of AWARD_EMOJIS) out = out.split(e).join('');
+  return out.replace(/\s+/g, ' ').trim();
+}
+
+/** Re-stamp award emojis on combined-board rows so a sales-group view
+ *  shows the correct combined #1/#2/#3/#4 plus today's leaders rather
+ *  than two of each from the per-office source data. Mutates rows in
+ *  place — the columns stay the same. We only re-derive the awards
+ *  whose source data we have (income MTD, income today, pol MTD, pol
+ *  today). 🍺 (biggest pol today) and 🍾 (biggest pol MTD) are stripped
+ *  but not re-added because the per-pol value isn't in the row data. */
+function rederiveCombinedAwards(rows: any[], cols: string[]): void {
+  if (rows.length === 0) return;
+  const nameCol        = cols[0] || 'name';
+  const incomeMtdCol   = cols.find(c => /income.*mtd|mtd.*income/i.test(c))
+    || cols.find(c => /income/i.test(c) && !/today/i.test(c)) || '';
+  const incomeTodayCol = cols.find(c => /income.*today|today.*income/i.test(c)) || '';
+  const polMtdCol      = cols.find(c => /^pol.*mtd|mtd.*pol|^units.*mtd|mtd.*units/i.test(c))
+    || cols.find(c => /^pol/i.test(c) && !/today/i.test(c)) || '';
+  const polTodayCol    = cols.find(c => /pol.*today|today.*pol/i.test(c)) || '';
+
+  // 1) Strip every per-office award emoji from every row's name.
+  for (const r of rows) r[nameCol] = stripAwards(r[nameCol]);
+
+  // 2) Sort by combined income MTD desc and stamp 🥇🥈🥉🍪 on the top 4.
+  rows.sort((a, b) => parseMoney(b[incomeMtdCol]) - parseMoney(a[incomeMtdCol]));
+  for (let i = 0; i < RANK_MEDALS.length && i < rows.length; i++) {
+    rows[i][nameCol] = `${RANK_MEDALS[i]} ${rows[i][nameCol]}`;
+  }
+
+  // 3) Today's awards — given to the unique leader for each metric.
+  //    Ties skip the award entirely (matches the existing client-side
+  //    "tied accolades get stripped" behaviour for individual boards).
+  const stampUniqueLeader = (col: string, emoji: string) => {
+    if (!col) return;
+    let bestVal = 0; let bestRow: any = null; let bestCount = 0;
+    for (const r of rows) {
+      const v = parseMoney(r[col]);
+      if (v > bestVal) { bestVal = v; bestRow = r; bestCount = 1; }
+      else if (v === bestVal && v > 0) { bestCount++; }
+    }
+    if (bestRow && bestCount === 1 && bestVal > 0) {
+      bestRow[nameCol] = `${bestRow[nameCol]} ${emoji}`;
+    }
+  };
+  stampUniqueLeader(incomeTodayCol, '🔥');
+  stampUniqueLeader(polTodayCol,    '🎉');
+  stampUniqueLeader(polMtdCol,      '🚐');
+  // 🍺 (biggest pol today) and 🍾 (biggest pol MTD) deliberately not
+  // restamped — the per-policy value isn't exposed in the row data so
+  // we can't pick a combined leader. Better to omit than guess.
+}
+
 async function fetchWidgetRows(slug: string): Promise<ResolvedRows | null> {
   const board = await getBoardBySlug(slug);
   if (!board) return null;
@@ -93,6 +160,13 @@ export async function GET(_req: Request, { params }: { params: { slug: string } 
     if (!combined) {
       return NextResponse.json({ error: 'No source data' }, { status: 404 });
     }
+
+    // Per-office award emojis are wrong on a combined view (London's
+    // 🥇 and Guildford's 🥇 are both in the data, the de-duper strips
+    // both, no one shows as #1). Strip them, then re-derive 🥇🥈🥉🍪
+    // by combined rank and 🔥/🎉/🚐 from the merged data.
+    rederiveCombinedAwards(combined.rows, combined.columns);
+
     return NextResponse.json(
       finalisePayload(combined.rows, combined.columns, combined.display_config, combined.widget_type as any),
     );

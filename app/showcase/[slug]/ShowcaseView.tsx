@@ -1832,14 +1832,13 @@ function BottomToolbar({ items, isMobile }: { items: TickerItem[]; isMobile: boo
       background: 'rgba(10,15,28,0.7)', backdropFilter: 'blur(10px)',
       position: 'relative', zIndex: 2,
     }}>
-      {/* Latest deal — narrow fixed share on desktop so the tape on the
-          right runs almost the entire strip. flex-basis lets it shrink
-          if the viewport ever gets cramped. Stacks full-width on
-          mobile. */}
+      {/* Latest deal — wide enough to fit "💸 Sebastian Shenton ·
+          D12345-1 · +£300" without truncation, but shrinks gracefully
+          if the viewport gets tight. Stacks full-width on mobile. */}
       <div style={{
-        flex: isMobile ? '0 0 auto' : '0 1 360px',
+        flex: isMobile ? '0 0 auto' : '0 1 540px',
         width: isMobile ? '100%' : undefined,
-        minWidth: 0,
+        minWidth: isMobile ? 0 : 360,
         borderBottom: isMobile ? '1px solid rgba(255,255,255,0.05)' : 'none',
         borderRight:  isMobile ? 'none' : '1px solid rgba(255,255,255,0.05)',
       }}>
@@ -2010,35 +2009,28 @@ function formatTickerMoney(n: number, allowZero = false): string {
 // ────────────────────────────────────────────────────────────────────────
 
 function ActivityTicker({ items }: { items: TickerItem[] }) {
-  // When new items arrive, pin to the newest — gives live alerts an instant
-  // moment on screen. Otherwise rotate through recent items every 5s.
-  const [idx, setIdx] = useState(0);
-  const len = items.length;
-  const lastLen = useRef(0);
-  useEffect(() => {
-    if (len > lastLen.current && len > 0) setIdx(len - 1);   // snap to newest
-    lastLen.current = len;
-  }, [len]);
-  useEffect(() => {
-    if (len === 0) return;
-    const iv = setInterval(() => setIdx(i => (i + 1) % Math.max(1, len)), 5_000);
-    return () => clearInterval(iv);
-  }, [len]);
-  if (len === 0) {
+  // Strict "latest deal" — only milestone-kind events (the new rich
+  // ref-tagged deal lines, plus the legacy big-jump fallback). Climbs,
+  // drops, emoji-earnings and alerts deliberately don't appear here so
+  // the strip never rotates between unrelated updates. The newest deal
+  // pins; previous deal stays on screen until a fresh one arrives.
+  const deals = items.filter(i => i.kind === 'milestone');
+  const item  = deals[deals.length - 1];
+
+  if (!item) {
     return (
       <div style={{
-        flexShrink: 0, padding: 'clamp(10px, 1.2vh, 16px) clamp(20px, 3vw, 60px)',
+        flexShrink: 0, padding: 'clamp(10px, 1.2vh, 16px) clamp(16px, 2vw, 32px)',
         fontSize: 'clamp(12px, 1.1vw, 15px)', color: '#475569', fontWeight: 600, letterSpacing: '0.15em', textTransform: 'uppercase',
       }}>
         Latest Deal · waiting for the next booking
       </div>
     );
   }
-  const item = items[idx % len];
   return (
     <div style={{
-      flexShrink: 0, padding: 'clamp(10px, 1.2vh, 16px) clamp(20px, 3vw, 60px)',
-      display: 'flex', alignItems: 'center', gap: 14, overflow: 'hidden', position: 'relative',
+      flexShrink: 0, padding: 'clamp(10px, 1.2vh, 16px) clamp(16px, 2vw, 32px)',
+      display: 'flex', alignItems: 'center', gap: 12, overflow: 'hidden', position: 'relative',
     }}>
       <span style={{ fontSize: 'clamp(10px, 0.9vw, 13px)', fontWeight: 800, color: '#fbbf24', letterSpacing: '0.25em', textTransform: 'uppercase', flexShrink: 0 }}>
         Latest Deal
@@ -2049,20 +2041,12 @@ function ActivityTicker({ items }: { items: TickerItem[] }) {
         animation: 'wb-celeb-banner 1.4s ease-in-out infinite',
       }} />
       <div key={item.id} style={{
-        display: 'flex', alignItems: 'center', gap: 10, minWidth: 0,
-        fontSize: 'clamp(14px, 1.4vw, 22px)', fontWeight: 600, color: '#e2e8f0',
+        display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flex: 1,
+        fontSize: 'clamp(13px, 1.3vw, 20px)', fontWeight: 600, color: '#e2e8f0',
         animation: 'wb-celeb-banner 5s ease-out',
       }}>
-        <span style={{ fontSize: 'clamp(20px, 1.8vw, 28px)' }}>{item.emoji}</span>
-        <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.text}</span>
-        {item.kind === 'alert' && item.source && (
-          <span style={{
-            marginLeft: 6, padding: '2px 8px', borderRadius: 99,
-            background: 'rgba(99,102,241,0.22)', color: '#a5b4fc',
-            fontSize: 'clamp(9px, 0.8vw, 12px)', fontWeight: 800, letterSpacing: '0.15em',
-            textTransform: 'uppercase', flexShrink: 0,
-          }}>{item.source}</span>
-        )}
+        <span style={{ fontSize: 'clamp(18px, 1.6vw, 26px)', flexShrink: 0 }}>{item.emoji}</span>
+        <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{item.text}</span>
       </div>
     </div>
   );
