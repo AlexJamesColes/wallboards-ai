@@ -613,8 +613,10 @@ export default function ShowcaseView({ board, slug, defaultTarget }: Props) {
           deltas={cardDeltas}
         />
 
-        {/* ── Activity ticker ─────────────────────────────────────── */}
-        <ActivityTicker items={tickerItems} />
+        {/* ── Bottom toolbar ──────────────────────────────────────── */}
+        {/*    Latest deal on the left, OCBL/BISL stock-style ticker on
+                the right. Stacks on mobile so each strip stays readable. */}
+        <BottomToolbar items={tickerItems} isMobile={isMobile} />
       </div>
     </CelebrationProvider>
     </ZoomWrap>
@@ -1756,7 +1758,164 @@ const EMOJI_LABELS: Record<string, string> = {
 };
 
 // ────────────────────────────────────────────────────────────────────────
-//  Activity ticker — scrolls recent events at the bottom
+//  Bottom toolbar — latest deal on the left, OCBL/BISL stock ticker on
+//  the right. The ActivityTicker (latest deal / climb / first-policy)
+//  and OfficeTickerStrip (combined office numbers) live side-by-side on
+//  TV viewports and stack on mobile.
+// ────────────────────────────────────────────────────────────────────────
+
+function BottomToolbar({ items, isMobile }: { items: TickerItem[]; isMobile: boolean }) {
+  return (
+    <div style={{
+      flexShrink: 0,
+      display: 'flex',
+      flexDirection: isMobile ? 'column' : 'row',
+      alignItems: 'stretch',
+      borderTop: '1px solid rgba(255,255,255,0.06)',
+      background: 'rgba(10,15,28,0.7)', backdropFilter: 'blur(10px)',
+      position: 'relative', zIndex: 2,
+    }}>
+      <div style={{
+        flex: isMobile ? '0 0 auto' : '1 1 auto',
+        minWidth: 0,
+        borderBottom: isMobile ? '1px solid rgba(255,255,255,0.05)' : 'none',
+        borderRight:  isMobile ? 'none' : '1px solid rgba(255,255,255,0.05)',
+      }}>
+        <ActivityTicker items={items} />
+      </div>
+      <div style={{ flex: isMobile ? '0 0 auto' : '0 0 auto' }}>
+        <OfficeTickerStrip isMobile={isMobile} />
+      </div>
+    </div>
+  );
+}
+
+// ────────────────────────────────────────────────────────────────────────
+//  Office ticker — stock-market-style read-out of OCBL (London) and
+//  BISL (Guildford) totals. Independent of which board is on screen so
+//  every TV has the same global view.
+// ────────────────────────────────────────────────────────────────────────
+
+interface OfficeTotals {
+  ticker:      string;
+  name:        string;
+  incomeMtd:   number;
+  incomeToday: number;
+  agents:      number;
+  ok:          boolean;
+}
+
+function OfficeTickerStrip({ isMobile }: { isMobile: boolean }) {
+  const [offices, setOffices] = useState<OfficeTotals[] | null>(null);
+  const [prevTotals, setPrevTotals] = useState<Map<string, number>>(new Map());
+
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout>;
+    let cancelled = false;
+    const tick = async () => {
+      try {
+        const res = await fetch('/api/office-totals', { cache: 'no-store' });
+        const d   = await res.json();
+        if (cancelled) return;
+        const next: OfficeTotals[] = Array.isArray(d.offices) ? d.offices : [];
+        // Snapshot the previous MTD totals so a sub-second flash on
+        // change isn't required — we just compare to the last poll
+        // (60s ago) when rendering the ▲/▼ vs poll indicator.
+        setPrevTotals(prev => {
+          const m = new Map(prev);
+          if (offices) offices.forEach(o => m.set(o.ticker, o.incomeMtd));
+          return m;
+        });
+        setOffices(next);
+      } catch { /* keep last successful read */ }
+      finally { if (!cancelled) timer = setTimeout(tick, 60_000); }
+    };
+    tick();
+    return () => { cancelled = true; clearTimeout(timer); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  if (!offices || offices.length === 0) {
+    return (
+      <div style={{
+        padding: isMobile ? '10px 14px' : 'clamp(10px, 1.2vh, 16px) clamp(20px, 2vw, 36px)',
+        fontSize: 11, color: '#475569', fontWeight: 700,
+        letterSpacing: '0.18em', textTransform: 'uppercase',
+      }}>
+        Markets · loading…
+      </div>
+    );
+  }
+
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center',
+      gap: isMobile ? 14 : 'clamp(14px, 1.4vw, 24px)',
+      padding: isMobile ? '10px 14px' : 'clamp(10px, 1.2vh, 16px) clamp(20px, 2vw, 36px)',
+      flexWrap: 'wrap',
+    }}>
+      <span style={{
+        fontSize: isMobile ? 10 : 'clamp(9px, 0.85vw, 12px)',
+        fontWeight: 800, letterSpacing: '0.22em',
+        color: '#fbbf24', textTransform: 'uppercase', flexShrink: 0,
+      }}>📈 Markets</span>
+      {offices.map(o => (
+        <OfficeRow key={o.ticker} office={o} isMobile={isMobile} />
+      ))}
+    </div>
+  );
+}
+
+function OfficeRow({ office, isMobile }: { office: OfficeTotals; isMobile: boolean }) {
+  // The "stock change" is today's income — green ▲ when there's
+  // anything booked, neutral when £0 (early morning, dead day). We
+  // never show red here because today's contribution can't go
+  // negative against itself; refunds would show on the per-card chip.
+  const change = office.incomeToday;
+  const positive = change > 0;
+  const color    = !office.ok      ? '#475569'
+                 : positive        ? '#10b981'
+                 :                   '#94a3b8';
+  return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'baseline',
+      gap: isMobile ? 6 : 'clamp(6px, 0.6vw, 10px)',
+      fontVariantNumeric: 'tabular-nums',
+      opacity: office.ok ? 1 : 0.5,
+    }}>
+      <span style={{
+        fontSize: isMobile ? 12 : 'clamp(11px, 1vw, 15px)',
+        fontWeight: 800, color: '#e2e8f0', letterSpacing: '0.06em',
+      }}>{office.ticker}</span>
+      <span style={{
+        fontSize: isMobile ? 13 : 'clamp(13px, 1.2vw, 18px)',
+        fontWeight: 800, color: '#fde68a',
+      }}>{formatTickerMoney(office.incomeMtd)}</span>
+      {office.ok && (
+        <span aria-hidden style={{
+          fontSize: isMobile ? 10 : 'clamp(10px, 0.85vw, 13px)',
+          fontWeight: 800, color, letterSpacing: '0.04em',
+        }}>{positive ? '▲' : '·'} {formatTickerMoney(change, true)}</span>
+      )}
+    </span>
+  );
+}
+
+/** Compact "stock-ticker" formatter — k for ≥£1k, M for ≥£1M, exact
+ *  pounds otherwise. The agent cards still use the full thousands-
+ *  separated format; this is just for the bottom strip where space is
+ *  the primary constraint. */
+function formatTickerMoney(n: number, allowZero = false): string {
+  const abs = Math.abs(n);
+  if (abs < 1 && !allowZero) return '£0';
+  if (abs >= 1_000_000) return `£${(n / 1_000_000).toFixed(2)}M`;
+  if (abs >= 10_000)    return `£${Math.round(n / 1000)}k`;
+  if (abs >= 1000)      return `£${(n / 1000).toFixed(1)}k`;
+  return `£${Math.round(n).toLocaleString('en-GB')}`;
+}
+
+// ────────────────────────────────────────────────────────────────────────
+//  Activity ticker — rotates the most recent live events
 // ────────────────────────────────────────────────────────────────────────
 
 function ActivityTicker({ items }: { items: TickerItem[] }) {
@@ -1778,8 +1937,6 @@ function ActivityTicker({ items }: { items: TickerItem[] }) {
     return (
       <div style={{
         flexShrink: 0, padding: 'clamp(10px, 1.2vh, 16px) clamp(20px, 3vw, 60px)',
-        borderTop: '1px solid rgba(255,255,255,0.05)',
-        background: 'rgba(10,15,28,0.6)', backdropFilter: 'blur(10px)',
         fontSize: 'clamp(12px, 1.1vw, 15px)', color: '#475569', fontWeight: 600, letterSpacing: '0.15em', textTransform: 'uppercase',
       }}>
         🛰️ Live · waiting for the next big move
@@ -1790,9 +1947,7 @@ function ActivityTicker({ items }: { items: TickerItem[] }) {
   return (
     <div style={{
       flexShrink: 0, padding: 'clamp(10px, 1.2vh, 16px) clamp(20px, 3vw, 60px)',
-      borderTop: '1px solid rgba(255,255,255,0.06)',
-      background: 'rgba(10,15,28,0.7)', backdropFilter: 'blur(10px)',
-      display: 'flex', alignItems: 'center', gap: 14, overflow: 'hidden', position: 'relative', zIndex: 2,
+      display: 'flex', alignItems: 'center', gap: 14, overflow: 'hidden', position: 'relative',
     }}>
       <span style={{ fontSize: 'clamp(10px, 0.9vw, 13px)', fontWeight: 800, color: '#fbbf24', letterSpacing: '0.25em', textTransform: 'uppercase', flexShrink: 0 }}>
         Live
