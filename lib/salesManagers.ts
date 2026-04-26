@@ -22,10 +22,19 @@ export const SALES_MANAGERS: string[] = [
   'Anthony Peters',
 ];
 
+/** Normalise an agent's name down to bare lowercase letters + single
+ *  spaces so a SQL row like "Hugo Blythman-Rowe", "Hugo Blythman Rowe"
+ *  (hyphen lost), "Hugo Blythman‑Rowe" (non-ASCII hyphen), "Hugo
+ *  O'Blythman" (apostrophe) and "Hugo Blythman-Rowe 🥇" all collapse
+ *  to the same key. Anything that doesn't fit that shape gets thrown
+ *  away — emojis, punctuation, BOM characters, etc. */
 function normalize(name: string): string {
   return String(name ?? '')
     .toLowerCase()
-    .replace(/\p{Extended_Pictographic}(?:️)?/gu, '')
+    .replace(/\p{Extended_Pictographic}(?:️)?/gu, '')   // emoji
+    .replace(/[‐-―\-_]/g, ' ')                // hyphen variants → space
+    .replace(/['’`]/g, '')                              // apostrophes drop entirely
+    .replace(/[^a-z\s]/g, '')                           // strip anything not a letter / space
     .replace(/\s+/g, ' ')
     .trim();
 }

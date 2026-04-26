@@ -100,8 +100,13 @@ async function fetchOffice(office: OfficeConfig): Promise<OfficeTotals> {
     const unitsTotalMtd  = agents.reduce((s: number, r: any) => s + parseMoney(r[unitsMtdCol]),  0);
     const activeAgents   = agents.filter((r: any) => parseMoney(r[incomeMtdCol]) > 0).length;
 
-    const incomePerAgent = activeAgents > 0 ? incomeTotalMtd / activeAgents : 0;
-    const unitsPerAgent  = activeAgents > 0 ? unitsTotalMtd  / activeAgents : 0;
+    // Per-agent denominator = total non-manager agents on the board.
+    // We avoid the activeAgents (income MTD > 0) denominator so a new
+    // starter with £0 doesn't artificially inflate the per-agent figure
+    // mid-month — the comparison should reflect real team capacity.
+    const denom = agents.length;
+    const incomePerAgent = denom > 0 ? incomeTotalMtd / denom : 0;
+    const unitsPerAgent  = denom > 0 ? unitsTotalMtd  / denom : 0;
 
     return {
       ticker: office.ticker, name: office.name,
