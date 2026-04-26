@@ -1821,21 +1821,19 @@ function BottomToolbar({ items, isMobile }: { items: TickerItem[]; isMobile: boo
 // ────────────────────────────────────────────────────────────────────────
 
 interface OfficeTotals {
-  ticker:               string;
-  name:                 string;
-  incomeMtd:            number;
-  incomeToday:          number;
-  agents:               number;
-  /** Subset of `agents` who have booked today — the "weighted" denominator. */
-  activeAgents:         number;
-  incomeMtdPerActive:   number;
-  incomeTodayPerActive: number;
-  ok:                   boolean;
+  ticker:         string;
+  name:           string;
+  incomeTotalMtd: number;
+  unitsTotalMtd:  number;
+  agents:         number;
+  activeAgents:   number;
+  incomePerAgent: number;
+  unitsPerAgent:  number;
+  ok:             boolean;
 }
 
 function OfficeTickerStrip({ isMobile }: { isMobile: boolean }) {
   const [offices, setOffices] = useState<OfficeTotals[] | null>(null);
-  const [prevTotals, setPrevTotals] = useState<Map<string, number>>(new Map());
 
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout>;
@@ -1846,21 +1844,12 @@ function OfficeTickerStrip({ isMobile }: { isMobile: boolean }) {
         const d   = await res.json();
         if (cancelled) return;
         const next: OfficeTotals[] = Array.isArray(d.offices) ? d.offices : [];
-        // Snapshot the previous MTD totals so a sub-second flash on
-        // change isn't required — we just compare to the last poll
-        // (60s ago) when rendering the ▲/▼ vs poll indicator.
-        setPrevTotals(prev => {
-          const m = new Map(prev);
-          if (offices) offices.forEach(o => m.set(o.ticker, o.incomeMtd));
-          return m;
-        });
         setOffices(next);
       } catch { /* keep last successful read */ }
       finally { if (!cancelled) timer = setTimeout(tick, 60_000); }
     };
     tick();
     return () => { cancelled = true; clearTimeout(timer); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   if (!offices || offices.length === 0) {
@@ -1905,16 +1894,15 @@ function OfficeTickerStrip({ isMobile }: { isMobile: boolean }) {
   );
 }
 
-/** A single ticker-tape entry rendered inline. Multiple data points per
- *  office (per-agent £, today's per-agent change, active count, total)
- *  give the strip enough copy to feel like a continuous read-out. */
+/** A single ticker-tape entry rendered inline. Four headline metrics
+ *  per office: avg income/agent, avg units/agent, total income, total
+ *  units. "Active agent" denominator = anyone with non-zero income MTD,
+ *  so the per-agent figures aren't diluted by people who haven't booked
+ *  this month. */
 function OfficeTapeEntry({ office, isMobile }: { office: OfficeTotals; isMobile: boolean }) {
-  const change   = office.incomeTodayPerActive;
-  const positive = change > 0;
-  const arrowColor = !office.ok ? '#475569'
-                  : positive   ? '#10b981'
-                  :              '#94a3b8';
   const fs = (px: number) => (isMobile ? px : `clamp(${px - 2}px, ${(px / 14).toFixed(2)}vw, ${px + 4}px)`);
+  const dim   = '#64748b';
+  const sep   = '#334155';
 
   return (
     <span style={{
@@ -1929,21 +1917,38 @@ function OfficeTapeEntry({ office, isMobile }: { office: OfficeTotals; isMobile:
       <span style={{ fontSize: fs(14), fontWeight: 800, color: '#e2e8f0' }}>
         {office.ticker}
       </span>
+
+      {/* Avg income / agent */}
       <span style={{ fontSize: fs(15), fontWeight: 800, color: '#fde68a' }}>
-        {formatTickerMoney(office.incomeMtdPerActive)}
+        {formatTickerMoney(office.incomePerAgent)}
       </span>
-      <span style={{ fontSize: fs(10), fontWeight: 700, color: '#64748b' }}>
-        /AGENT
+      <span style={{ fontSize: fs(10), fontWeight: 700, color: dim }}>/AGENT</span>
+
+      <span aria-hidden style={{ fontSize: fs(10), color: sep }}>·</span>
+
+      {/* Avg units / agent — one decimal so partial-month feels honest */}
+      <span style={{ fontSize: fs(15), fontWeight: 800, color: '#a7f3d0' }}>
+        {office.unitsPerAgent.toFixed(1)}
       </span>
-      {office.ok && (
-        <span aria-hidden style={{ fontSize: fs(11), fontWeight: 800, color: arrowColor }}>
-          {positive ? '▲' : '·'} {formatTickerMoney(change, true)}
-        </span>
-      )}
-      <span style={{ fontSize: fs(10), fontWeight: 700, color: '#64748b' }}>
-        · {office.activeAgents} ACTIVE · TOTAL {formatTickerMoney(office.incomeMtd)}
+      <span style={{ fontSize: fs(10), fontWeight: 700, color: dim }}>UNITS/AGENT</span>
+
+      <span aria-hidden style={{ fontSize: fs(10), color: sep }}>·</span>
+
+      {/* Total income MTD */}
+      <span style={{ fontSize: fs(11), fontWeight: 700, color: dim }}>TOTAL</span>
+      <span style={{ fontSize: fs(13), fontWeight: 800, color: '#e2e8f0' }}>
+        {formatTickerMoney(office.incomeTotalMtd)}
       </span>
-      <span aria-hidden style={{ fontSize: fs(10), color: '#334155', padding: '0 4px' }}>◆</span>
+
+      <span aria-hidden style={{ fontSize: fs(10), color: sep }}>·</span>
+
+      {/* Total units MTD */}
+      <span style={{ fontSize: fs(13), fontWeight: 800, color: '#e2e8f0' }}>
+        {Math.round(office.unitsTotalMtd).toLocaleString('en-GB')}
+      </span>
+      <span style={{ fontSize: fs(11), fontWeight: 700, color: dim }}>UNITS</span>
+
+      <span aria-hidden style={{ fontSize: fs(11), color: sep, padding: '0 6px' }}>◆</span>
     </span>
   );
 }
@@ -1986,7 +1991,7 @@ function ActivityTicker({ items }: { items: TickerItem[] }) {
         flexShrink: 0, padding: 'clamp(10px, 1.2vh, 16px) clamp(20px, 3vw, 60px)',
         fontSize: 'clamp(12px, 1.1vw, 15px)', color: '#475569', fontWeight: 600, letterSpacing: '0.15em', textTransform: 'uppercase',
       }}>
-        🛰️ Live · waiting for the next big move
+        Latest Deal · waiting for the next booking
       </div>
     );
   }
@@ -1997,7 +2002,7 @@ function ActivityTicker({ items }: { items: TickerItem[] }) {
       display: 'flex', alignItems: 'center', gap: 14, overflow: 'hidden', position: 'relative',
     }}>
       <span style={{ fontSize: 'clamp(10px, 0.9vw, 13px)', fontWeight: 800, color: '#fbbf24', letterSpacing: '0.25em', textTransform: 'uppercase', flexShrink: 0 }}>
-        Live
+        Latest Deal
       </span>
       <span aria-hidden style={{
         width: 8, height: 8, borderRadius: '50%', background: '#ef4444',

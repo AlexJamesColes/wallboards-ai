@@ -6,18 +6,28 @@ import { isSalesManager } from '@/lib/salesManagers';
 export const dynamic = 'force-dynamic';
 
 /**
- * Aggregated office totals for the bottom-toolbar stock ticker. Polled
+ * Aggregated office totals for the bottom-toolbar trading tape. Polled
  * every 60s from ShowcaseView regardless of which board is on screen,
  * so every TV sees the same OCBL / BISL strip.
  *
- * "Stock symbols":
+ * Four headline figures per office:
+ *   • incomePerAgent  — avg income MTD per agent who's contributed
+ *   • unitsPerAgent   — avg units MTD per agent who's contributed
+ *   • incomeTotalMtd  — sum of income MTD
+ *   • unitsTotalMtd   — sum of units MTD
+ *
+ * "Active agent" denominator = anyone with non-zero income MTD. That's
+ * the "people actually earning money" weight the floor wanted, so the
+ * per-agent figures don't get diluted by people who haven't booked at
+ * all this month.
+ *
+ * Sales managers are excluded everywhere — they don't compete and would
+ * distort the per-agent average for whichever office had more managers
+ * in seats today. List in lib/salesManagers.
+ *
+ * Stock symbols:
  *   OCBL — One Call (London)
  *   BISL — Bridge Insurance Services (Guildford)
- *
- * Sales managers are excluded from every figure here — they don't
- * compete and counting them would distort the per-agent average for
- * whichever office has more managers in seats today. The list lives
- * in lib/salesManagers.
  */
 
 interface OfficeConfig { ticker: string; name: string; slug: string; }
@@ -30,19 +40,18 @@ interface OfficeTotals {
   ticker:           string;
   name:             string;
   /** Sum of Income MTD across non-manager agents. */
-  incomeMtd:        number;
-  /** Sum of Income Today across non-manager agents. */
-  incomeToday:      number;
-  /** Count of non-manager agents on the board (denominator for "/agent"). */
+  incomeTotalMtd:   number;
+  /** Sum of Policies MTD across non-manager agents. */
+  unitsTotalMtd:    number;
+  /** Total non-manager agents on the board (informational). */
   agents:           number;
-  /** Subset of `agents` who have actually booked today (income > 0).
-   *  This is the "weighted by people earning" the floor wanted. */
+  /** Subset of `agents` who have non-zero income MTD — the per-agent
+   *  denominator. */
   activeAgents:     number;
-  /** Income MTD ÷ activeAgents — the fair-comparison number. 0 when
-   *  nobody's booked yet. */
-  incomeMtdPerActive:   number;
-  /** Income Today ÷ activeAgents — today's pace per earner. */
-  incomeTodayPerActive: number;
+  /** Income MTD ÷ activeAgents. 0 when nobody's earned anything yet. */
+  incomePerAgent:   number;
+  /** Units MTD ÷ activeAgents. */
+  unitsPerAgent:    number;
   /** False when the upstream SQL was unavailable; the client greys the
    *  row out rather than showing zeros that would read as "nobody's
    *  earned anything". */
@@ -59,9 +68,9 @@ function parseMoney(v: any): number {
 async function fetchOffice(office: OfficeConfig): Promise<OfficeTotals> {
   const empty: OfficeTotals = {
     ticker: office.ticker, name: office.name,
-    incomeMtd: 0, incomeToday: 0,
+    incomeTotalMtd: 0, unitsTotalMtd: 0,
     agents: 0, activeAgents: 0,
-    incomeMtdPerActive: 0, incomeTodayPerActive: 0,
+    incomePerAgent: 0, unitsPerAgent: 0,
     ok: false,
   };
   try {
@@ -79,25 +88,26 @@ async function fetchOffice(office: OfficeConfig): Promise<OfficeTotals> {
     const result = await runQuery(query);
     const cols   = result.columns || [];
     const rows   = result.rows    || [];
-    const nameCol        = cols[0] || 'name';
-    const incomeMtdCol   = cols.find((c: string) => /income.*mtd|mtd.*income/i.test(c))
+    const nameCol      = cols[0] || 'name';
+    const incomeMtdCol = cols.find((c: string) => /income.*mtd|mtd.*income/i.test(c))
       || cols.find((c: string) => /income/i.test(c) && !/today/i.test(c)) || '';
-    const incomeTodayCol = cols.find((c: string) => /income.*today|today.*income/i.test(c)) || '';
+    const unitsMtdCol  = cols.find((c: string) => /^pol.*mtd|mtd.*pol|^units.*mtd|mtd.*units/i.test(c))
+      || cols.find((c: string) => /^pol/i.test(c) && !/today/i.test(c)) || '';
 
     const agents = rows.filter((r: any) => !isSalesManager(String(r[nameCol] ?? '')));
 
-    const incomeMtd   = agents.reduce((s: number, r: any) => s + parseMoney(r[incomeMtdCol]),   0);
-    const incomeToday = agents.reduce((s: number, r: any) => s + parseMoney(r[incomeTodayCol]), 0);
-    const activeAgents = agents.filter((r: any) => parseMoney(r[incomeTodayCol]) > 0).length;
+    const incomeTotalMtd = agents.reduce((s: number, r: any) => s + parseMoney(r[incomeMtdCol]), 0);
+    const unitsTotalMtd  = agents.reduce((s: number, r: any) => s + parseMoney(r[unitsMtdCol]),  0);
+    const activeAgents   = agents.filter((r: any) => parseMoney(r[incomeMtdCol]) > 0).length;
 
-    const incomeMtdPerActive   = activeAgents > 0 ? incomeMtd   / activeAgents : 0;
-    const incomeTodayPerActive = activeAgents > 0 ? incomeToday / activeAgents : 0;
+    const incomePerAgent = activeAgents > 0 ? incomeTotalMtd / activeAgents : 0;
+    const unitsPerAgent  = activeAgents > 0 ? unitsTotalMtd  / activeAgents : 0;
 
     return {
       ticker: office.ticker, name: office.name,
-      incomeMtd, incomeToday,
+      incomeTotalMtd, unitsTotalMtd,
       agents: agents.length, activeAgents,
-      incomeMtdPerActive, incomeTodayPerActive,
+      incomePerAgent, unitsPerAgent,
       ok: true,
     };
   } catch (e) {
