@@ -174,7 +174,15 @@ export default function BrowsePage() {
   return (
     <div style={{
       minHeight: '100vh',
-      background: 'radial-gradient(ellipse at 20% 0%, #1a1f3a 0%, #0a0f1c 60%, #050813 100%)',
+      // Dashboard-matched: very dark navy with a faint grid wash so the
+      // page reads as an InsureTec surface rather than a standalone tool.
+      background: '#050813',
+      backgroundImage: `
+        radial-gradient(ellipse at 50% -10%, rgba(56,189,248,0.06) 0%, transparent 55%),
+        linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px)
+      `,
+      backgroundSize: 'auto, 40px 40px, 40px 40px',
       color: '#f1f5f9', fontFamily: 'var(--font-raleway, sans-serif)',
       padding: 'clamp(24px, 5vh, 64px) clamp(16px, 4vw, 48px)',
     }}>
@@ -249,8 +257,8 @@ export default function BrowsePage() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
           {!query && recentBoards.length > 0 && (
             <section>
-              <SectionHeader label="Recently viewed" accent="#a5b4fc" count={recentBoards.length} collapsed={false} onToggle={() => {}} disabled />
-              <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}>
+              <SectionHeader label="Recently viewed" accent="#38bdf8" count={recentBoards.length} collapsed={false} onToggle={() => {}} disabled />
+              <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))' }}>
                 {recentBoards.map(b => (
                   <BoardCard key={b.id} board={b} url={urlFor(b)} onOpen={() => handleOpen(b)}
                     isAdmin={isAdmin}
@@ -266,11 +274,11 @@ export default function BrowsePage() {
             const isCollapsed = !!collapsed[dept];
             return (
               <section key={dept}>
-                <SectionHeader label={dept} accent="#fbbf24" count={deptBoards.length}
+                <SectionHeader label={dept} accent="#a855f7" count={deptBoards.length}
                   collapsed={isCollapsed}
                   onToggle={() => setCollapsed(c => ({ ...c, [dept]: !c[dept] }))} />
                 {!isCollapsed && (
-                  <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}>
+                  <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))' }}>
                     {deptBoards.map(b => (
                       <BoardCard key={b.id} board={b} url={urlFor(b)} onOpen={() => handleOpen(b)}
                         isAdmin={isAdmin}
@@ -336,21 +344,28 @@ function SectionHeader({ label, accent, count, collapsed, onToggle, disabled }: 
       aria-expanded={!collapsed}
       style={{
         display: 'flex', alignItems: 'center', gap: 10,
-        padding: 0, marginBottom: 12, width: '100%', textAlign: 'left',
+        padding: 0, marginBottom: 14, width: '100%', textAlign: 'left',
         background: 'transparent', border: 'none', cursor: disabled ? 'default' : 'pointer',
         color: 'inherit', fontFamily: 'inherit',
       }}
     >
-      <span aria-hidden style={{ width: 6, height: 6, borderRadius: 99, background: accent, boxShadow: `0 0 8px ${accent}88` }} />
+      <span aria-hidden style={{
+        width: 7, height: 7, borderRadius: 99, background: accent,
+        boxShadow: `0 0 10px ${accent}aa`,
+      }} />
       <h2 style={{
-        fontSize: 'clamp(11px, 1vw, 14px)', fontWeight: 800,
-        color: accent, letterSpacing: '0.25em', textTransform: 'uppercase',
+        fontSize: 12, fontWeight: 800,
+        color: accent, letterSpacing: '0.22em', textTransform: 'uppercase',
         margin: 0,
       }}>{label}</h2>
-      <span style={{ color: '#475569', fontWeight: 600, fontSize: 12 }}>· {count}</span>
+      <span style={{
+        color: '#475569', fontWeight: 700, fontSize: 11,
+        padding: '2px 7px', borderRadius: 99,
+        background: 'rgba(255,255,255,0.04)',
+      }}>{count}</span>
       {!disabled && (
         <span aria-hidden style={{
-          marginLeft: 'auto', color: '#475569', fontSize: 12, fontWeight: 700,
+          marginLeft: 'auto', color: '#475569', fontSize: 11, fontWeight: 700,
           transform: collapsed ? 'rotate(-90deg)' : 'none',
           transition: 'transform 0.15s ease',
         }}>▼</span>
@@ -406,39 +421,61 @@ function BoardCard({ board: b, url, onOpen, isAdmin, onMove, onAskDelete }: {
   return (
     <div style={{
       position: 'relative',
-      background: 'linear-gradient(180deg, rgba(26,33,54,0.85) 0%, rgba(14,20,39,0.85) 100%)',
-      border: '1px solid rgba(99,102,241,0.22)',
+      background: 'rgba(20,26,46,0.6)',
+      border: '1px solid rgba(255,255,255,0.06)',
       borderRadius: 12,
-      transition: 'transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease',
+      transition: 'transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease',
       overflow: 'visible',
     }}>
       <Link
         href={url}
         onClick={onOpen}
         style={{
-          display: 'block', textDecoration: 'none', color: 'inherit',
+          display: 'flex', alignItems: 'center', gap: 14,
+          textDecoration: 'none', color: 'inherit',
           padding: '14px 16px',
           borderRadius: 12,
         }}
         onMouseOver={e => {
           const card = e.currentTarget.parentElement!;
-          card.style.transform = 'translateY(-2px)';
-          card.style.borderColor = 'rgba(99,102,241,0.5)';
-          card.style.boxShadow = '0 12px 36px rgba(99,102,241,0.18)';
+          card.style.transform = 'translateY(-1px)';
+          card.style.borderColor = 'rgba(99,102,241,0.4)';
+          card.style.background = 'rgba(26,33,54,0.85)';
+          card.style.boxShadow = '0 10px 30px rgba(99,102,241,0.15)';
         }}
         onMouseOut={e => {
           const card = e.currentTarget.parentElement!;
           card.style.transform = 'none';
-          card.style.borderColor = 'rgba(99,102,241,0.22)';
+          card.style.borderColor = 'rgba(255,255,255,0.06)';
+          card.style.background = 'rgba(20,26,46,0.6)';
           card.style.boxShadow = 'none';
         }}
       >
-        <div style={{ fontSize: 15, fontWeight: 800, color: '#f1f5f9', marginBottom: 8, lineHeight: 1.25, paddingRight: isAdmin ? 24 : 0 }}>
-          {b.name}
+        {/* Icon on the left — matches the dashboard's alert-card pattern. */}
+        <BoardIcon department={b.department} />
+
+        <div style={{ flex: 1, minWidth: 0, paddingRight: isAdmin ? 28 : 0 }}>
+          <div style={{
+            fontSize: 14, fontWeight: 700, color: '#f1f5f9',
+            lineHeight: 1.3,
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          }}>
+            {b.name}
+          </div>
+          {b.department && (
+            <div style={{
+              fontSize: 11, color: '#64748b', fontWeight: 600,
+              marginTop: 2, letterSpacing: '0.04em',
+            }}>
+              {b.department}
+            </div>
+          )}
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
-          <span style={{ fontSize: 12, fontWeight: 700, color: '#a5b4fc' }}>Open →</span>
-        </div>
+
+        <span aria-hidden style={{
+          fontSize: 16, color: '#64748b', flexShrink: 0,
+          fontWeight: 600, transition: 'color 0.15s ease, transform 0.15s ease',
+        }}>→</span>
       </Link>
 
       {isAdmin && (
@@ -467,6 +504,30 @@ function BoardCard({ board: b, url, onOpen, isAdmin, onMove, onAskDelete }: {
           )}
         </>
       )}
+    </div>
+  );
+}
+
+/** Department-themed icon for the board card. Mirrors the dashboard's
+ *  practice of giving each card a recognisable left-edge glyph. */
+function BoardIcon({ department }: { department: string | null }) {
+  const dept = department || 'Other';
+  const tints: Record<string, { bg: string; border: string; emoji: string }> = {
+    Sales:      { bg: 'rgba(168,85,247,0.18)', border: 'rgba(168,85,247,0.4)',  emoji: '📈' },
+    Renewals:   { bg: 'rgba(56,189,248,0.18)', border: 'rgba(56,189,248,0.4)',  emoji: '🔁' },
+    Operations: { bg: 'rgba(16,185,129,0.18)', border: 'rgba(16,185,129,0.4)',  emoji: '⚙️' },
+    Beta:       { bg: 'rgba(251,191,36,0.18)', border: 'rgba(251,191,36,0.4)',  emoji: '🧪' },
+    Other:      { bg: 'rgba(148,163,184,0.18)',border: 'rgba(148,163,184,0.4)', emoji: '📊' },
+  };
+  const tint = tints[dept] || tints.Other;
+  return (
+    <div aria-hidden style={{
+      width: 36, height: 36, borderRadius: 9,
+      background: tint.bg, border: `1px solid ${tint.border}`,
+      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+      fontSize: 16, flexShrink: 0,
+    }}>
+      {tint.emoji}
     </div>
   );
 }

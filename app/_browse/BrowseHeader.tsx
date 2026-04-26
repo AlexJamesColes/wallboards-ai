@@ -6,8 +6,10 @@ import { ReactNode } from 'react';
 
 /**
  * Shared brand + tab header used by the browse home and the connections
- * page. Tabs are simple internal links so each tab gets a real URL —
- * works for back/forward, sharing, and bookmark workflows.
+ * page. Visual language tracks the InsureTec dashboard: shield-check
+ * mark, two-tone wordmark with the "Tec" in cyan-blue, subtle muted
+ * subtitle. Tabs are simple internal links so each tab gets a real
+ * URL — works for back/forward, sharing, and bookmark workflows.
  */
 export default function BrowseHeader({ right }: { right?: ReactNode }) {
   const pathname = usePathname() || '/';
@@ -17,38 +19,33 @@ export default function BrowseHeader({ right }: { right?: ReactNode }) {
   ];
 
   return (
-    <div style={{ marginBottom: 28 }}>
+    <div style={{ marginBottom: 32 }}>
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        flexWrap: 'wrap', gap: 16, marginBottom: 18,
+        flexWrap: 'wrap', gap: 16, marginBottom: 22,
       }}>
         <Link href="/" style={{ textDecoration: 'none', color: 'inherit', display: 'flex', alignItems: 'center', gap: 14 }}>
-          <div style={{
-            width: 44, height: 44, borderRadius: 11,
-            background: 'rgba(99,102,241,0.18)',
-            border: '1.5px solid rgba(99,102,241,0.4)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}>
-            <svg width="22" height="22" viewBox="0 0 28 28" fill="none">
-              <rect x="2" y="4" width="24" height="16" rx="2.5" stroke="#a5b4fc" strokeWidth="1.8" fill="none" />
-              <rect x="9.5" y="12" width="2.5" height="6" rx="0.5" fill="#a5b4fc" opacity="0.8" />
-              <rect x="13.5" y="9"  width="2.5" height="9" rx="0.5" fill="#a5b4fc" />
-              <rect x="17.5" y="11" width="2.5" height="7" rx="0.5" fill="#a5b4fc" opacity="0.8" />
-            </svg>
-          </div>
-          <div>
-            <div style={{ fontSize: 12, fontWeight: 700, color: '#64748b', letterSpacing: '0.25em', textTransform: 'uppercase' }}>InsureTec</div>
-            <div style={{ fontSize: 22, fontWeight: 800, color: '#f1f5f9', marginTop: 2 }}>Wallboards</div>
+          <ShieldMark />
+          <div style={{ lineHeight: 1.1 }}>
+            <div style={{ fontSize: 26, fontWeight: 800, letterSpacing: '-0.01em' }}>
+              <span style={{ color: '#f1f5f9' }}>Insure</span>
+              <span style={{ color: '#38bdf8' }}>Tec</span>
+            </div>
+            <div style={{
+              fontSize: 11, fontWeight: 700, color: '#64748b',
+              letterSpacing: '0.22em', textTransform: 'uppercase',
+              marginTop: 2,
+            }}>Wallboards</div>
           </div>
         </Link>
 
         {right}
       </div>
 
-      {/* Tabs */}
+      {/* Tabs — pill nav matching the dashboard's "current section" affordance. */}
       <nav role="tablist" aria-label="Sections" style={{
         display: 'inline-flex', gap: 4, padding: 4, borderRadius: 99,
-        background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)',
+        background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)',
       }}>
         {tabs.map(t => {
           const active = t.matches(pathname);
@@ -74,6 +71,46 @@ export default function BrowseHeader({ right }: { right?: ReactNode }) {
           );
         })}
       </nav>
+    </div>
+  );
+}
+
+/** Shield + checkmark mark that mirrors the InsureTec dashboard logo —
+ *  blue gradient body, soft outer glow, tick stroke in white. */
+function ShieldMark() {
+  return (
+    <div style={{
+      width: 46, height: 46, borderRadius: 12,
+      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+      background: 'linear-gradient(135deg, rgba(99,102,241,0.18) 0%, rgba(56,189,248,0.18) 100%)',
+      border: '1px solid rgba(99,102,241,0.35)',
+      boxShadow: '0 6px 20px rgba(56,189,248,0.18)',
+      flexShrink: 0,
+    }}>
+      <svg width="26" height="26" viewBox="0 0 32 32" fill="none" aria-hidden>
+        <defs>
+          <linearGradient id="wb-shield-grad" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%"   stopColor="#6366f1" />
+            <stop offset="100%" stopColor="#38bdf8" />
+          </linearGradient>
+        </defs>
+        <path
+          d="M16 3 L26 7 V15 C26 22 16 28 16 28 C16 28 6 22 6 15 V7 Z"
+          fill="url(#wb-shield-grad)"
+          fillOpacity="0.18"
+          stroke="url(#wb-shield-grad)"
+          strokeWidth="1.6"
+          strokeLinejoin="round"
+        />
+        <path
+          d="M11 16 L14.5 19.5 L21 12.5"
+          stroke="#38bdf8"
+          strokeWidth="2.2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          fill="none"
+        />
+      </svg>
     </div>
   );
 }

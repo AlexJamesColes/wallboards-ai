@@ -34,7 +34,13 @@ export default function ConnectionsPage() {
   return (
     <div style={{
       minHeight: '100vh',
-      background: 'radial-gradient(ellipse at 20% 0%, #1a1f3a 0%, #0a0f1c 60%, #050813 100%)',
+      background: '#050813',
+      backgroundImage: `
+        radial-gradient(ellipse at 50% -10%, rgba(56,189,248,0.06) 0%, transparent 55%),
+        linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px)
+      `,
+      backgroundSize: 'auto, 40px 40px, 40px 40px',
       color: '#f1f5f9', fontFamily: 'var(--font-raleway, sans-serif)',
       padding: 'clamp(24px, 5vh, 64px) clamp(16px, 4vw, 48px)',
     }}>
