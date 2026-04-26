@@ -10,10 +10,11 @@
  * row like "Hugo Blythman-Rowe 🥇" still matches.
  */
 
-// Mirrors the OperatorName NOT IN (...) clause in the office-totals SQL —
-// keep them in lock-step or the showcase grid (which filters on this
-// list client-side) and the trading tape (which filters on this list
-// in the SQL) will disagree about who's a manager.
+// Tracks the canonical reporting query plus any managers who've been
+// promoted since that query was last touched. Kyle Millingham and Milan
+// Stewart joined management this month and aren't in the Gecko exclude
+// list yet; the showcase needs to know about them now so they don't
+// appear on the agent leaderboards or skew per-agent stats.
 export const SALES_MANAGERS: string[] = [
   'Cameron Nevins',
   'David LaBorde',
@@ -25,6 +26,8 @@ export const SALES_MANAGERS: string[] = [
   'Anthony Peters',
   'Martin Dolan',
   'Jack Weir',
+  'Kyle Millingham',
+  'Milan Stewart',
 ];
 
 /** Normalise an agent's name down to bare lowercase letters + single
