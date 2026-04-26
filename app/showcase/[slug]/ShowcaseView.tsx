@@ -1302,10 +1302,13 @@ function PodiumCard({ row, rank, cols, isMobile, fullWidth, deltas }: {
   const emojis  = [...extractEmojis(rawName)].filter(e => e !== myMedal);
   const grad    = avatarColors(name);
 
-  const incomeMtd = parseMoney(row[cols.incomeMtdCol]);
-  const polMtd    = parseMoney(row[cols.polMtdCol]);
-  const ipp       = parseMoney(row[cols.ippCol]);
-  const gwp       = parseMoney(row[cols.gwpCol]);
+  const incomeMtd   = parseMoney(row[cols.incomeMtdCol]);
+  const incomeToday = parseMoney(row[cols.incomeTodayCol]);
+  const polToday    = parseMoney(row[cols.polTodayCol]);
+  const polMtd      = parseMoney(row[cols.polMtdCol]);
+  const ipp         = parseMoney(row[cols.ippCol]);
+  const gwp         = parseMoney(row[cols.gwpCol]);
+  const online      = incomeToday > 0 || polToday > 0;
   // addons currently unused on the trimmed podium — leave the column
   // detection in place so we can re-introduce the stat without rewiring.
   void cols.addonsCol;
@@ -1358,11 +1361,14 @@ function PodiumCard({ row, rank, cols, isMobile, fullWidth, deltas }: {
 
       {/* Tier label + avatar inline */}
       <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 10 }}>
-        <Avatar
-          name={name}
-          size={isMobile ? `${mobileSize.avatar}px` : (rank === 1 ? 'clamp(48px, 5vw, 78px)' : 'clamp(42px, 4.4vw, 66px)')}
-          gradient={grad}
-        />
+        <div style={{ position: 'relative', flexShrink: 0 }}>
+          <Avatar
+            name={name}
+            size={isMobile ? `${mobileSize.avatar}px` : (rank === 1 ? 'clamp(48px, 5vw, 78px)' : 'clamp(42px, 4.4vw, 66px)')}
+            gradient={grad}
+          />
+          {online && <OnlineDot size={rank === 1 ? 'clamp(13px, 1.2vw, 18px)' : 'clamp(11px, 1vw, 15px)'} />}
+        </div>
         <div style={{
           fontSize: isMobile ? mobileSize.label : 'clamp(11px, 1vw, 18px)', fontWeight: 900,
           letterSpacing: '0.3em', color: tier.labelColor,
@@ -1560,6 +1566,31 @@ function Avatar({ name, size, gradient }: { name: string; size: string; gradient
   );
 }
 
+/** Pulsing green "active today" dot. Anchored bottom-right of an avatar
+ *  by its parent's relative positioning. Sized with clamp so it tracks
+ *  the avatar size — slightly larger than the previous version because
+ *  the original 8-12px read as a subtle render glitch from across a
+ *  TV-sized room. */
+function OnlineDot({ size }: { size?: string } = {}) {
+  return (
+    <span
+      aria-label="Active today"
+      title="Active today — has booked income or units today"
+      style={{
+        position: 'absolute',
+        bottom: '-2px', right: '-2px',
+        width:  size ?? 'clamp(11px, 1.1vw, 16px)',
+        height: size ?? 'clamp(11px, 1.1vw, 16px)',
+        borderRadius: '50%',
+        background: 'radial-gradient(circle at 35% 35%, #4ade80 0%, #10b981 70%, #047857 100%)',
+        border: '2.5px solid #0a0f1c',
+        boxShadow: '0 0 12px rgba(16,185,129,0.7)',
+        animation: 'wb-online-pulse 2.2s ease-in-out infinite',
+      }}
+    />
+  );
+}
+
 // ────────────────────────────────────────────────────────────────────────
 //  Agent grid — rank 4+
 // ────────────────────────────────────────────────────────────────────────
@@ -1649,22 +1680,7 @@ function AgentCard({ row, rank, cols, leaderIncome, deltas }: { row: Row; rank: 
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         <div style={{ position: 'relative', flexShrink: 0 }}>
           <Avatar name={name} size="clamp(30px, 2.8vw, 44px)" gradient={grad} />
-          {online && (
-            <span
-              aria-label="Active today"
-              title="Active today"
-              style={{
-                position: 'absolute',
-                bottom: 0, right: 0,
-                width: 'clamp(8px, 0.9vw, 12px)',
-                height: 'clamp(8px, 0.9vw, 12px)',
-                borderRadius: '50%',
-                background: '#10b981',
-                border: '2px solid #0a0f1c',
-                animation: 'wb-online-pulse 2.4s ease-in-out infinite',
-              }}
-            />
-          )}
+          {online && <OnlineDot />}
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{
@@ -1832,13 +1848,17 @@ function BottomToolbar({ items, isMobile }: { items: TickerItem[]; isMobile: boo
       background: 'rgba(10,15,28,0.7)', backdropFilter: 'blur(10px)',
       position: 'relative', zIndex: 2,
     }}>
-      {/* Latest deal — wide enough to fit "💸 Sebastian Shenton ·
-          D12345-1 · +£300" without truncation, but shrinks gracefully
-          if the viewport gets tight. Stacks full-width on mobile. */}
+      {/* Latest deal — content-sized on desktop. Never wraps to a
+          second line; if the deal text is longer than the default
+          space, the box grows and the tape on the right shrinks
+          accordingly. Stacks full-width on mobile. Capped at 70% of
+          the strip so a freakishly long name can't shove the tape
+          off-screen entirely. */}
       <div style={{
-        flex: isMobile ? '0 0 auto' : '0 1 540px',
+        flex: isMobile ? '0 0 auto' : '0 0 auto',
         width: isMobile ? '100%' : undefined,
-        minWidth: isMobile ? 0 : 360,
+        maxWidth: isMobile ? undefined : '70%',
+        minWidth: 0,
         borderBottom: isMobile ? '1px solid rgba(255,255,255,0.05)' : 'none',
         borderRight:  isMobile ? 'none' : '1px solid rgba(255,255,255,0.05)',
       }}>
@@ -2022,6 +2042,7 @@ function ActivityTicker({ items }: { items: TickerItem[] }) {
       <div style={{
         flexShrink: 0, padding: 'clamp(10px, 1.2vh, 16px) clamp(16px, 2vw, 32px)',
         fontSize: 'clamp(12px, 1.1vw, 15px)', color: '#475569', fontWeight: 600, letterSpacing: '0.15em', textTransform: 'uppercase',
+        whiteSpace: 'nowrap',
       }}>
         Latest Deal · waiting for the next booking
       </div>
@@ -2031,6 +2052,7 @@ function ActivityTicker({ items }: { items: TickerItem[] }) {
     <div style={{
       flexShrink: 0, padding: 'clamp(10px, 1.2vh, 16px) clamp(16px, 2vw, 32px)',
       display: 'flex', alignItems: 'center', gap: 12, overflow: 'hidden', position: 'relative',
+      whiteSpace: 'nowrap',
     }}>
       <span style={{ fontSize: 'clamp(10px, 0.9vw, 13px)', fontWeight: 800, color: '#fbbf24', letterSpacing: '0.25em', textTransform: 'uppercase', flexShrink: 0 }}>
         Latest Deal
