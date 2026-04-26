@@ -10,16 +10,21 @@
  * row like "Hugo Blythman-Rowe 🥇" still matches.
  */
 
+// Mirrors the OperatorName NOT IN (...) clause in the office-totals SQL —
+// keep them in lock-step or the showcase grid (which filters on this
+// list client-side) and the trading tape (which filters on this list
+// in the SQL) will disagree about who's a manager.
 export const SALES_MANAGERS: string[] = [
-  'Hugo Blythman-Rowe',
-  'Harry Cooper',
-  'Milla Llieva',
-  'Hannah Burton',
-  'David LaBorde',
   'Cameron Nevins',
-  'Milan Stewart',
-  'Kyle Millingham',
+  'David LaBorde',
+  'Hannah Burton',
+  'Harry Cooper',
+  'Ryan Pink',
+  'Hugo Blythman-Rowe',
+  'Mila Ilieva',
   'Anthony Peters',
+  'Martin Dolan',
+  'Jack Weir',
 ];
 
 /** Normalise an agent's name down to bare lowercase letters + single

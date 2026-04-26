@@ -7,6 +7,11 @@ html, body { height: 100%; background: #0a0f1c; color: #f1f5f9; }
    scroll). */
 html, body { overflow-x: hidden; }
 
+/* Stop iOS rubber-band scrolling past the bottom of the page. The
+   wallboard is supposed to feel rooted at the activity strip; bouncing
+   into a dark void below it reads like the page is broken. */
+html, body { overscroll-behavior-y: contain; }
+
 /* Utility — hide native scrollbars on a horizontally-scrolling row
    (Today's Earn pills on mobile). Content is still scrollable, just
    without the visual track so the row reads as a clean strip. */

@@ -1264,29 +1264,31 @@ function Podium({ rows, cols, isMobile, deltas }: { rows: Row[]; cols: ColMap; i
     );
   }
 
-  // Re-arrange so #2 is left, #1 centre, #3 right. The leader is now
-  // properly taller (1.0 vs 0.78/0.7) so a glance from across the room
-  // reads "who's #1" without needing to compare numbers.
-  const arranged: Array<{ row: Row; rank: number; height: number }> = [];
-  if (rows[1]) arranged.push({ row: rows[1], rank: 2, height: 0.78 });
-  if (rows[0]) arranged.push({ row: rows[0], rank: 1, height: 1.00 });
-  if (rows[2]) arranged.push({ row: rows[2], rank: 3, height: 0.70 });
+  // Re-arrange so #2 is left, #1 centre, #3 right. The leader is
+  // distinguished by typography (bigger avatar / name / £) and the
+  // gold border + glow — we no longer force a height percentage,
+  // because shrinking the 2nd / 3rd cards was clipping the agent's
+  // name into the £ figure on smaller viewports.
+  const arranged: Array<{ row: Row; rank: number }> = [];
+  if (rows[1]) arranged.push({ row: rows[1], rank: 2 });
+  if (rows[0]) arranged.push({ row: rows[0], rank: 1 });
+  if (rows[2]) arranged.push({ row: rows[2], rank: 3 });
 
   return (
     <div style={{
-      flex: '0 0 auto', display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+      flex: '0 0 auto', display: 'flex', alignItems: 'stretch', justifyContent: 'center',
       gap: 'clamp(14px, 1.6vw, 32px)', padding: 'clamp(12px, 1.6vh, 22px) clamp(20px, 3vw, 60px) 0',
-      position: 'relative', zIndex: 1, minHeight: '30vh', maxHeight: '34vh',
+      position: 'relative', zIndex: 1,
     }}>
-      {arranged.map(({ row, rank, height }) => (
-        <PodiumCard key={String(row[cols.nameCol])} row={row} rank={rank} heightPct={height} cols={cols} deltas={deltas} />
+      {arranged.map(({ row, rank }) => (
+        <PodiumCard key={String(row[cols.nameCol])} row={row} rank={rank} cols={cols} deltas={deltas} />
       ))}
     </div>
   );
 }
 
-function PodiumCard({ row, rank, heightPct, cols, isMobile, fullWidth, deltas }: {
-  row: Row; rank: number; heightPct?: number; cols: ColMap;
+function PodiumCard({ row, rank, cols, isMobile, fullWidth, deltas }: {
+  row: Row; rank: number; cols: ColMap;
   isMobile?: boolean; fullWidth?: boolean; deltas?: CardDelta[];
 }) {
   const rawName  = String(row[cols.nameCol] ?? '');
@@ -1325,7 +1327,10 @@ function PodiumCard({ row, rank, heightPct, cols, isMobile, fullWidth, deltas }:
       width: isMobile && fullWidth ? '100%' : undefined,
       maxWidth: isMobile ? undefined : '24vw',
       minWidth: 0,
-      height: isMobile ? 'auto' : `${(heightPct ?? 1) * 100}%`,
+      // All three cards size to their content — the leader is still
+      // visibly bigger thanks to its larger fonts/avatar/glow without
+      // forcing the others to compress and clip their names.
+      height: 'auto',
       background: 'linear-gradient(180deg, rgba(26,33,54,0.85) 0%, rgba(14,20,39,0.85) 100%)',
       border: `2px solid ${tier.ring}`,
       borderRadius: isMobile ? 14 : 18,
@@ -1731,34 +1736,62 @@ function AgentCard({ row, rank, cols, leaderIncome, deltas }: { row: Row; rank: 
         </div>
       </div>
 
-      {/* Emoji shelf — each award gets a tiny inline label so the
-          meaning is always at hand. Stacks vertically; cap at 4 so a
-          rare quadruple-award card doesn't push past its row height. */}
-      {emojis.length > 0 && (
-        <div style={{
-          display: 'flex', flexDirection: 'column', gap: 2, marginTop: 'auto',
-        }}>
-          {emojis.slice(0, 4).map((e, i) => {
-            const label = EMOJI_LABELS[e];
-            return (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+      {/* Emoji shelf — single horizontal line that scrolls sideways
+          inside the card. Stacking the labels was eating two or three
+          card heights for high-award agents; a marquee keeps the row
+          consistent regardless of how many awards the agent's earned. */}
+      {emojis.length > 0 && <AwardShelf emojis={emojis} />}
+    </div>
+  );
+}
+
+/** Horizontal marquee for an agent card's awards. One award stays
+ *  static; two or more loop sideways using the same wb-ticker-scroll
+ *  animation the office ticker uses (two copies inside, slide -50% for
+ *  a seamless loop). */
+function AwardShelf({ emojis }: { emojis: string[] }) {
+  const items = emojis.slice(0, 6);
+  const shouldScroll = items.length > 1;
+  // Two copies so the -50% translate loops seamlessly. With a single
+  // award no animation is wired so this stays a noop.
+  const rendered = shouldScroll ? [...items, ...items] : items;
+  // Speed scales with item count so a 4-award agent doesn't blur past;
+  // each label gets roughly the same dwell time.
+  const durationSec = Math.max(items.length * 5, 12);
+
+  return (
+    <div style={{
+      overflow: 'hidden', marginTop: 'auto', width: '100%',
+    }}>
+      <div style={{
+        display: 'inline-flex',
+        gap: 'clamp(10px, 1vw, 14px)',
+        whiteSpace: 'nowrap',
+        animation: shouldScroll
+          ? `wb-ticker-scroll ${durationSec}s linear infinite`
+          : undefined,
+      }}>
+        {rendered.map((e, i) => {
+          const label = EMOJI_LABELS[e];
+          return (
+            <span key={i} style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+              flexShrink: 0,
+            }}>
+              <span style={{
+                fontSize: 'clamp(13px, 1.2vw, 18px)',
+                filter: 'drop-shadow(0 2px 6px rgba(0,0,0,0.4))',
+              }}>{e}</span>
+              {label && (
                 <span style={{
-                  fontSize: 'clamp(13px, 1.2vw, 18px)',
-                  filter: 'drop-shadow(0 2px 6px rgba(0,0,0,0.4))',
-                  flexShrink: 0,
-                }}>{e}</span>
-                {label && (
-                  <span style={{
-                    fontSize: 'clamp(9px, 0.75vw, 11px)',
-                    color: '#64748b', fontWeight: 600,
-                    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                  }}>{label}</span>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
+                  fontSize: 'clamp(9px, 0.75vw, 11px)',
+                  color: '#64748b', fontWeight: 600,
+                }}>{label}</span>
+              )}
+            </span>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -1799,15 +1832,22 @@ function BottomToolbar({ items, isMobile }: { items: TickerItem[]; isMobile: boo
       background: 'rgba(10,15,28,0.7)', backdropFilter: 'blur(10px)',
       position: 'relative', zIndex: 2,
     }}>
+      {/* Latest deal — narrow fixed share on desktop so the tape on the
+          right runs almost the entire strip. flex-basis lets it shrink
+          if the viewport ever gets cramped. Stacks full-width on
+          mobile. */}
       <div style={{
-        flex: isMobile ? '0 0 auto' : '1 1 auto',
+        flex: isMobile ? '0 0 auto' : '0 1 360px',
+        width: isMobile ? '100%' : undefined,
         minWidth: 0,
         borderBottom: isMobile ? '1px solid rgba(255,255,255,0.05)' : 'none',
         borderRight:  isMobile ? 'none' : '1px solid rgba(255,255,255,0.05)',
       }}>
         <ActivityTicker items={items} />
       </div>
-      <div style={{ flex: isMobile ? '0 0 auto' : '0 0 auto' }}>
+      {/* Trading tape — fills all remaining horizontal space on desktop
+          so the OCBL/BISL crawl runs across the full right side. */}
+      <div style={{ flex: '1 1 auto', minWidth: 0 }}>
         <OfficeTickerStrip isMobile={isMobile} />
       </div>
     </div>
@@ -1867,18 +1907,17 @@ function OfficeTickerStrip({ isMobile }: { isMobile: boolean }) {
 
   // Old-school trading-tape: the two copies sit side by side and the
   // wrapper slides them left by 50% on a constant loop, so the
-  // boundary is invisible. Width tied to content so the wrapper is
-  // exactly twice the content width.
+  // boundary is invisible. The outer flex parent (BottomToolbar)
+  // controls how much horizontal room this gets — we take 100% of
+  // whatever it gives us so the crawl runs the full strip on desktop.
   const offices2 = [...offices, ...offices];
 
   return (
     <div style={{
       overflow: 'hidden',
       whiteSpace: 'nowrap',
-      width: isMobile ? '100%' : undefined,
-      maxWidth: isMobile ? '100vw' : 'min(60vw, 760px)',
+      width: '100%',
       padding: isMobile ? '10px 0' : 'clamp(10px, 1.2vh, 16px) 0',
-      borderLeft: isMobile ? 'none' : '1px solid rgba(255,255,255,0.05)',
     }}>
       <div style={{
         display: 'inline-block',
