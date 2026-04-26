@@ -386,23 +386,36 @@ export default function ShowcaseView({ board, slug, defaultTarget }: Props) {
         // itself shows a "+£X" / "−£X" floater + tinted glow. The £1
         // floor filters float-noise (49512.5 vs 49512.4 between polls)
         // without hiding any real deal — even a £100 add-on still pops.
-        // The big ticker only celebrates jumps ≥ £1k separately (below).
         const incomeDelta = cur.income - was.income;
+        // Attach the policy ref only when (a) the column exists,
+        // (b) the income went up (an actual new deal — refunds don't
+        // get tagged with the latest deal's ref, that'd be misleading),
+        // and (c) the ref actually changed since last poll. If the
+        // ref is unchanged, this is likely a re-quoted figure on an
+        // existing deal rather than a new one.
+        const refChanged = !!cur.latestPolicyRef && cur.latestPolicyRef !== was.latestPolicyRef;
+        const newDealRef = incomeDelta > 0 && refChanged ? cur.latestPolicyRef : undefined;
         if (Math.abs(incomeDelta) >= 1) {
-          // Attach the policy ref only when (a) the column exists,
-          // (b) the income went up (an actual new deal — refunds don't
-          // get tagged with the latest deal's ref, that'd be misleading),
-          // and (c) the ref actually changed since last poll. If the
-          // ref is unchanged, this is likely a re-quoted figure on an
-          // existing deal rather than a new one.
-          const refChanged   = !!cur.latestPolicyRef && cur.latestPolicyRef !== was.latestPolicyRef;
-          const attachRef    = incomeDelta > 0 && refChanged ? cur.latestPolicyRef : undefined;
           newDeltas.push({
             id:        `${key}-${now}-${incomeDelta}`,
             agentKey:  key,
             amount:    incomeDelta,
             at:        now,
-            policyRef: attachRef,
+            policyRef: newDealRef,
+          });
+        }
+
+        // Ticker — high-fidelity "deal landed" event whenever we know
+        // the policy ref. Always wins over the legacy "just added £X"
+        // milestone line (covered below) because the ref + agent + £
+        // is what the floor actually wants to read.
+        if (newDealRef && incomeDelta > 0) {
+          newItems.push({
+            id:    `${key}-deal-${newDealRef}-${now}`,
+            kind:  'milestone',
+            emoji: '💸',
+            text:  `${displayName} · ${newDealRef} · +${formatMoney(incomeDelta)}`,
+            at:    now,
           });
         }
 
@@ -417,14 +430,20 @@ export default function ShowcaseView({ board, slug, defaultTarget }: Props) {
             at: now,
           });
         }
-        // New emojis
+        // New emojis — read out the human label for the award rather
+        // than echoing the emoji itself in the text (avoids the "🔥
+        // Connor Bain just earned 🔥" duplication; the leading icon
+        // is already the emoji).
         for (const e of cur.emojis) {
           if (!was.emojis.has(e)) {
+            const award = EMOJI_LABELS[e];
             newItems.push({
               id: `${key}-emoji-${e}-${now}`,
               kind: 'emoji',
               emoji: e,
-              text: `${displayName} just earned ${e}`,
+              text: award
+                ? `${displayName} just earned ${award}`
+                : `${displayName} just earned a new accolade`,
               at: now,
             });
           }
@@ -439,8 +458,11 @@ export default function ShowcaseView({ board, slug, defaultTarget }: Props) {
             at: now,
           });
         }
-        // Big income jump (£1k+)
-        if (cur.income - was.income >= 1000) {
+        // Big income jump (£1k+) — fallback when we don't have a ref
+        // for the deal (boards that haven't added the policy_ref column
+        // yet). Skipped if the deal event above already covered it so
+        // the same booking doesn't fire two ticker lines.
+        if (!newDealRef && cur.income - was.income >= 1000) {
           newItems.push({
             id: `${key}-jump-${cur.income}-${now}`,
             kind: 'milestone',
