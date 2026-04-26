@@ -3,6 +3,7 @@ import { ensureDbReady, getBoardBySlug } from '@/lib/db';
 import { runQuery } from '@/lib/mssql';
 import { finalisePayload } from '@/lib/dataProcessor';
 import { getShowcaseBoard } from '@/lib/showcaseBoards';
+import { isSalesManager } from '@/lib/salesManagers';
 
 export const dynamic = 'force-dynamic';
 
@@ -40,9 +41,18 @@ async function fetchWidgetRows(slug: string): Promise<ResolvedRows | null> {
   const query = (main.data_source_config as any)?.query;
   if (!query) return null;
   const result = await runQuery(query);
+  const columns = result.columns || [];
+  const rows    = result.rows    || [];
+
+  // Strip sales managers from the leaderboard rows. They don't compete
+  // with their reports and would muddy the rankings (Cameron Nevins
+  // showing at #14 with £51 etc). Source of truth: lib/salesManagers.
+  const nameCol = columns[0] || 'name';
+  const filtered = rows.filter((r: any) => !isSalesManager(String(r[nameCol] ?? '')));
+
   return {
-    columns:        result.columns || [],
-    rows:           result.rows    || [],
+    columns,
+    rows: filtered,
     display_config: (main.display_config as any) || {},
     widget_type:    main.type,
   };

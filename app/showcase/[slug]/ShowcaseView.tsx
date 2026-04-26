@@ -1612,12 +1612,18 @@ function AgentCard({ row, rank, cols, leaderIncome, deltas }: { row: Row; rank: 
   const latestDelta = myDeltas[myDeltas.length - 1];
 
   const incomeMtd     = parseMoney(row[cols.incomeMtdCol]);
+  const incomeToday   = parseMoney(row[cols.incomeTodayCol]);
+  const polToday      = parseMoney(row[cols.polTodayCol]);
   const polMtd        = parseMoney(row[cols.polMtdCol]);
   const ipp           = parseMoney(row[cols.ippCol]);
   const gwp           = parseMoney(row[cols.gwpCol]);
   const bracket       = bracketFor(incomeMtd);
   const progressPct   = bracket.pct;
   const maxed         = !bracket.next;
+  // Soft "online" — the agent's actively contributing today. Will be
+  // promoted to a true call-status feed later; for now anyone with
+  // income or units against their name today reads as on.
+  const online        = incomeToday > 0 || polToday > 0;
 
   return (
     <div style={{
@@ -1636,7 +1642,25 @@ function AgentCard({ row, rank, cols, leaderIncome, deltas }: { row: Row; rank: 
       <DeltaBadges deltas={myDeltas} />
       {/* Top row: avatar + name + rank chip */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <Avatar name={name} size="clamp(30px, 2.8vw, 44px)" gradient={grad} />
+        <div style={{ position: 'relative', flexShrink: 0 }}>
+          <Avatar name={name} size="clamp(30px, 2.8vw, 44px)" gradient={grad} />
+          {online && (
+            <span
+              aria-label="Active today"
+              title="Active today"
+              style={{
+                position: 'absolute',
+                bottom: 0, right: 0,
+                width: 'clamp(8px, 0.9vw, 12px)',
+                height: 'clamp(8px, 0.9vw, 12px)',
+                borderRadius: '50%',
+                background: '#10b981',
+                border: '2px solid #0a0f1c',
+                animation: 'wb-online-pulse 2.4s ease-in-out infinite',
+              }}
+            />
+          )}
+        </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{
             fontSize: 'clamp(13px, 1.1vw, 18px)', fontWeight: 700, color: '#f1f5f9',
@@ -1797,12 +1821,16 @@ function BottomToolbar({ items, isMobile }: { items: TickerItem[]; isMobile: boo
 // ────────────────────────────────────────────────────────────────────────
 
 interface OfficeTotals {
-  ticker:      string;
-  name:        string;
-  incomeMtd:   number;
-  incomeToday: number;
-  agents:      number;
-  ok:          boolean;
+  ticker:               string;
+  name:                 string;
+  incomeMtd:            number;
+  incomeToday:          number;
+  agents:               number;
+  /** Subset of `agents` who have booked today — the "weighted" denominator. */
+  activeAgents:         number;
+  incomeMtdPerActive:   number;
+  incomeTodayPerActive: number;
+  ok:                   boolean;
 }
 
 function OfficeTickerStrip({ isMobile }: { isMobile: boolean }) {
@@ -1841,62 +1869,81 @@ function OfficeTickerStrip({ isMobile }: { isMobile: boolean }) {
         padding: isMobile ? '10px 14px' : 'clamp(10px, 1.2vh, 16px) clamp(20px, 2vw, 36px)',
         fontSize: 11, color: '#475569', fontWeight: 700,
         letterSpacing: '0.18em', textTransform: 'uppercase',
+        whiteSpace: 'nowrap',
       }}>
-        Markets · loading…
+        Loading tape…
       </div>
     );
   }
 
+  // Old-school trading-tape: the two copies sit side by side and the
+  // wrapper slides them left by 50% on a constant loop, so the
+  // boundary is invisible. Width tied to content so the wrapper is
+  // exactly twice the content width.
+  const offices2 = [...offices, ...offices];
+
   return (
     <div style={{
-      display: 'flex', alignItems: 'center',
-      gap: isMobile ? 14 : 'clamp(14px, 1.4vw, 24px)',
-      padding: isMobile ? '10px 14px' : 'clamp(10px, 1.2vh, 16px) clamp(20px, 2vw, 36px)',
-      flexWrap: 'wrap',
+      overflow: 'hidden',
+      whiteSpace: 'nowrap',
+      width: isMobile ? '100%' : undefined,
+      maxWidth: isMobile ? '100vw' : 'min(60vw, 760px)',
+      padding: isMobile ? '10px 0' : 'clamp(10px, 1.2vh, 16px) 0',
+      borderLeft: isMobile ? 'none' : '1px solid rgba(255,255,255,0.05)',
     }}>
-      <span style={{
-        fontSize: isMobile ? 10 : 'clamp(9px, 0.85vw, 12px)',
-        fontWeight: 800, letterSpacing: '0.22em',
-        color: '#fbbf24', textTransform: 'uppercase', flexShrink: 0,
-      }}>📈 Markets</span>
-      {offices.map(o => (
-        <OfficeRow key={o.ticker} office={o} isMobile={isMobile} />
-      ))}
+      <div style={{
+        display: 'inline-block',
+        // Two copies inside, animation slides by 50% (= one copy's
+        // width) so the loop seam is invisible.
+        animation: 'wb-ticker-scroll 60s linear infinite',
+      }}>
+        {offices2.map((o, i) => (
+          <OfficeTapeEntry key={`${o.ticker}-${i}`} office={o} isMobile={isMobile} />
+        ))}
+      </div>
     </div>
   );
 }
 
-function OfficeRow({ office, isMobile }: { office: OfficeTotals; isMobile: boolean }) {
-  // The "stock change" is today's income — green ▲ when there's
-  // anything booked, neutral when £0 (early morning, dead day). We
-  // never show red here because today's contribution can't go
-  // negative against itself; refunds would show on the per-card chip.
-  const change = office.incomeToday;
+/** A single ticker-tape entry rendered inline. Multiple data points per
+ *  office (per-agent £, today's per-agent change, active count, total)
+ *  give the strip enough copy to feel like a continuous read-out. */
+function OfficeTapeEntry({ office, isMobile }: { office: OfficeTotals; isMobile: boolean }) {
+  const change   = office.incomeTodayPerActive;
   const positive = change > 0;
-  const color    = !office.ok      ? '#475569'
-                 : positive        ? '#10b981'
-                 :                   '#94a3b8';
+  const arrowColor = !office.ok ? '#475569'
+                  : positive   ? '#10b981'
+                  :              '#94a3b8';
+  const fs = (px: number) => (isMobile ? px : `clamp(${px - 2}px, ${(px / 14).toFixed(2)}vw, ${px + 4}px)`);
+
   return (
     <span style={{
       display: 'inline-flex', alignItems: 'baseline',
-      gap: isMobile ? 6 : 'clamp(6px, 0.6vw, 10px)',
+      padding: '0 clamp(18px, 2vw, 32px)',
       fontVariantNumeric: 'tabular-nums',
+      fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+      letterSpacing: '0.04em',
       opacity: office.ok ? 1 : 0.5,
+      gap: 8,
     }}>
-      <span style={{
-        fontSize: isMobile ? 12 : 'clamp(11px, 1vw, 15px)',
-        fontWeight: 800, color: '#e2e8f0', letterSpacing: '0.06em',
-      }}>{office.ticker}</span>
-      <span style={{
-        fontSize: isMobile ? 13 : 'clamp(13px, 1.2vw, 18px)',
-        fontWeight: 800, color: '#fde68a',
-      }}>{formatTickerMoney(office.incomeMtd)}</span>
+      <span style={{ fontSize: fs(14), fontWeight: 800, color: '#e2e8f0' }}>
+        {office.ticker}
+      </span>
+      <span style={{ fontSize: fs(15), fontWeight: 800, color: '#fde68a' }}>
+        {formatTickerMoney(office.incomeMtdPerActive)}
+      </span>
+      <span style={{ fontSize: fs(10), fontWeight: 700, color: '#64748b' }}>
+        /AGENT
+      </span>
       {office.ok && (
-        <span aria-hidden style={{
-          fontSize: isMobile ? 10 : 'clamp(10px, 0.85vw, 13px)',
-          fontWeight: 800, color, letterSpacing: '0.04em',
-        }}>{positive ? '▲' : '·'} {formatTickerMoney(change, true)}</span>
+        <span aria-hidden style={{ fontSize: fs(11), fontWeight: 800, color: arrowColor }}>
+          {positive ? '▲' : '·'} {formatTickerMoney(change, true)}
+        </span>
       )}
+      <span style={{ fontSize: fs(10), fontWeight: 700, color: '#64748b' }}>
+        · {office.activeAgents} ACTIVE · TOTAL {formatTickerMoney(office.incomeMtd)}
+      </span>
+      <span aria-hidden style={{ fontSize: fs(10), color: '#334155', padding: '0 4px' }}>◆</span>
     </span>
   );
 }
