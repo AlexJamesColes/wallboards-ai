@@ -2098,14 +2098,9 @@ function ActivityTicker({ items }: { items: TickerItem[] }) {
  * dead button.
  */
 function FullscreenToggle() {
+  const btnRef = useRef<HTMLButtonElement>(null);
   const [supported, setSupported] = useState(false);
   const [isFs, setIsFs] = useState(false);
-  // Proximity reveal — the button is invisible until the cursor (or
-  // Samsung Smart Remote pointer) gets within HOTSPOT_PX of the
-  // top-right corner. Keeps the wallboard visually clean at rest;
-  // anyone reaching for "where's the fullscreen toggle" naturally
-  // moves the cursor up-right and the button fades in.
-  const [near, setNear] = useState(false);
 
   useEffect(() => {
     if (typeof document === 'undefined') return;
@@ -2114,22 +2109,40 @@ function FullscreenToggle() {
     document.addEventListener('fullscreenchange', onChange);
     onChange();
 
+    // Proximity reveal — done entirely outside React. Pointermove
+    // would otherwise trigger a re-render every couple of milliseconds
+    // and chew the limited GPU budget on a TV. Now we just stash the
+    // last cursor coords; one requestAnimationFrame per frame compares
+    // against a hotspot box and mutates the button's style directly.
+    // React only re-renders when fullscreen on/off actually changes.
     const HOTSPOT_PX = 220;
-    const onMove = (e: MouseEvent) => {
-      const fromRight = window.innerWidth - e.clientX;
-      const fromTop   = e.clientY;
-      setNear(fromRight < HOTSPOT_PX && fromTop < HOTSPOT_PX);
-    };
-    // pointermove also picks up Samsung remote pointer / touch hovers
-    window.addEventListener('pointermove', onMove);
-    // Hide as soon as the cursor leaves the page entirely
-    const onLeave = () => setNear(false);
-    window.addEventListener('mouseleave', onLeave);
+    let near    = false;
+    let pending = false;
+    let lastX   = -9999;
+    let lastY   = -9999;
 
+    const apply = () => {
+      pending = false;
+      const fromRight = window.innerWidth - lastX;
+      const isNear    = fromRight < HOTSPOT_PX && lastY < HOTSPOT_PX && lastY >= 0;
+      if (isNear === near) return;
+      near = isNear;
+      const el = btnRef.current;
+      if (!el) return;
+      el.style.opacity       = isNear ? '0.92' : '0';
+      el.style.transform     = isNear ? 'translateY(0)' : 'translateY(-6px)';
+      el.style.pointerEvents = isNear ? 'auto' : 'none';
+    };
+    const onMove = (e: PointerEvent) => {
+      lastX = e.clientX;
+      lastY = e.clientY;
+      if (!pending) { pending = true; requestAnimationFrame(apply); }
+    };
+
+    window.addEventListener('pointermove', onMove, { passive: true });
     return () => {
       document.removeEventListener('fullscreenchange', onChange);
       window.removeEventListener('pointermove', onMove);
-      window.removeEventListener('mouseleave', onLeave);
     };
   }, []);
 
@@ -2147,10 +2160,9 @@ function FullscreenToggle() {
     }
   };
 
-  // While focused (keyboard tab) the button stays visible regardless of
-  // proximity, so it remains keyboard-reachable.
   return (
     <button
+      ref={btnRef}
       onClick={toggle}
       aria-label={isFs ? 'Exit fullscreen' : 'Enter fullscreen'}
       title={isFs ? 'Exit fullscreen' : 'Enter fullscreen'}
@@ -2158,21 +2170,28 @@ function FullscreenToggle() {
         position: 'fixed',
         top: 12, right: 12, zIndex: 200,
         width: 34, height: 34, borderRadius: 9,
-        background: 'rgba(10,15,28,0.72)',
+        // Solid (slightly translucent) background — backdrop-filter
+        // blur was eating frames on the TVs every time the button
+        // faded. Tiny perceptible quality difference for a big perf
+        // win.
+        background: 'rgba(15,22,40,0.92)',
         border: '1px solid rgba(255,255,255,0.12)',
-        backdropFilter: 'blur(10px)',
         color: '#cbd5e1', cursor: 'pointer',
         display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
         fontFamily: 'inherit',
-        opacity: near ? 0.92 : 0,
-        transform: near ? 'translateY(0)' : 'translateY(-6px)',
-        pointerEvents: near ? 'auto' : 'none',
-        transition: 'opacity 0.22s ease, transform 0.22s ease',
+        opacity: 0,
+        transform: 'translateY(-6px)',
+        pointerEvents: 'none',
+        // Shorter transitions feel snappier when the frame rate is
+        // low — at ~30fps a 220ms fade is only 6 frames and reads as
+        // chunky; 150ms / 4-5 frames is "instant" without losing the
+        // soft fade.
+        transition: 'opacity 150ms ease-out, transform 150ms ease-out',
+        // Pre-promote to its own compositing layer so opacity and
+        // transform animate without triggering layout / paint on the
+        // wallboard underneath.
+        willChange: 'opacity, transform',
       }}
-      onFocus={e => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.pointerEvents = 'auto'; e.currentTarget.style.transform = 'translateY(0)'; }}
-      onBlur={e => { e.currentTarget.style.opacity = near ? '0.92' : '0'; }}
-      onMouseEnter={e => { e.currentTarget.style.opacity = '1'; }}
-      onMouseLeave={e => { e.currentTarget.style.opacity = near ? '0.92' : '0'; }}
     >
       {isFs ? (
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
