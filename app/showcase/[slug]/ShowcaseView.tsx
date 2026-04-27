@@ -549,6 +549,11 @@ export default function ShowcaseView({ board, slug, defaultTarget }: Props) {
   const rest = sortedRows.slice(3);
 
   return (
+    <>
+    {/* Sits outside ZoomWrap so its position:fixed is anchored to the
+        actual viewport rather than the scaled inner box (which on TV
+        zoom=0.7 was pushing the button off-screen entirely). */}
+    <FullscreenToggle />
     <ZoomWrap>
     <CelebrationProvider intervalMs={3_600_000} extraAgents={laziestSlide}>
       {/* Push the showcase agents into the celebration context so the Hall
@@ -618,14 +623,10 @@ export default function ShowcaseView({ board, slug, defaultTarget }: Props) {
                 the right. Stacks on mobile so each strip stays readable. */}
         <BottomToolbar items={tickerItems} isMobile={isMobile} />
 
-        {/* ── Fullscreen toggle ───────────────────────────────────── */}
-        {/*    Subtle bottom-right button — one tap on a Samsung TV
-                remote is enough to enter true fullscreen and hide the
-                browser's URL bar. */}
-        <FullscreenToggle />
       </div>
     </CelebrationProvider>
     </ZoomWrap>
+    </>
   );
 }
 
@@ -2129,29 +2130,34 @@ function FullscreenToggle() {
       aria-label={isFs ? 'Exit fullscreen' : 'Enter fullscreen'}
       title={isFs ? 'Exit fullscreen' : 'Enter fullscreen'}
       style={{
-        position: 'fixed', bottom: 'clamp(12px, 1.5vh, 22px)', right: 'clamp(12px, 1.5vw, 22px)',
-        zIndex: 50,
-        width: 36, height: 36, borderRadius: 10,
-        background: 'rgba(10,15,28,0.7)',
-        border: '1px solid rgba(255,255,255,0.1)',
-        backdropFilter: 'blur(8px)',
-        color: '#94a3b8', cursor: 'pointer',
-        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-        opacity: 0.55, transition: 'opacity 0.15s ease, color 0.15s ease',
+        position: 'fixed',
+        top: 12, right: 12, zIndex: 200,
+        height: 38,
+        padding: '0 14px 0 12px',
+        borderRadius: 10,
+        background: 'rgba(99,102,241,0.18)',
+        border: '1px solid rgba(99,102,241,0.5)',
+        backdropFilter: 'blur(10px)',
+        boxShadow: '0 6px 20px rgba(0,0,0,0.5)',
+        color: '#e2e8f0', cursor: 'pointer',
+        display: 'inline-flex', alignItems: 'center', gap: 8,
         fontFamily: 'inherit',
+        fontSize: 12, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase',
+        opacity: 0.92, transition: 'opacity 0.15s ease, transform 0.15s ease',
       }}
-      onMouseEnter={e => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.color = '#f1f5f9'; }}
-      onMouseLeave={e => { e.currentTarget.style.opacity = '0.55'; e.currentTarget.style.color = '#94a3b8'; }}
+      onMouseEnter={e => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
+      onMouseLeave={e => { e.currentTarget.style.opacity = '0.92'; e.currentTarget.style.transform = 'none'; }}
     >
       {isFs ? (
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
           <path d="M9 9 H4 M9 9 V4 M15 9 H20 M15 9 V4 M9 15 H4 M9 15 V20 M15 15 H20 M15 15 V20" />
         </svg>
       ) : (
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
           <path d="M4 9 V4 H9 M20 9 V4 H15 M4 15 V20 H9 M20 15 V20 H15" />
         </svg>
       )}
+      <span>{isFs ? 'Exit' : 'Fullscreen'}</span>
     </button>
   );
 }
