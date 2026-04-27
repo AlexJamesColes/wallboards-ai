@@ -2096,6 +2096,28 @@ function ActivityTicker({ items }: { items: TickerItem[] }) {
 //  Auto-fullscreen — triggered by the first user gesture after load
 // ────────────────────────────────────────────────────────────────────────
 
+/** True when the browser looks like a TV / set-top-box agent (Tizen,
+ *  WebOS, generic SmartTV / HbbTV strings). Auto-fullscreen behaviour
+ *  is gated on this so a phone or desktop browser doesn't get yanked
+ *  into fullscreen on the first click. Conservative — pattern only
+ *  matches user-agents we expect to come from a wall-mounted screen. */
+function isTvBrowser(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  const ua = navigator.userAgent || '';
+  return /\b(Tizen|SmartTV|SMART-TV|WebOS|Web0S|HbbTV|VIDAA|NetCast|BRAVIA|GoogleTV|Android\s?TV)\b/i.test(ua);
+}
+
+/** Auto-fullscreen decision. ?fs=off disables everywhere (laptop dev),
+ *  ?fs=on forces it on any browser (handy for one-off testing on a
+ *  phone). Default: TV browsers only. */
+function shouldAutoFullscreen(): boolean {
+  if (typeof window === 'undefined') return false;
+  const flag = new URLSearchParams(window.location.search).get('fs');
+  if (flag === 'off') return false;
+  if (flag === 'on')  return true;
+  return isTvBrowser();
+}
+
 /**
  * Browsers refuse to enter fullscreen without a user gesture (security
  * rule), so true "default to fullscreen" only happens via the PWA path
@@ -2104,17 +2126,16 @@ function ActivityTicker({ items }: { items: TickerItem[] }) {
  * fullscreen automatically. The TV operator opens the URL, taps the
  * remote once, URL bar gone for the rest of the session.
  *
- * Skipped via `?fs=off` so a developer poking around on a laptop isn't
- * forced into fullscreen by every click. Skipped when we're already
- * fullscreen (e.g. launched from the PWA shortcut).
+ * TV-only by default — phones and desktop browsers stay in normal
+ * (non-fullscreen) mode so a click on a card doesn't yank the page
+ * into fullscreen. Override with ?fs=on (force on) or ?fs=off
+ * (force off).
  */
 function useAutoFullscreenOnFirstGesture() {
   useEffect(() => {
     if (typeof document === 'undefined') return;
     if (!document.documentElement.requestFullscreen) return;
-
-    const search = new URLSearchParams(window.location.search);
-    if (search.get('fs') === 'off') return;
+    if (!shouldAutoFullscreen()) return;
 
     let fired = false;
     const cleanup = () => {
@@ -2156,13 +2177,14 @@ function useAutoFullscreenOnFirstGesture() {
  * changes, so it'll attempt again 2 minutes after the operator drops
  * the remote, and again 2 minutes after they Esc out.
  *
- * Skipped via ?fs=off (same flag as the first-gesture trigger).
+ * TV-only by default — same UA + URL-flag gate as the first-gesture
+ * trigger.
  */
 function useAutoFullscreenAfterIdle(idleMs: number) {
   useEffect(() => {
     if (typeof document === 'undefined') return;
     if (!document.documentElement.requestFullscreen) return;
-    if (new URLSearchParams(window.location.search).get('fs') === 'off') return;
+    if (!shouldAutoFullscreen()) return;
 
     let timer: ReturnType<typeof setTimeout>;
     const arm = () => {
