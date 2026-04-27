@@ -645,8 +645,19 @@ function Header({ boardName, teamTotal, target, targetPct, isMobile }: {
         display: 'flex', flexDirection: 'column', gap: 8,
         padding: '10px 14px',
         borderBottom: '1px solid rgba(255,255,255,0.06)',
-        background: 'rgba(10,15,28,0.5)', backdropFilter: 'blur(12px)',
-        flexShrink: 0, zIndex: 2,
+        // Frosted-translucent so the showcase content shows faintly
+        // through the bar as it scrolls underneath. Bumped opacity
+        // up a touch (0.5 → 0.85) so text/icons still read crisp
+        // against scrolling content, not just the static empty
+        // page background.
+        background: 'rgba(10,15,28,0.85)',
+        backdropFilter: 'blur(14px) saturate(150%)',
+        WebkitBackdropFilter: 'blur(14px) saturate(150%)',
+        // Sticky lock to the top of the viewport on mobile so the
+        // back button + board name + countdown + progress bar stay
+        // visible while the agent grid scrolls underneath.
+        position: 'sticky', top: 0,
+        flexShrink: 0, zIndex: 30,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <BackButton />
