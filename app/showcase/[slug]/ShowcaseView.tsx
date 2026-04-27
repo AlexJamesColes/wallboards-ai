@@ -210,7 +210,7 @@ function ZoomWrap({ children }: { children: React.ReactNode }) {
   return (
     <div style={{
       position: 'fixed', inset: 0, overflow: 'hidden',
-      background: '#0a0f1c',
+      background: '#131b30',
     }}>
       <div style={{
         width:  `${inv}vw`,
@@ -578,7 +578,7 @@ export default function ShowcaseView({ board, slug, defaultTarget }: Props) {
         width: '100%',
         height: isMobile ? 'auto' : '100%',
         minHeight: isMobile ? '100vh' : undefined,
-        background: 'radial-gradient(ellipse at 20% 10%, #1a1f3a 0%, #0a0f1c 60%, #050813 100%)',
+        background: 'radial-gradient(ellipse at 20% 10%, #2c3868 0%, #1a2348 55%, #131b30 100%)',
         color: '#f1f5f9',
         overflow: isMobile ? 'visible' : 'hidden',
         fontFamily: 'var(--font-raleway, sans-serif)',
@@ -650,7 +650,7 @@ function Header({ boardName, teamTotal, target, targetPct, isMobile }: {
         // they scrolled underneath, which read as the layout being
         // broken. A faint drop-shadow under the bar substitutes for
         // the blur as a "this is above the content" cue.
-        background: '#0a0f1c',
+        background: '#131b30',
         boxShadow: '0 6px 16px rgba(0,0,0,0.45)',
         // Sticky lock to the top of the viewport on mobile so the
         // back button + board name + countdown + progress bar stay
@@ -874,7 +874,7 @@ function BrandedSplash({ boardName, state, detail }: {
   return (
     <div style={{
       width: '100vw', height: '100vh',
-      background: 'radial-gradient(ellipse at 20% 10%, #1a1f3a 0%, #0a0f1c 60%, #050813 100%)',
+      background: 'radial-gradient(ellipse at 20% 10%, #2c3868 0%, #1a2348 55%, #131b30 100%)',
       color: '#f1f5f9', fontFamily: 'var(--font-raleway, sans-serif)',
       display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
       gap: 24, position: 'relative', overflow: 'hidden',
@@ -1351,7 +1351,7 @@ function PodiumCard({ row, rank, cols, isMobile, fullWidth, deltas }: {
       // visibly bigger thanks to its larger fonts/avatar/glow without
       // forcing the others to compress and clip their names.
       height: 'auto',
-      background: 'linear-gradient(180deg, rgba(26,33,54,0.85) 0%, rgba(14,20,39,0.85) 100%)',
+      background: 'linear-gradient(180deg, rgba(40,54,90,0.92) 0%, rgba(24,34,62,0.92) 100%)',
       border: `2px solid ${tier.ring}`,
       borderRadius: isMobile ? 14 : 16,
       padding: isMobile ? '12px 14px' : 'clamp(8px, 0.9vh, 13px) clamp(10px, 1.2vw, 18px)',
@@ -1600,7 +1600,7 @@ function OnlineDot({ size }: { size?: string } = {}) {
         height: size ?? 'clamp(11px, 1.1vw, 16px)',
         borderRadius: '50%',
         background: 'radial-gradient(circle at 35% 35%, #4ade80 0%, #10b981 70%, #047857 100%)',
-        border: '2.5px solid #0a0f1c',
+        border: '2.5px solid #131b30',
         boxShadow: '0 0 12px rgba(16,185,129,0.7)',
         animation: 'wb-online-pulse 2.2s ease-in-out infinite',
       }}
@@ -1680,7 +1680,7 @@ function AgentCard({ row, rank, cols, leaderIncome, deltas }: { row: Row; rank: 
 
   return (
     <div style={{
-      background: 'linear-gradient(180deg, rgba(26,33,54,0.55) 0%, rgba(14,20,39,0.55) 100%)',
+      background: 'linear-gradient(180deg, rgba(40,54,90,0.7) 0%, rgba(24,34,62,0.7) 100%)',
       border: '1px solid rgba(255,255,255,0.06)', borderRadius: 14,
       padding: 'clamp(8px, 1vh, 14px) clamp(10px, 1.1vw, 16px)',
       display: 'flex', flexDirection: 'column', gap: 5,

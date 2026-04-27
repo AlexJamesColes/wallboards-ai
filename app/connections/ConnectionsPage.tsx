@@ -34,7 +34,7 @@ export default function ConnectionsPage() {
   return (
     <div style={{
       minHeight: '100vh',
-      background: '#050813',
+      background: '#131b30',
       backgroundImage: `
         radial-gradient(ellipse at 50% -10%, rgba(56,189,248,0.06) 0%, transparent 55%),
         linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),

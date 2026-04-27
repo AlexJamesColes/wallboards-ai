@@ -1,5 +1,9 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-html, body { height: 100%; background: #0a0f1c; color: #f1f5f9; }
+/* Page surface — lifted from near-black (#0a0f1c) to a brighter navy
+   so the wallboards have presence on the office TVs without losing
+   the dark-theme feel. Knock-on effect: every card / strip with
+   `rgba(...)` translucent backgrounds picks up extra lift for free. */
+html, body { height: 100%; background: #131b30; color: #f1f5f9; }
 /* No horizontal scroll, ever. iOS Safari otherwise lets you swipe a page
    sideways if any descendant overflows by even a pixel and won't bounce
    back. TVs already clip via the showcase's outer overflow:hidden, so
