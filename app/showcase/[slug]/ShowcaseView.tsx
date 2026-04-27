@@ -644,15 +644,14 @@ function Header({ boardName, teamTotal, target, targetPct, isMobile }: {
       <div style={{
         display: 'flex', flexDirection: 'column', gap: 8,
         padding: '10px 14px',
-        borderBottom: '1px solid rgba(255,255,255,0.06)',
-        // Frosted-translucent so the showcase content shows faintly
-        // through the bar as it scrolls underneath. Bumped opacity
-        // up a touch (0.5 → 0.85) so text/icons still read crisp
-        // against scrolling content, not just the static empty
-        // page background.
-        background: 'rgba(10,15,28,0.85)',
-        backdropFilter: 'blur(14px) saturate(150%)',
-        WebkitBackdropFilter: 'blur(14px) saturate(150%)',
+        borderBottom: '1px solid rgba(255,255,255,0.08)',
+        // Solid background — the frosted-translucent version was
+        // letting the agent cards' avatars peek through the bar as
+        // they scrolled underneath, which read as the layout being
+        // broken. A faint drop-shadow under the bar substitutes for
+        // the blur as a "this is above the content" cue.
+        background: '#0a0f1c',
+        boxShadow: '0 6px 16px rgba(0,0,0,0.45)',
         // Sticky lock to the top of the viewport on mobile so the
         // back button + board name + countdown + progress bar stay
         // visible while the agent grid scrolls underneath.
