@@ -551,11 +551,6 @@ export default function ShowcaseView({ board, slug, defaultTarget }: Props) {
   const rest = sortedRows.slice(3);
 
   return (
-    <>
-    {/* Sits outside ZoomWrap so its position:fixed is anchored to the
-        actual viewport rather than the scaled inner box (which on TV
-        zoom=0.7 was pushing the button off-screen entirely). */}
-    <FullscreenToggle />
     <ZoomWrap>
     <CelebrationProvider intervalMs={3_600_000} extraAgents={laziestSlide}>
       {/* Push the showcase agents into the celebration context so the Hall
@@ -628,7 +623,6 @@ export default function ShowcaseView({ board, slug, defaultTarget }: Props) {
       </div>
     </CelebrationProvider>
     </ZoomWrap>
-    </>
   );
 }
 
@@ -2080,131 +2074,6 @@ function ActivityTicker({ items }: { items: TickerItem[] }) {
         <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{item.text}</span>
       </div>
     </div>
-  );
-}
-
-// ────────────────────────────────────────────────────────────────────────
-//  Fullscreen toggle — for the TV walls
-// ────────────────────────────────────────────────────────────────────────
-
-/**
- * Tiny corner button that requests browser fullscreen via the Fullscreen
- * API. Most useful on the Samsung Tizen TVs in the office: one click
- * with the remote hides the URL bar and the title chrome, reclaiming the
- * top ~80px of the screen.
- *
- * On platforms where the page was launched via "Add to Home Screen"
- * (the PWA path — see app/manifest.ts) the button is redundant; the
- * launcher already opens without browser chrome. Hides itself when the
- * Fullscreen API isn't available so phones / older browsers don't see a
- * dead button.
- */
-function FullscreenToggle() {
-  const btnRef = useRef<HTMLButtonElement>(null);
-  const [supported, setSupported] = useState(false);
-  const [isFs, setIsFs] = useState(false);
-
-  useEffect(() => {
-    if (typeof document === 'undefined') return;
-    setSupported(!!document.documentElement.requestFullscreen);
-    const onChange = () => setIsFs(!!document.fullscreenElement);
-    document.addEventListener('fullscreenchange', onChange);
-    onChange();
-
-    // Proximity reveal — done entirely outside React. Pointermove
-    // would otherwise trigger a re-render every couple of milliseconds
-    // and chew the limited GPU budget on a TV. Now we just stash the
-    // last cursor coords; one requestAnimationFrame per frame compares
-    // against a hotspot box and mutates the button's style directly.
-    // React only re-renders when fullscreen on/off actually changes.
-    const HOTSPOT_PX = 220;
-    let near    = false;
-    let pending = false;
-    let lastX   = -9999;
-    let lastY   = -9999;
-
-    const apply = () => {
-      pending = false;
-      const fromRight = window.innerWidth - lastX;
-      const isNear    = fromRight < HOTSPOT_PX && lastY < HOTSPOT_PX && lastY >= 0;
-      if (isNear === near) return;
-      near = isNear;
-      const el = btnRef.current;
-      if (!el) return;
-      el.style.opacity       = isNear ? '0.92' : '0';
-      el.style.transform     = isNear ? 'translateY(0)' : 'translateY(-6px)';
-      el.style.pointerEvents = isNear ? 'auto' : 'none';
-    };
-    const onMove = (e: PointerEvent) => {
-      lastX = e.clientX;
-      lastY = e.clientY;
-      if (!pending) { pending = true; requestAnimationFrame(apply); }
-    };
-
-    window.addEventListener('pointermove', onMove, { passive: true });
-    return () => {
-      document.removeEventListener('fullscreenchange', onChange);
-      window.removeEventListener('pointermove', onMove);
-    };
-  }, []);
-
-  if (!supported) return null;
-
-  const toggle = async () => {
-    try {
-      if (document.fullscreenElement) {
-        await document.exitFullscreen();
-      } else {
-        await document.documentElement.requestFullscreen({ navigationUI: 'hide' });
-      }
-    } catch {
-      /* user dismissed / not allowed — silently ignore */
-    }
-  };
-
-  return (
-    <button
-      ref={btnRef}
-      onClick={toggle}
-      aria-label={isFs ? 'Exit fullscreen' : 'Enter fullscreen'}
-      title={isFs ? 'Exit fullscreen' : 'Enter fullscreen'}
-      style={{
-        position: 'fixed',
-        top: 12, right: 12, zIndex: 200,
-        width: 34, height: 34, borderRadius: 9,
-        // Solid (slightly translucent) background — backdrop-filter
-        // blur was eating frames on the TVs every time the button
-        // faded. Tiny perceptible quality difference for a big perf
-        // win.
-        background: 'rgba(15,22,40,0.92)',
-        border: '1px solid rgba(255,255,255,0.12)',
-        color: '#cbd5e1', cursor: 'pointer',
-        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-        fontFamily: 'inherit',
-        opacity: 0,
-        transform: 'translateY(-6px)',
-        pointerEvents: 'none',
-        // Shorter transitions feel snappier when the frame rate is
-        // low — at ~30fps a 220ms fade is only 6 frames and reads as
-        // chunky; 150ms / 4-5 frames is "instant" without losing the
-        // soft fade.
-        transition: 'opacity 150ms ease-out, transform 150ms ease-out',
-        // Pre-promote to its own compositing layer so opacity and
-        // transform animate without triggering layout / paint on the
-        // wallboard underneath.
-        willChange: 'opacity, transform',
-      }}
-    >
-      {isFs ? (
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-          <path d="M9 9 H4 M9 9 V4 M15 9 H20 M15 9 V4 M9 15 H4 M9 15 V20 M15 15 H20 M15 15 V20" />
-        </svg>
-      ) : (
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-          <path d="M4 9 V4 H9 M20 9 V4 H15 M4 15 V20 H9 M20 15 V20 H15" />
-        </svg>
-      )}
-    </button>
   );
 }
 
