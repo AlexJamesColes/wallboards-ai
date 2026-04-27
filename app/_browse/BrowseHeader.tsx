@@ -19,7 +19,7 @@ export default function BrowseHeader({ right }: { right?: ReactNode }) {
   ];
 
   return (
-    <div style={{ marginBottom: 32 }}>
+    <div className="wb-mobile-sticky-top" style={{ marginBottom: 32 }}>
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         flexWrap: 'wrap', gap: 16, marginBottom: 22,

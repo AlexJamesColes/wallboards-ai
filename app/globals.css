@@ -22,6 +22,29 @@ html, body { overscroll-behavior-y: contain; }
    `cursor: pointer` on buttons and links. */
 html.wb-cursor-hidden, html.wb-cursor-hidden * { cursor: none !important; }
 
+/* Mobile-only sticky lock for the BrowseHeader (brand + tabs). Pinned
+   to the top of the viewport on phones so the InsureTec wordmark and
+   the Boards/Connections tabs stay visible while the user scrolls
+   through 50+ boards. Bleeds past the page padding to its full edge so
+   the bar reads as a proper top chrome rather than a floating panel. */
+@media (max-width: 768px) {
+  .wb-mobile-sticky-top {
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    background: #131b30;
+    margin-left:  calc(-1 * clamp(16px, 4vw, 48px));
+    margin-right: calc(-1 * clamp(16px, 4vw, 48px));
+    padding-left:  clamp(16px, 4vw, 48px);
+    padding-right: clamp(16px, 4vw, 48px);
+    padding-top: 12px;
+    padding-bottom: 14px;
+    box-shadow: 0 6px 16px rgba(0,0,0,0.45);
+    margin-top: calc(-1 * clamp(24px, 5vh, 64px));   /* eat the page top padding */
+    margin-bottom: 22px;
+  }
+}
+
 /* Utility — hide native scrollbars on a horizontally-scrolling row
    (Today's Earn pills on mobile). Content is still scrollable, just
    without the visual track so the row reads as a clean strip. */

@@ -202,14 +202,13 @@ export default function BrowsePage() {
         Live boards across the floor — opening in <strong style={{ color: '#a5b4fc' }}>{mode === 'mobile' ? 'mobile' : 'desktop'}</strong> mode.
       </p>
 
-      {/* Sticky search */}
+      {/* Search — flows in normal page order. Used to be sticky too,
+          but on mobile the BrowseHeader is now sticky at top:0 and
+          two competing stickies just stack on top of each other. */}
       <div style={{
-        position: 'sticky', top: 0, zIndex: 5,
         marginLeft: 'calc(-1 * clamp(16px, 4vw, 48px))',
         marginRight: 'calc(-1 * clamp(16px, 4vw, 48px))',
         padding: 'clamp(8px, 1vh, 14px) clamp(16px, 4vw, 48px)',
-        background: 'rgba(10,15,28,0.85)', backdropFilter: 'blur(10px)',
-        borderBottom: '1px solid rgba(255,255,255,0.05)',
         marginBottom: 24,
       }}>
         <div style={{ display: 'flex', gap: 12, alignItems: 'center', maxWidth: 1400, margin: '0 auto' }}>
