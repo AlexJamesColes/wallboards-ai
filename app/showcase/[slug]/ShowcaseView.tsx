@@ -284,6 +284,7 @@ export default function ShowcaseView({ board, slug, defaultTarget }: Props) {
   const isMobile              = useIsMobile();
   useAutoReloadOnDeploy();
   useAutoFullscreenOnFirstGesture();
+  useAutoFullscreenAfterIdle(120_000);
 
   // Poll /api/alerts for anything IT has pushed (Teams webhook forwards etc.)
   // and prepend them to the ticker as they arrive. Much shorter interval
@@ -2255,6 +2256,57 @@ function useAutoFullscreenOnFirstGesture() {
 
     return cleanup;
   }, []);
+}
+
+/**
+ * Best-effort auto-fullscreen after a period of no user activity.
+ *
+ * Modern browsers refuse fullscreen without "transient activation"
+ * (a user gesture within the last few seconds), so on a TV that's
+ * been sitting idle for 2 minutes the requestFullscreen call will
+ * usually be rejected. Some Tizen kiosk-mode firmwares relax this
+ * rule, so it's still worth firing — silent fail when refused, free
+ * fullscreen when accepted.
+ *
+ * Re-arms after every user gesture and after the fullscreen state
+ * changes, so it'll attempt again 2 minutes after the operator drops
+ * the remote, and again 2 minutes after they Esc out.
+ *
+ * Skipped via ?fs=off (same flag as the first-gesture trigger).
+ */
+function useAutoFullscreenAfterIdle(idleMs: number) {
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    if (!document.documentElement.requestFullscreen) return;
+    if (new URLSearchParams(window.location.search).get('fs') === 'off') return;
+
+    let timer: ReturnType<typeof setTimeout>;
+    const arm = () => {
+      clearTimeout(timer);
+      if (document.fullscreenElement) return;
+      timer = setTimeout(() => {
+        // Already fullscreen by the time the timer fires (e.g.
+        // someone clicked the corner button) — nothing to do.
+        if (document.fullscreenElement) return;
+        // Will be rejected by spec-compliant browsers because there's
+        // no recent user gesture; the .catch keeps it silent. Worth
+        // trying because Tizen kiosk-mode TVs sometimes allow it.
+        document.documentElement.requestFullscreen({ navigationUI: 'hide' }).catch(() => {});
+      }, idleMs);
+    };
+
+    arm();
+    const events = ['click', 'keydown', 'touchstart', 'mousemove', 'pointermove'];
+    events.forEach(e => window.addEventListener(e, arm, { passive: true }));
+    const onFsChange = () => arm();
+    document.addEventListener('fullscreenchange', onFsChange);
+
+    return () => {
+      clearTimeout(timer);
+      events.forEach(e => window.removeEventListener(e, arm));
+      document.removeEventListener('fullscreenchange', onFsChange);
+    };
+  }, [idleMs]);
 }
 
 // ────────────────────────────────────────────────────────────────────────
