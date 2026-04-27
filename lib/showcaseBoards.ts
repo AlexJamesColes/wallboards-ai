@@ -1,22 +1,26 @@
 /**
  * Showcase board catalogue — single source of truth.
  *
- * Each entry describes one board served by the bespoke ShowcaseView
- * (podium + cards + ticker + baseline chips). Two kinds of data source
- * are supported:
+ * Each entry describes one board served by either the bespoke
+ * ShowcaseView (podium + cards + ticker) or AgentStatesView (live agent
+ * status grid). Three kinds of data source are supported:
  *
- *   • `widget`   — the leaderboard SQL still lives in `wb_widgets` on
- *     the DB, attached to a real `wb_boards` row. Same model the
- *     legacy editor produced; we keep it because the SQL is non-trivial
- *     and not yet migrated into code.
+ *   • `widget`        — the leaderboard SQL lives in `wb_widgets` on the
+ *     DB, attached to a real `wb_boards` row. Same model the legacy
+ *     editor produced; kept because the SQL is non-trivial and not yet
+ *     migrated into code.
  *
- *   • `combined` — a synthetic board that has no DB row of its own.
- *     The data endpoint fetches each `sources` slug's widget data and
+ *   • `combined`      — a synthetic board with no DB row. The data
+ *     endpoint fetches each `sources` slug's widget data and
  *     concatenates the rows so the showcase can rank everyone together
  *     (e.g. sales-group ranks London + Guildford in one list).
  *
+ *   • `agent-states`  — also synthetic. Joins a Noetica-pushed dataset
+ *     against per-office leaderboard SQL (used as the roster) and
+ *     renders a live status grid rather than a leaderboard.
+ *
  * Adding a new showcase board means appending one entry here. The browse
- * page, the route resolver, the data endpoint, and the baseline poller
+ * page, the route resolver, the data endpoints, and the baseline poller
  * all read from this list.
  */
 
@@ -30,7 +34,11 @@ export interface ShowcaseBoard {
   defaultTarget?: number;
   data:
     | { type: 'widget' }                                  // resolved via wb_widgets row attached to this slug
-    | { type: 'combined'; sources: string[] };            // concatenated from other showcase slugs
+    | { type: 'combined'; sources: string[] }             // concatenated from other showcase slugs
+    | { type: 'agent-states'; dataset: string; rosters: { label: string; source: string }[] };
+    // ↑ live-state board: a Noetica dataset name plus per-office leaderboard slugs whose
+    //   SQL doubles as the roster (so we can split a flat dataset by office without a
+    //   second source of truth).
 }
 
 export const SHOWCASE_BOARDS: ShowcaseBoard[] = [
@@ -53,6 +61,19 @@ export const SHOWCASE_BOARDS: ShowcaseBoard[] = [
     // London + Guildford combined NB budget. Override via ?target= per TV.
     defaultTarget: 2_590_000,
     data:          { type: 'combined', sources: ['london-agents', 'guildford-agents'] },
+  },
+  {
+    slug:       'sales-agent-states',
+    name:       'Sales · Agent States',
+    department: 'Sales',
+    data:       {
+      type:    'agent-states',
+      dataset: 'noetica_agent_status',
+      rosters: [
+        { label: 'London',    source: 'london-agents'    },
+        { label: 'Guildford', source: 'guildford-agents' },
+      ],
+    },
   },
 ];
 

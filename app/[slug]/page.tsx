@@ -4,6 +4,7 @@ import { ensureDbReady, getBoardBySlug } from '@/lib/db';
 import { getShowcaseBoard, isSyntheticBoard } from '@/lib/showcaseBoards';
 import KioskView from '../view/[token]/KioskView';
 import ShowcaseView from '../showcase/[slug]/ShowcaseView';
+import AgentStatesView from '../_agent-states/AgentStatesView';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,6 +28,20 @@ export default async function SlugKioskPage({ params }: { params: { slug: string
   // (1) Synthetic showcase board — no DB lookup needed.
   if (isSyntheticBoard(params.slug)) {
     const config = getShowcaseBoard(params.slug)!;
+
+    // Agent-states variant has its own view — entirely different shape
+    // (status grid, not a leaderboard) so it doesn't fit through
+    // ShowcaseView's podium/cards/ticker pipeline.
+    if (config.data.type === 'agent-states') {
+      return (
+        <AgentStatesView
+          slug={config.slug}
+          title={config.name}
+          department={config.department}
+        />
+      );
+    }
+
     const fake: WbBoard = {
       id:             `synthetic:${config.slug}`,
       slug_token:     '',
