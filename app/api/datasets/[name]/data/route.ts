@@ -13,8 +13,13 @@ async function handlePush(req: Request, ctx: any): Promise<Response> {
   return NextResponse.json({ ok: true, count: rows.length });
 }
 
-export const POST = withPushApiKey(handlePush);
+// POST / PATCH / PUT all do the same thing — fully replace the dataset
+// rows under <name>. PUT is accepted because most REST clients reach
+// for it first when the semantics are "upsert by name", and 405-ing
+// them just costs a round-trip of confusion.
+export const POST  = withPushApiKey(handlePush);
 export const PATCH = withPushApiKey(handlePush);
+export const PUT   = withPushApiKey(handlePush);
 
 /**
  * Read-only view of whatever's currently stored under this dataset
