@@ -51,10 +51,8 @@ export default function BrowseHeader({ right }: { right?: ReactNode }) {
             </Link>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-            <BellButton />
-            <UserAvatar />
-          </div>
+          {/* Bell + avatar removed for now — they'll come back wired up
+              to the dashboard's alerts/profile routes once SSO lands. */}
         </div>
       </div>
 
@@ -137,66 +135,20 @@ function BrowseBackButton() {
   );
 }
 
-/** Bell icon top-right matching the dashboard. Placeholder for now —
- *  on click would route to the dashboard's alerts page. Inert until
- *  cross-app routing is wired. */
-function BellButton() {
-  return (
-    <button
-      type="button"
-      aria-label="Alerts"
-      style={{
-        width: 40, height: 40, borderRadius: 10,
-        background: 'rgba(255,255,255,0.04)',
-        border: '1px solid rgba(255,255,255,0.08)',
-        color: '#cbd5e1', cursor: 'pointer',
-        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-        fontFamily: 'inherit', flexShrink: 0,
-      }}
-    >
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-        <path d="M6 8 a6 6 0 0 1 12 0 c0 7 3 9 3 9 H3 s3-2 3-9 z" />
-        <path d="M10.3 21 a1.94 1.94 0 0 0 3.4 0" />
-      </svg>
-    </button>
-  );
-}
-
-/** Avatar placeholder — circular gradient with the same default avatar
- *  glyph the dashboard uses on a fresh account. Replaced when SSO
- *  lands and we have a real user. */
-function UserAvatar() {
-  return (
-    <button
-      type="button"
-      aria-label="Account"
-      style={{
-        width: 40, height: 40, borderRadius: '50%',
-        background: 'linear-gradient(135deg, rgba(99,102,241,0.35) 0%, rgba(56,189,248,0.35) 100%)',
-        border: '1px solid rgba(255,255,255,0.12)',
-        color: '#fff', cursor: 'pointer',
-        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-        fontFamily: 'inherit', flexShrink: 0,
-        fontSize: 18,
-      }}
-    >
-      <span aria-hidden>🐶</span>
-    </button>
-  );
-}
-
 /** Shield mark — pixel-matches the InsureTec dashboard logo: a rounded
- *  square chip with an indigo→cyan gradient fill, a soft cyan halo,
- *  and the white shield-check glyph centred inside. */
+ *  square chip with a saturated indigo→cyan gradient fill and the
+ *  white shield-check glyph centred inside, ringed with a soft cyan
+ *  halo so the lockup reads as a proper brand mark rather than an
+ *  outline sketch. */
 function ShieldMark() {
   return (
     <div
       aria-hidden
       style={{
         width: 36, height: 36, borderRadius: 10,
-        background: 'linear-gradient(135deg, rgba(99,102,241,0.22) 0%, rgba(56,189,248,0.22) 100%)',
-        border: '1px solid rgba(56,189,248,0.35)',
-        boxShadow: '0 0 18px rgba(56,189,248,0.22)',
+        background: 'linear-gradient(135deg, #6366f1 0%, #38bdf8 100%)',
+        border: '1px solid rgba(125,211,252,0.55)',
+        boxShadow: '0 0 22px rgba(56,189,248,0.35)',
         display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
         flexShrink: 0,
       }}
@@ -204,15 +156,15 @@ function ShieldMark() {
       <svg width="22" height="22" viewBox="0 0 32 32" fill="none">
         <path
           d="M16 3 L26 7 V15 C26 22 16 28 16 28 C16 28 6 22 6 15 V7 Z"
-          fill="none"
-          stroke="#7dd3fc"
+          fill="rgba(255,255,255,0.18)"
+          stroke="#ffffff"
           strokeWidth="2"
           strokeLinejoin="round"
         />
         <path
           d="M11 16 L14.5 19.5 L21 12.5"
-          stroke="#7dd3fc"
-          strokeWidth="2.4"
+          stroke="#ffffff"
+          strokeWidth="2.6"
           strokeLinecap="round"
           strokeLinejoin="round"
           fill="none"
