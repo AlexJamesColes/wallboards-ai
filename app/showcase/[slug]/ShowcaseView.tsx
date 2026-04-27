@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import type { WbBoard } from '@/lib/db';
 import { extractEmojis, tokenize } from '@/lib/emoji';
 import { CelebrationProvider, CelebrationCountdown, CelebrationRegistrar } from '@/components/Celebration';
@@ -552,6 +553,12 @@ export default function ShowcaseView({ board, slug, defaultTarget }: Props) {
   const rest = sortedRows.slice(3);
 
   return (
+    <>
+    {/* Sits outside ZoomWrap so its position:fixed is anchored to the
+        actual viewport (the TV zoom transforms break position:fixed
+        for descendants). Auto-hides alongside the cursor — invisible
+        on a steady wallboard, fades in when someone interacts. */}
+    <BackButton />
     <ZoomWrap>
     <CelebrationProvider intervalMs={3_600_000} extraAgents={laziestSlide}>
       {/* Push the showcase agents into the celebration context so the Hall
@@ -624,6 +631,7 @@ export default function ShowcaseView({ board, slug, defaultTarget }: Props) {
       </div>
     </CelebrationProvider>
     </ZoomWrap>
+    </>
   );
 }
 
@@ -2177,6 +2185,52 @@ function useAutoFullscreenAfterIdle(idleMs: number) {
       document.removeEventListener('fullscreenchange', onFsChange);
     };
   }, [idleMs]);
+}
+
+// ────────────────────────────────────────────────────────────────────────
+//  Back button — top-left, dashboard-styled
+// ────────────────────────────────────────────────────────────────────────
+
+/**
+ * Square chevron-left button matching the InsureTec dashboard's back
+ * affordance. Goes back through history when there's something to go
+ * back to (e.g. user arrived from /); otherwise lands on the board
+ * picker. Tagged with .wb-corner-nav so the cursor auto-hide CSS
+ * fades it out alongside the cursor — invisible on a TV that nobody's
+ * touching, fades back in the moment someone reaches for the screen.
+ */
+function BackButton() {
+  const router = useRouter();
+  const onBack = () => {
+    if (typeof window === 'undefined') return;
+    if (window.history.length > 1) router.back();
+    else router.push('/');
+  };
+  return (
+    <button
+      onClick={onBack}
+      aria-label="Back"
+      className="wb-corner-nav"
+      style={{
+        position: 'fixed',
+        top: 14, left: 14, zIndex: 200,
+        width: 42, height: 42, borderRadius: 11,
+        background: 'rgba(20,26,46,0.78)',
+        border: '1px solid rgba(255,255,255,0.08)',
+        color: '#e2e8f0', cursor: 'pointer',
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+        fontFamily: 'inherit',
+        transition: 'opacity 200ms ease, transform 150ms ease',
+        willChange: 'opacity',
+      }}
+      onMouseEnter={e => { e.currentTarget.style.transform = 'translateX(-1px)'; }}
+      onMouseLeave={e => { e.currentTarget.style.transform = 'none'; }}
+    >
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+        <path d="M15 18 L9 12 L15 6" />
+      </svg>
+    </button>
+  );
 }
 
 // ────────────────────────────────────────────────────────────────────────
