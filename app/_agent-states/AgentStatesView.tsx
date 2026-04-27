@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 
 interface AgentRow {
@@ -24,6 +24,14 @@ interface Payload {
   unmatched:    AgentRow[];
 }
 
+/** A row enriched with the office tag and a continuously-ticking livetime
+ *  so the layout components don't have to re-compute either. */
+interface LiveAgent extends AgentRow {
+  office:    string | null;     // 'London' | 'Guildford' | null (unmatched)
+  livetime:  number;
+  concern:   boolean;           // true once over threshold for status
+}
+
 interface Props {
   slug:         string;
   title:        string;
@@ -32,41 +40,50 @@ interface Props {
 
 const POLL_MS = 10_000;
 
-/** Status → visual treatment. The "concern" flag pushes the tile up the
- *  sort order within its office so anyone stuck (long Hold, long PNR)
- *  surfaces first. Anything outside this map renders neutral grey. */
-const STATUS_LOOKUP: Record<string, { tint: string; glow: string; concern: boolean; label?: string }> = {
-  'Talking':              { tint: '#10b981', glow: 'rgba(16,185,129,0.45)',  concern: false },
-  'Waiting':              { tint: '#38bdf8', glow: 'rgba(56,189,248,0.45)',  concern: false },
-  'Wrap':                 { tint: '#fbbf24', glow: 'rgba(251,191,36,0.45)',  concern: false },
-  'Completed':            { tint: '#a855f7', glow: 'rgba(168,85,247,0.45)',  concern: false },
-  'Consult':              { tint: '#7dd3fc', glow: 'rgba(125,211,252,0.4)',  concern: false },
-  'Transferred':          { tint: '#86efac', glow: 'rgba(134,239,172,0.4)',  concern: false },
-  'Hold':                 { tint: '#fb923c', glow: 'rgba(251,146,60,0.55)',  concern: true,  label: 'Hold' },
-  'Permitted Not Ready':  { tint: '#f87171', glow: 'rgba(248,113,113,0.55)', concern: true,  label: 'PNR' },
-  'Lunch':                { tint: '#94a3b8', glow: 'rgba(148,163,184,0.35)', concern: false },
-  'Comfort Break':        { tint: '#94a3b8', glow: 'rgba(148,163,184,0.35)', concern: false, label: 'Break' },
+// ─── Status visual + categorisation ─────────────────────────────────────
+//
+// `tier` controls layout placement:
+//   alert   — needs eyes on it. Floats to the top, big tiles, glow.
+//   active  — productive states. Bulk of the layout, multi-column.
+//   away    — out of office. Compact name list at the bottom.
+//
+// `concernSec` is the "this is taking too long" threshold; a tile that
+// crosses it gets a red rim regardless of its tier.
+
+type Tier = 'alert' | 'active' | 'away';
+
+interface StatusMeta {
+  label:        string;        // short label shown in lane header + chip
+  tint:         string;        // lane accent + tile text
+  glow:         string;        // halo behind status dots
+  tier:         Tier;
+  concernSec?:  number;        // tile gets concern rim past this many seconds
+}
+
+const STATUS_META: Record<string, StatusMeta> = {
+  'Hold':                 { label: 'Hold',       tint: '#fb923c', glow: 'rgba(251,146,60,0.55)',  tier: 'alert',  concernSec: 60 },
+  'Permitted Not Ready':  { label: 'PNR',        tint: '#f87171', glow: 'rgba(248,113,113,0.55)', tier: 'alert',  concernSec: 5 * 60 },
+  'Talking':              { label: 'Talking',    tint: '#10b981', glow: 'rgba(16,185,129,0.45)',  tier: 'active' },
+  'Waiting':              { label: 'Waiting',    tint: '#38bdf8', glow: 'rgba(56,189,248,0.45)',  tier: 'active' },
+  'Wrap':                 { label: 'Wrap',       tint: '#fbbf24', glow: 'rgba(251,191,36,0.45)',  tier: 'active', concernSec: 3 * 60 },
+  'Completed':            { label: 'Completed',  tint: '#a855f7', glow: 'rgba(168,85,247,0.45)',  tier: 'active' },
+  'Consult':              { label: 'Consult',    tint: '#7dd3fc', glow: 'rgba(125,211,252,0.4)',  tier: 'active' },
+  'Transferred':          { label: 'Transferred',tint: '#86efac', glow: 'rgba(134,239,172,0.4)',  tier: 'active' },
+  'Lunch':                { label: 'Lunch',      tint: '#94a3b8', glow: 'rgba(148,163,184,0.35)', tier: 'away' },
+  'Comfort Break':        { label: 'Break',      tint: '#94a3b8', glow: 'rgba(148,163,184,0.35)', tier: 'away' },
 };
 
-const NEUTRAL = { tint: '#64748b', glow: 'rgba(100,116,139,0.35)', concern: false } as const;
-
-/** Status sort order so a status header strip reads consistently — most
- *  active first, then concerning, then breaks. Anything not listed sinks
- *  to the bottom. */
-const STATUS_ORDER = [
-  'Talking', 'Waiting', 'Wrap', 'Completed', 'Consult', 'Transferred',
-  'Hold', 'Permitted Not Ready', 'Lunch', 'Comfort Break',
-];
-
-/** Concerning-state thresholds in seconds. Past these, the tile gets a
- *  red rim and the time-in-state text glows so the floor manager spots
- *  it from across the room. Calibrated to match what felt "off" looking
- *  at the live data — Hold > 1 min, PNR > 5 min. */
-const CONCERN_THRESHOLDS: Record<string, number> = {
-  'Hold':                60,
-  'Permitted Not Ready': 5 * 60,
-  'Wrap':                3 * 60,
+const NEUTRAL_META: StatusMeta = {
+  label: 'Unknown', tint: '#64748b', glow: 'rgba(100,116,139,0.35)', tier: 'active',
 };
+
+/** Lane order within each tier — shapes the left-to-right reading order
+ *  on desktop. Top of each tier list = most prominent placement. */
+const ALERT_ORDER  = ['Hold', 'Permitted Not Ready'];
+const ACTIVE_ORDER = ['Talking', 'Wrap', 'Waiting', 'Completed', 'Consult', 'Transferred'];
+const AWAY_ORDER   = ['Lunch', 'Comfort Break'];
+
+// ─── Component ──────────────────────────────────────────────────────────
 
 export default function AgentStatesView({ slug, title, department }: Props) {
   const [data,    setData]    = useState<Payload | null>(null);
@@ -74,28 +91,21 @@ export default function AgentStatesView({ slug, title, department }: Props) {
   const [loading, setLoading] = useState(true);
   const [tick,    setTick]    = useState(0);
 
-  // Heartbeat — re-render every second so time-in-state counters tick
-  // forwards between server polls. Cheap because each tile reads the
-  // shared `now` and re-formats locally.
+  // Heartbeat — re-render every second so time-in-state ticks forwards
+  // between server polls.
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const iv = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(iv);
   }, []);
 
-  // Server poll — refresh dataset rows + roster join every 10s.
-  const lastFetchedAt = useRef<number>(0);
+  // Server poll.
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     fetch(`/api/agent-states/${encodeURIComponent(slug)}`, { cache: 'no-store' })
       .then(r => (r.ok ? r.json() : Promise.reject(new Error(`${r.status}`))))
-      .then((d: Payload) => {
-        if (cancelled) return;
-        setData(d);
-        setError(null);
-        lastFetchedAt.current = Date.now();
-      })
+      .then((d: Payload) => { if (!cancelled) { setData(d); setError(null); } })
       .catch(e => { if (!cancelled) setError(e?.message || 'Failed to load'); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
@@ -106,14 +116,76 @@ export default function AgentStatesView({ slug, title, department }: Props) {
     return () => clearInterval(iv);
   }, []);
 
-  // Time advance for in-state counters: seconds since the dataset's
-  // updated_at. Floor at 0 so a clock skew between server + browser
-  // doesn't produce negative ages.
   const elapsedSinceFetch = useMemo(() => {
     if (!data?.updated_at) return 0;
     const t = new Date(data.updated_at).getTime();
     return Math.max(0, Math.floor((now - t) / 1000));
   }, [now, data?.updated_at]);
+
+  // Flatten — all agents in one list with an office tag. Unmatched rows
+  // come along with a null office so they still show up in the right
+  // status lane rather than being banished to a footer.
+  const agents = useMemo<LiveAgent[]>(() => {
+    if (!data) return [];
+    const out: LiveAgent[] = [];
+    for (const office of data.offices) {
+      for (const a of office.agents) {
+        const meta = STATUS_META[a.status] || NEUTRAL_META;
+        const livetime = a.time_in_state + elapsedSinceFetch;
+        out.push({
+          ...a,
+          office:   office.label,
+          livetime,
+          concern:  !!(meta.concernSec && livetime >= meta.concernSec),
+        });
+      }
+    }
+    for (const a of data.unmatched) {
+      const meta = STATUS_META[a.status] || NEUTRAL_META;
+      const livetime = a.time_in_state + elapsedSinceFetch;
+      out.push({
+        ...a,
+        office:   null,
+        livetime,
+        concern:  !!(meta.concernSec && livetime >= meta.concernSec),
+      });
+    }
+    return out;
+  }, [data, elapsedSinceFetch]);
+
+  // Group agents by status — the layout's spine.
+  const byStatus = useMemo(() => {
+    const m = new Map<string, LiveAgent[]>();
+    for (const a of agents) {
+      const k = STATUS_META[a.status] ? a.status : a.status || 'Unknown';
+      if (!m.has(k)) m.set(k, []);
+      m.get(k)!.push(a);
+    }
+    // Sort within lane: concerning first, then longest in state.
+    for (const lane of m.values()) {
+      lane.sort((a, b) => {
+        if (a.concern !== b.concern) return a.concern ? -1 : 1;
+        return b.livetime - a.livetime;
+      });
+    }
+    return m;
+  }, [agents]);
+
+  const lanesFor = (order: string[]): { status: string; agents: LiveAgent[] }[] => {
+    const known = order
+      .filter(s => byStatus.has(s))
+      .map(s => ({ status: s, agents: byStatus.get(s)! }));
+    // Pull in any statuses not in the order list (e.g. a new Noetica
+    // value) so they don't silently disappear. They land at the end.
+    const extras = [...byStatus.keys()]
+      .filter(s => !ALERT_ORDER.includes(s) && !ACTIVE_ORDER.includes(s) && !AWAY_ORDER.includes(s))
+      .map(s => ({ status: s, agents: byStatus.get(s)! }));
+    return order === ACTIVE_ORDER ? [...known, ...extras] : known;
+  };
+
+  const alertLanes  = lanesFor(ALERT_ORDER);
+  const activeLanes = lanesFor(ACTIVE_ORDER);
+  const awayLanes   = lanesFor(AWAY_ORDER);
 
   return (
     <div style={{
@@ -133,7 +205,7 @@ export default function AgentStatesView({ slug, title, department }: Props) {
         department={department}
         loading={loading}
         updatedAt={data?.updated_at ?? null}
-        elapsedSinceFetch={elapsedSinceFetch}
+        totalAgents={agents.length}
       />
 
       {error && (
@@ -150,28 +222,36 @@ export default function AgentStatesView({ slug, title, department }: Props) {
       )}
 
       {!error && data && (
-        <>
-          {/* Office blocks — desktop sits them side by side, mobile stacks */}
-          <div style={{
-            display: 'grid', gap: 'clamp(16px, 2.4vh, 28px)',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 420px), 1fr))',
-          }}>
-            {data.offices.map(office => (
-              <OfficeColumn
-                key={office.label}
-                office={office}
-                elapsedSinceFetch={elapsedSinceFetch}
-              />
-            ))}
-          </div>
-
-          {data.unmatched.length > 0 && (
-            <UnmatchedFooter
-              rows={data.unmatched}
-              elapsedSinceFetch={elapsedSinceFetch}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'clamp(16px, 2.4vh, 26px)' }}>
+          {alertLanes.length > 0 && (
+            <Tier
+              key="alert"
+              label="Needs attention"
+              accent="#f87171"
+              lanes={alertLanes}
+              minColWidth={220}
             />
           )}
-        </>
+          {activeLanes.length > 0 && (
+            <Tier
+              key="active"
+              label="On the floor"
+              accent="#10b981"
+              lanes={activeLanes}
+              minColWidth={220}
+            />
+          )}
+          {awayLanes.length > 0 && (
+            <Tier
+              key="away"
+              label="Away"
+              accent="#94a3b8"
+              lanes={awayLanes}
+              minColWidth={260}
+              compact
+            />
+          )}
+        </div>
       )}
 
       {!data && !error && loading && (
@@ -183,16 +263,14 @@ export default function AgentStatesView({ slug, title, department }: Props) {
   );
 }
 
-// ────────────────────────────────────────────────────────────────────
-//  Header — title + freshness + global status counts
-// ────────────────────────────────────────────────────────────────────
+// ─── Header ─────────────────────────────────────────────────────────────
 
-function Header({ title, department, loading, updatedAt, elapsedSinceFetch }: {
+function Header({ title, department, loading, updatedAt, totalAgents }: {
   title: string; department: string; loading: boolean;
-  updatedAt: string | null; elapsedSinceFetch: number;
+  updatedAt: string | null; totalAgents: number;
 }) {
-  const fresh = useMemo(() => formatFreshness(updatedAt, elapsedSinceFetch), [updatedAt, elapsedSinceFetch]);
   const stale = updatedAt ? (Date.now() - new Date(updatedAt).getTime()) > 60_000 : true;
+  const fresh = formatFreshness(updatedAt);
   return (
     <header style={{ marginBottom: 'clamp(18px, 2.6vh, 30px)' }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap', marginBottom: 8 }}>
@@ -215,10 +293,18 @@ function Header({ title, department, loading, updatedAt, elapsedSinceFetch }: {
         display: 'flex', alignItems: 'flex-end', gap: 14, flexWrap: 'wrap',
         justifyContent: 'space-between',
       }}>
-        <h1 style={{
-          fontSize: 'clamp(22px, 3vw, 38px)', fontWeight: 800,
-          color: '#f1f5f9', lineHeight: 1.1, margin: 0,
-        }}>{title}</h1>
+        <div>
+          <h1 style={{
+            fontSize: 'clamp(22px, 3vw, 38px)', fontWeight: 800,
+            color: '#f1f5f9', lineHeight: 1.1, margin: 0,
+          }}>{title}</h1>
+          <div style={{
+            fontSize: 13, fontWeight: 600, color: '#94a3b8',
+            marginTop: 6, letterSpacing: '0.04em',
+          }}>
+            {totalAgents} {totalAgents === 1 ? 'agent' : 'agents'} signed in
+          </div>
+        </div>
         <div style={{
           display: 'inline-flex', alignItems: 'center', gap: 8,
           padding: '6px 12px', borderRadius: 99,
@@ -240,219 +326,180 @@ function Header({ title, department, loading, updatedAt, elapsedSinceFetch }: {
   );
 }
 
-// ────────────────────────────────────────────────────────────────────
-//  Office column — header strip + agent grid
-// ────────────────────────────────────────────────────────────────────
+// ─── Tier ──────────────────────────────────────────────────────────────
+// A row of status lanes sharing a tier accent + label. Lanes auto-fit
+// to the available width; on mobile they stack one per row.
 
-function OfficeColumn({ office, elapsedSinceFetch }: {
-  office: OfficeBlock; elapsedSinceFetch: number;
+function Tier({ label, accent, lanes, minColWidth, compact = false }: {
+  label:        string;
+  accent:       string;
+  lanes:        { status: string; agents: LiveAgent[] }[];
+  minColWidth:  number;
+  compact?:     boolean;
 }) {
-  // Live time-in-state for sorting + display.
-  const enriched = useMemo(() => office.agents.map(a => ({
-    ...a,
-    livetime: a.time_in_state + elapsedSinceFetch,
-  })), [office.agents, elapsedSinceFetch]);
-
-  // Status tally for the header strip.
-  const counts = useMemo(() => {
-    const m = new Map<string, number>();
-    for (const a of enriched) m.set(a.status, (m.get(a.status) || 0) + 1);
-    return STATUS_ORDER
-      .filter(s => m.has(s))
-      .map(s => ({ status: s, count: m.get(s)! }))
-      .concat(
-        [...m.entries()]
-          .filter(([s]) => !STATUS_ORDER.includes(s))
-          .map(([status, count]) => ({ status, count })),
-      );
-  }, [enriched]);
-
-  // Sort: concerning first, then status-order index, then longest time first.
-  const sorted = useMemo(() => {
-    const idx = (s: string) => {
-      const i = STATUS_ORDER.indexOf(s);
-      return i < 0 ? 999 : i;
-    };
-    return [...enriched].sort((a, b) => {
-      const aLook = STATUS_LOOKUP[a.status] || NEUTRAL;
-      const bLook = STATUS_LOOKUP[b.status] || NEUTRAL;
-      const aConcern = aLook.concern && a.livetime >= (CONCERN_THRESHOLDS[a.status] ?? Infinity);
-      const bConcern = bLook.concern && b.livetime >= (CONCERN_THRESHOLDS[b.status] ?? Infinity);
-      if (aConcern !== bConcern) return aConcern ? -1 : 1;
-      const ai = idx(a.status), bi = idx(b.status);
-      if (ai !== bi) return ai - bi;
-      return b.livetime - a.livetime;
-    });
-  }, [enriched]);
-
+  const total = lanes.reduce((s, l) => s + l.agents.length, 0);
   return (
-    <section style={{
-      borderRadius: 14,
-      border: '1px solid rgba(255,255,255,0.06)',
-      background: 'rgba(20,26,46,0.5)',
-      padding: 'clamp(14px, 2vh, 22px)',
-      display: 'flex', flexDirection: 'column', gap: 14,
-    }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
+    <section>
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 10,
+        marginBottom: 10, padding: '0 2px',
+      }}>
+        <span aria-hidden style={{
+          width: 7, height: 7, borderRadius: 99, background: accent,
+          boxShadow: `0 0 10px ${accent}aa`,
+        }} />
         <h2 style={{
-          fontSize: 'clamp(15px, 1.4vw, 19px)', fontWeight: 800,
-          color: '#f1f5f9', lineHeight: 1, margin: 0,
-        }}>
-          {office.label}
-        </h2>
-        <span style={{ fontSize: 12, fontWeight: 700, color: '#64748b', letterSpacing: '0.08em' }}>
-          {enriched.length} {enriched.length === 1 ? 'agent' : 'agents'}
-        </span>
+          fontSize: 11, fontWeight: 800,
+          color: accent, letterSpacing: '0.22em', textTransform: 'uppercase',
+          margin: 0,
+        }}>{label}</h2>
+        <span style={{
+          color: '#475569', fontWeight: 700, fontSize: 11,
+          padding: '2px 7px', borderRadius: 99,
+          background: 'rgba(255,255,255,0.04)',
+        }}>{total}</span>
       </div>
-
-      {counts.length > 0 && (
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          {counts.map(({ status, count }) => {
-            const look = STATUS_LOOKUP[status] || NEUTRAL;
-            return (
-              <span key={status} style={{
-                display: 'inline-flex', alignItems: 'center', gap: 6,
-                padding: '4px 9px', borderRadius: 99,
-                background: 'rgba(255,255,255,0.03)',
-                border: `1px solid ${look.tint}66`,
-                fontSize: 11, fontWeight: 700,
-                color: look.tint, letterSpacing: '0.04em',
-                whiteSpace: 'nowrap',
-              }}>
-                <span aria-hidden style={{
-                  width: 6, height: 6, borderRadius: 99,
-                  background: look.tint, boxShadow: `0 0 8px ${look.glow}`,
-                }} />
-                {look.label || status} · <strong style={{ color: '#f1f5f9' }}>{count}</strong>
-              </span>
-            );
-          })}
-        </div>
-      )}
-
-      {enriched.length === 0 ? (
-        <div style={{
-          padding: '24px 12px', textAlign: 'center',
-          fontSize: 13, color: '#64748b',
-          background: 'rgba(255,255,255,0.02)',
-          border: '1px dashed rgba(255,255,255,0.08)',
-          borderRadius: 10,
-        }}>
-          No agents from {office.label} are signed into Noetica right now.
-        </div>
-      ) : (
-        <div style={{
-          display: 'grid', gap: 10,
-          gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 220px), 1fr))',
-        }}>
-          {sorted.map(a => (
-            <AgentTile key={a.name} agent={a} livetime={a.livetime} />
-          ))}
-        </div>
-      )}
+      <div style={{
+        display: 'grid', gap: 10,
+        gridTemplateColumns: `repeat(auto-fit, minmax(min(100%, ${minColWidth}px), 1fr))`,
+        alignItems: 'flex-start',
+      }}>
+        {lanes.map(lane => (
+          <Lane key={lane.status} lane={lane} compact={compact} />
+        ))}
+      </div>
     </section>
   );
 }
 
-// ────────────────────────────────────────────────────────────────────
-//  Agent tile — name + status pill + time-in-state, optional alert rim
-// ────────────────────────────────────────────────────────────────────
+// ─── Lane ──────────────────────────────────────────────────────────────
+// One status column. Header shows the status + count, tinted with the
+// status accent. Body lists agents (full tiles for active/alert tiers,
+// compact name rows for the away tier).
 
-function AgentTile({ agent, livetime }: { agent: AgentRow & { livetime: number }; livetime: number }) {
-  const look = STATUS_LOOKUP[agent.status] || NEUTRAL;
-  const threshold = CONCERN_THRESHOLDS[agent.status];
-  const overThreshold = look.concern && threshold != null && livetime >= threshold;
-
-  const rimColor = overThreshold ? '#f87171'
-                : look.concern   ? `${look.tint}80`
-                :                  'rgba(255,255,255,0.08)';
-
+function Lane({ lane, compact }: {
+  lane: { status: string; agents: LiveAgent[] }; compact: boolean;
+}) {
+  const meta = STATUS_META[lane.status] || NEUTRAL_META;
   return (
     <div style={{
-      borderRadius: 11, padding: '10px 12px',
-      background: 'rgba(14,20,39,0.7)',
-      border: `1px solid ${rimColor}`,
-      boxShadow: overThreshold ? `0 0 18px rgba(248,113,113,0.25)` : undefined,
-      display: 'flex', flexDirection: 'column', gap: 6,
-      transition: 'border-color 0.2s ease, box-shadow 0.2s ease',
+      borderRadius: 12,
+      border: `1px solid ${meta.tint}55`,
+      background: `linear-gradient(180deg, ${meta.tint}10 0%, rgba(20,26,46,0.5) 60%)`,
+      padding: 'clamp(10px, 1.4vh, 14px) 12px',
+      display: 'flex', flexDirection: 'column', gap: 8,
     }}>
       <div style={{
-        fontSize: 13, fontWeight: 700, color: '#f1f5f9', lineHeight: 1.25,
-        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+        display: 'flex', alignItems: 'baseline', gap: 8,
+        paddingBottom: 6,
+        borderBottom: `1px solid ${meta.tint}33`,
       }}>
-        {agent.name}
+        <span aria-hidden style={{
+          width: 7, height: 7, borderRadius: 99,
+          background: meta.tint, boxShadow: `0 0 8px ${meta.glow}`,
+          alignSelf: 'center',
+        }} />
+        <span style={{
+          fontSize: 12, fontWeight: 800, color: meta.tint,
+          letterSpacing: '0.1em', textTransform: 'uppercase',
+        }}>{meta.label}</span>
+        <span style={{
+          fontSize: 13, fontWeight: 800, color: '#f1f5f9',
+          marginLeft: 'auto', fontVariantNumeric: 'tabular-nums',
+        }}>{lane.agents.length}</span>
       </div>
-      <div style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        gap: 8,
-      }}>
-        <span style={{
-          display: 'inline-flex', alignItems: 'center', gap: 5,
-          padding: '3px 8px', borderRadius: 99,
-          background: `${look.tint}1f`,
-          border: `1px solid ${look.tint}66`,
-          fontSize: 10.5, fontWeight: 800,
-          color: look.tint, letterSpacing: '0.04em',
-          whiteSpace: 'nowrap',
-        }}>
-          <span aria-hidden style={{
-            width: 6, height: 6, borderRadius: 99,
-            background: look.tint, boxShadow: `0 0 6px ${look.glow}`,
-          }} />
-          {look.label || agent.status}
-        </span>
-        <span style={{
-          fontSize: 11, fontWeight: 700,
-          fontVariantNumeric: 'tabular-nums',
-          color: overThreshold ? '#fca5a5' : '#94a3b8',
-          textShadow: overThreshold ? '0 0 8px rgba(248,113,113,0.4)' : undefined,
-        }}>
-          {formatDuration(livetime)}
-        </span>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: compact ? 4 : 6 }}>
+        {lane.agents.map(a =>
+          compact
+            ? <CompactRow key={a.name + a.office} agent={a} />
+            : <Tile       key={a.name + a.office} agent={a} accent={meta.tint} />
+        )}
       </div>
     </div>
   );
 }
 
-// ────────────────────────────────────────────────────────────────────
-//  Footer — agents in the dataset who didn't match either roster.
-//  Surfaces silently so a Noetica/Gecko spelling drift doesn't hide
-//  agents from the board for weeks before someone notices.
-// ────────────────────────────────────────────────────────────────────
+// ─── Tile (active / alert tiers) ───────────────────────────────────────
 
-function UnmatchedFooter({ rows, elapsedSinceFetch }: {
-  rows: AgentRow[]; elapsedSinceFetch: number;
-}) {
+function Tile({ agent, accent }: { agent: LiveAgent; accent: string }) {
+  const rim = agent.concern ? '#f87171' : `${accent}33`;
   return (
-    <details style={{
-      marginTop: 22,
-      borderRadius: 12,
-      border: '1px solid rgba(251,191,36,0.3)',
-      background: 'rgba(251,191,36,0.06)',
-      padding: '10px 14px',
+    <div style={{
+      borderRadius: 9, padding: '8px 10px',
+      background: 'rgba(14,20,39,0.72)',
+      border: `1px solid ${rim}`,
+      boxShadow: agent.concern ? `0 0 16px rgba(248,113,113,0.22)` : undefined,
+      display: 'flex', alignItems: 'center', gap: 8,
+      transition: 'border-color 0.2s ease, box-shadow 0.2s ease',
     }}>
-      <summary style={{
-        cursor: 'pointer', fontSize: 12, fontWeight: 700,
-        color: '#fcd34d', letterSpacing: '0.06em',
+      <OfficeChip office={agent.office} />
+      <span style={{
+        flex: 1, minWidth: 0,
+        fontSize: 13, fontWeight: 700, color: '#f1f5f9',
+        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
       }}>
-        ⚠ {rows.length} {rows.length === 1 ? 'agent' : 'agents'} not matched to a roster
-      </summary>
-      <div style={{ display: 'grid', gap: 6, marginTop: 10, gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 220px), 1fr))' }}>
-        {rows.map(a => (
-          <AgentTile
-            key={a.name}
-            agent={{ ...a, livetime: a.time_in_state + elapsedSinceFetch }}
-            livetime={a.time_in_state + elapsedSinceFetch}
-          />
-        ))}
-      </div>
-    </details>
+        {agent.name}
+      </span>
+      <span style={{
+        flexShrink: 0,
+        fontSize: 11, fontWeight: 700,
+        fontVariantNumeric: 'tabular-nums',
+        color: agent.concern ? '#fca5a5' : '#94a3b8',
+        textShadow: agent.concern ? '0 0 6px rgba(248,113,113,0.4)' : undefined,
+      }}>
+        {formatDuration(agent.livetime)}
+      </span>
+    </div>
   );
 }
 
-// ────────────────────────────────────────────────────────────────────
-//  Helpers
-// ────────────────────────────────────────────────────────────────────
+// ─── Compact row (away tier — names only, less ink) ─────────────────────
+
+function CompactRow({ agent }: { agent: LiveAgent }) {
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 8,
+      padding: '4px 6px',
+      fontSize: 12, color: '#cbd5e1',
+    }}>
+      <OfficeChip office={agent.office} compact />
+      <span style={{
+        flex: 1, minWidth: 0,
+        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+      }}>{agent.name}</span>
+      <span style={{
+        fontSize: 11, color: '#64748b',
+        fontVariantNumeric: 'tabular-nums',
+      }}>
+        {formatDuration(agent.livetime)}
+      </span>
+    </div>
+  );
+}
+
+// ─── Office chip — single letter pill so the source still reads at a
+// glance without claiming a layout column. Drift / unmatched agents get
+// '?' in muted grey so they're visible but not alarming.
+
+function OfficeChip({ office, compact = false }: { office: string | null; compact?: boolean }) {
+  const letter = office ? office[0].toUpperCase() : '?';
+  const tint = office === 'London'    ? { fg: '#a5b4fc', bg: 'rgba(99,102,241,0.18)',  border: 'rgba(99,102,241,0.4)'  }
+            : office === 'Guildford'  ? { fg: '#7dd3fc', bg: 'rgba(56,189,248,0.18)',  border: 'rgba(56,189,248,0.4)'  }
+            :                           { fg: '#94a3b8', bg: 'rgba(148,163,184,0.12)', border: 'rgba(148,163,184,0.3)' };
+  const sz = compact ? 16 : 18;
+  return (
+    <span aria-label={office ? `Office: ${office}` : 'Office unknown'} title={office || 'Unmatched'} style={{
+      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+      width: sz, height: sz, borderRadius: 5,
+      background: tint.bg, border: `1px solid ${tint.border}`,
+      color: tint.fg, fontSize: 9, fontWeight: 800,
+      letterSpacing: 0, flexShrink: 0,
+    }}>{letter}</span>
+  );
+}
+
+// ─── Helpers ───────────────────────────────────────────────────────────
 
 function formatDuration(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds < 0) return '—';
@@ -466,7 +513,7 @@ function formatDuration(seconds: number): string {
   return `${h}h ${mr.toString().padStart(2, '0')}m`;
 }
 
-function formatFreshness(updatedAt: string | null, _elapsed: number): string {
+function formatFreshness(updatedAt: string | null): string {
   if (!updatedAt) return 'no data';
   const ms = Date.now() - new Date(updatedAt).getTime();
   if (!Number.isFinite(ms) || ms < 0) return 'just now';
