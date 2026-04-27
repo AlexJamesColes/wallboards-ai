@@ -1280,7 +1280,7 @@ function Podium({ rows, cols, isMobile, deltas }: { rows: Row[]; cols: ColMap; i
   return (
     <div style={{
       flex: '0 0 auto', display: 'flex', alignItems: 'stretch', justifyContent: 'center',
-      gap: 'clamp(14px, 1.6vw, 32px)', padding: 'clamp(12px, 1.6vh, 22px) clamp(20px, 3vw, 60px) 0',
+      gap: 'clamp(12px, 1.4vw, 26px)', padding: 'clamp(8px, 1.2vh, 18px) clamp(20px, 3vw, 60px) 0',
       position: 'relative', zIndex: 1,
     }}>
       {arranged.map(({ row, rank }) => (
@@ -1339,8 +1339,8 @@ function PodiumCard({ row, rank, cols, isMobile, fullWidth, deltas }: {
       height: 'auto',
       background: 'linear-gradient(180deg, rgba(26,33,54,0.85) 0%, rgba(14,20,39,0.85) 100%)',
       border: `2px solid ${tier.ring}`,
-      borderRadius: isMobile ? 14 : 18,
-      padding: isMobile ? '12px 14px' : 'clamp(10px, 1.1vh, 16px) clamp(12px, 1.4vw, 22px)',
+      borderRadius: isMobile ? 14 : 16,
+      padding: isMobile ? '12px 14px' : 'clamp(8px, 0.9vh, 13px) clamp(10px, 1.2vw, 18px)',
       boxShadow: `0 0 ${isMobile ? 30 : 60}px ${tier.ringGlow}, 0 ${isMobile ? 8 : 14}px ${isMobile ? 24 : 40}px rgba(0,0,0,0.55)`,
       backdropFilter: 'blur(14px)',
       display: isMobile ? 'flex' : 'grid',
@@ -1367,15 +1367,15 @@ function PodiumCard({ row, rank, cols, isMobile, fullWidth, deltas }: {
         <div style={{ position: 'relative', flexShrink: 0 }}>
           <Avatar
             name={name}
-            size={isMobile ? `${mobileSize.avatar}px` : (rank === 1 ? 'clamp(48px, 5vw, 78px)' : 'clamp(42px, 4.4vw, 66px)')}
+            size={isMobile ? `${mobileSize.avatar}px` : (rank === 1 ? 'clamp(40px, 4.2vw, 64px)' : 'clamp(34px, 3.6vw, 54px)')}
             gradient={grad}
           />
-          {online && <OnlineDot size={rank === 1 ? 'clamp(13px, 1.2vw, 18px)' : 'clamp(11px, 1vw, 15px)'} />}
+          {online && <OnlineDot size={rank === 1 ? 'clamp(11px, 1vw, 15px)' : 'clamp(10px, 0.9vw, 13px)'} />}
         </div>
         <div style={{
-          fontSize: isMobile ? mobileSize.label : 'clamp(11px, 1vw, 18px)', fontWeight: 900,
+          fontSize: isMobile ? mobileSize.label : 'clamp(10px, 0.9vw, 15px)', fontWeight: 900,
           letterSpacing: '0.3em', color: tier.labelColor,
-          textShadow: `0 0 18px ${tier.ringGlow}`,
+          textShadow: `0 0 14px ${tier.ringGlow}`,
           whiteSpace: 'nowrap',
         }}>{tier.label}</div>
       </div>
@@ -1384,7 +1384,7 @@ function PodiumCard({ row, rank, cols, isMobile, fullWidth, deltas }: {
       <div style={{
         fontSize: isMobile
           ? mobileSize.name
-          : (rank === 1 ? 'clamp(20px, 2.1vw, 34px)' : 'clamp(17px, 1.8vw, 28px)'),
+          : (rank === 1 ? 'clamp(17px, 1.8vw, 28px)' : 'clamp(14px, 1.5vw, 23px)'),
         fontWeight: 900, color: '#f1f5f9',
         textShadow: '0 4px 20px rgba(0,0,0,0.5)', lineHeight: 1.1,
         maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
@@ -1396,9 +1396,9 @@ function PodiumCard({ row, rank, cols, isMobile, fullWidth, deltas }: {
         <div style={{
           fontSize: isMobile
             ? mobileSize.money
-            : (rank === 1 ? 'clamp(28px, 3.4vw, 60px)' : 'clamp(24px, 2.8vw, 44px)'),
+            : (rank === 1 ? 'clamp(24px, 2.9vw, 50px)' : 'clamp(20px, 2.4vw, 38px)'),
           fontWeight: 900, color: '#fde68a',
-          textShadow: '0 0 30px rgba(251,191,36,0.35)',
+          textShadow: '0 0 26px rgba(251,191,36,0.35)',
           fontVariantNumeric: 'tabular-nums', lineHeight: 1,
         }}>{formatMoney(incomeMtd)}</div>
         <div style={{
@@ -1446,11 +1446,11 @@ function PodiumCard({ row, rank, cols, isMobile, fullWidth, deltas }: {
             return (
               <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
                 <span style={{
-                  fontSize: isMobile ? mobileSize.emoji : 'clamp(16px, 1.7vw, 28px)',
+                  fontSize: isMobile ? mobileSize.emoji : 'clamp(14px, 1.4vw, 22px)',
                 }}>{e}</span>
                 {label && (
                   <span style={{
-                    fontSize: isMobile ? 10 : 'clamp(9px, 0.8vw, 12px)',
+                    fontSize: isMobile ? 10 : 'clamp(8px, 0.7vw, 11px)',
                     color: '#94a3b8', fontWeight: 600,
                     whiteSpace: 'nowrap',
                   }}>{label}</span>
@@ -1544,11 +1544,11 @@ function Stat({ label, value, valueSize, labelSize }: {
   return (
     <div>
       <div style={{
-        fontSize: valueSize ?? 'clamp(14px, 1.4vw, 22px)',
+        fontSize: valueSize ?? 'clamp(12px, 1.2vw, 19px)',
         fontWeight: 800, color: '#e2e8f0', fontVariantNumeric: 'tabular-nums',
       }}>{value}</div>
       <div style={{
-        fontSize: labelSize ?? 'clamp(9px, 0.8vw, 12px)',
+        fontSize: labelSize ?? 'clamp(8px, 0.7vw, 11px)',
         color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.1em',
       }}>{label}</div>
     </div>
