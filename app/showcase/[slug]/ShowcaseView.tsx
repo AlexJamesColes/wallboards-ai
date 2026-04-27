@@ -284,7 +284,7 @@ export default function ShowcaseView({ board, slug, defaultTarget }: Props) {
   const isMobile              = useIsMobile();
   useAutoReloadOnDeploy();
   useAutoFullscreenOnFirstGesture();
-  useAutoFullscreenAfterIdle(120_000);
+  useAutoFullscreenAfterIdle(30_000);
 
   // Poll /api/alerts for anything IT has pushed (Teams webhook forwards etc.)
   // and prepend them to the ticker as they arrive. Much shorter interval
