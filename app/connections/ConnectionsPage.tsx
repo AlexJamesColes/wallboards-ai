@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import BrowseHeader from '../_browse/BrowseHeader';
 
 interface Health { ok: boolean; error: string | null; }
@@ -156,13 +157,24 @@ function NoeticaCard({ health, loading }: { health: NoeticaHealth | undefined; l
 }
 
 function DatasetChips({ names }: { names: string[] }) {
+  // Each chip links to /datasets/<name> — the test board view of
+  // whatever's stored under that key. Useful for verifying a Noetica
+  // (or any other webhook) push has actually landed.
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
       {names.map(n => (
-        <code key={n} style={{
-          ...codeStyle,
-          padding: '4px 8px', fontSize: 11, color: '#cbd5e1',
-        }}>{n}</code>
+        <Link
+          key={n}
+          href={`/datasets/${encodeURIComponent(n)}`}
+          style={{
+            ...codeStyle,
+            padding: '4px 8px', fontSize: 11, color: '#cbd5e1',
+            textDecoration: 'none',
+            transition: 'border-color 0.15s ease, color 0.15s ease',
+          }}
+          onMouseOver={e => { e.currentTarget.style.borderColor = 'rgba(99,102,241,0.55)'; e.currentTarget.style.color = '#f1f5f9'; }}
+          onMouseOut={e => { e.currentTarget.style.borderColor = 'rgba(99,102,241,0.22)'; e.currentTarget.style.color = '#cbd5e1'; }}
+        >{n} →</Link>
       ))}
     </div>
   );
