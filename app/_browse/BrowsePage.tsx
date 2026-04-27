@@ -15,6 +15,11 @@ interface PublicBoard {
 
 type Mode = 'desktop' | 'mobile';
 
+/** Viewport threshold below which a board opens in mobile mode. Matches
+ *  the breakpoint used by wb-mobile-sticky-top in globals.css so the
+ *  browse page chrome and the chosen wallboard layout flip together. */
+const MOBILE_MAX_WIDTH = 768;
+
 const DEPT_ORDER  = ['Sales', 'Renewals', 'Operations', 'Beta', 'Other'];
 const RECENT_KEY  = 'wb-recent-boards-v1';
 const ADMIN_KEY_STORAGE = 'wb-admin-key-v1';
@@ -35,12 +40,16 @@ export default function BrowsePage() {
   const [adminKey, setAdminKey] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<PublicBoard | null>(null);
 
-  // First-paint defaults: localStorage > device size > desktop
+  // Mode is derived from the device, not the user. Phones get the mobile
+  // layout, everything else gets desktop. Live-listening to the media
+  // query means rotating an iPad or resizing a window keeps the link
+  // target in sync — useful when QA'ing on a desktop browser.
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const stored = window.localStorage.getItem('wb-mode');
-    if (stored === 'mobile' || stored === 'desktop') setMode(stored);
-    else if (window.matchMedia('(max-width: 640px)').matches) setMode('mobile');
+    const mq = window.matchMedia(`(max-width: ${MOBILE_MAX_WIDTH}px)`);
+    const apply = () => setMode(mq.matches ? 'mobile' : 'desktop');
+    apply();
+    mq.addEventListener('change', apply);
 
     try {
       const raw = window.localStorage.getItem(RECENT_KEY);
@@ -62,11 +71,9 @@ export default function BrowsePage() {
       const stashed = window.localStorage.getItem(ADMIN_KEY_STORAGE);
       if (stashed) setAdminKey(stashed);
     }
-  }, []);
 
-  useEffect(() => {
-    if (typeof window !== 'undefined') window.localStorage.setItem('wb-mode', mode);
-  }, [mode]);
+    return () => mq.removeEventListener('change', apply);
+  }, []);
 
   const loadBoards = useCallback(() => {
     fetch('/api/boards/public', { cache: 'no-store' })
@@ -187,19 +194,14 @@ export default function BrowsePage() {
       padding: 'clamp(24px, 5vh, 64px) clamp(16px, 4vw, 48px)',
     }}>
       <BrowseHeader
-        right={
-          <div style={{ display: 'inline-flex', gap: 10, alignItems: 'center' }}>
-            {isAdmin && <AdminBadge onExit={exitAdmin} />}
-            <ModeToggle value={mode} onChange={setMode} />
-          </div>
-        }
+        right={isAdmin ? <AdminBadge onExit={exitAdmin} /> : undefined}
       />
 
       <h1 className="wb-page-lead" style={{ fontSize: 'clamp(22px, 2.6vw, 34px)', fontWeight: 800, color: '#f1f5f9', marginBottom: 4 }}>
         Pick a wallboard
       </h1>
       <p className="wb-page-sub" style={{ fontSize: 'clamp(13px, 1vw, 16px)', color: '#94a3b8', marginBottom: 20 }}>
-        Live boards across the floor — opening in <strong style={{ color: '#a5b4fc' }}>{mode === 'mobile' ? 'mobile' : 'desktop'}</strong> mode.
+        Live boards across the floor — tap one to open.
       </p>
 
       {/* Search — flows in normal page order. Used to be sticky too,
@@ -370,40 +372,6 @@ function SectionHeader({ label, accent, count, collapsed, onToggle, disabled }: 
         }}>▼</span>
       )}
     </Tag>
-  );
-}
-
-function ModeToggle({ value, onChange }: { value: Mode; onChange: (m: Mode) => void }) {
-  return (
-    <div style={{
-      display: 'inline-flex', padding: 4, borderRadius: 99,
-      background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)',
-      gap: 4,
-    }}>
-      <ModeButton current={value} mine="desktop" label="Desktop" icon="🖥️" onClick={() => onChange('desktop')} />
-      <ModeButton current={value} mine="mobile"  label="Mobile"  icon="📱" onClick={() => onChange('mobile')} />
-    </div>
-  );
-}
-
-function ModeButton({ current, mine, label, icon, onClick }: {
-  current: Mode; mine: Mode; label: string; icon: string; onClick: () => void;
-}) {
-  const active = current === mine;
-  return (
-    <button onClick={onClick} aria-pressed={active} style={{
-      display: 'inline-flex', alignItems: 'center', gap: 6,
-      padding: '6px 14px', borderRadius: 99,
-      background: active ? 'linear-gradient(135deg, rgba(99,102,241,0.4) 0%, rgba(168,85,247,0.3) 100%)' : 'transparent',
-      border: 'none',
-      color: active ? '#f1f5f9' : '#94a3b8',
-      fontSize: 12, fontWeight: 700, cursor: 'pointer',
-      letterSpacing: '0.04em', transition: 'all 0.15s ease',
-      fontFamily: 'inherit',
-      boxShadow: active ? '0 4px 18px rgba(99,102,241,0.3)' : undefined,
-    }}>
-      <span style={{ fontSize: 14 }}>{icon}</span> {label}
-    </button>
   );
 }
 
