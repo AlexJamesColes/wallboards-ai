@@ -412,16 +412,21 @@ export default function ShowcaseView({ board, slug, defaultTarget }: Props) {
           });
         }
 
-        // Ticker — high-fidelity "deal landed" event whenever we know
-        // the policy ref. Always wins over the legacy "just added £X"
-        // milestone line (covered below) because the ref + agent + £
-        // is what the floor actually wants to read.
-        if (newDealRef && incomeDelta > 0) {
+        // Ticker — fires for every income increase ≥ £1 so the
+        // "Latest Deal" strip actually shows life. With a policy ref
+        // we surface it ("Joe · D12345-1 · +£300"); without a ref
+        // we fall back to a name-and-amount line ("Joe just earned
+        // +£300"). Previously the ticker required a ref change OR a
+        // ≥£1k jump, which on boards without the ref column meant
+        // the strip stayed at "WAITING FOR THE NEXT BOOKING" forever.
+        if (incomeDelta >= 1) {
           newItems.push({
-            id:    `${key}-deal-${newDealRef}-${now}`,
+            id:    `${key}-deal-${cur.income}-${now}`,
             kind:  'milestone',
             emoji: '💸',
-            text:  `${displayName} · ${newDealRef} · +${formatMoney(incomeDelta)}`,
+            text:  newDealRef
+              ? `${displayName} · ${newDealRef} · +${formatMoney(incomeDelta)}`
+              : `${displayName} just earned +${formatMoney(incomeDelta)}`,
             at:    now,
           });
         }
@@ -462,19 +467,6 @@ export default function ShowcaseView({ board, slug, defaultTarget }: Props) {
             kind: 'first-policy',
             emoji: '🎊',
             text: `${displayName} opened today — first policy!`,
-            at: now,
-          });
-        }
-        // Big income jump (£1k+) — fallback when we don't have a ref
-        // for the deal (boards that haven't added the policy_ref column
-        // yet). Skipped if the deal event above already covered it so
-        // the same booking doesn't fire two ticker lines.
-        if (!newDealRef && cur.income - was.income >= 1000) {
-          newItems.push({
-            id: `${key}-jump-${cur.income}-${now}`,
-            kind: 'milestone',
-            emoji: '💰',
-            text: `${displayName} just added ${formatMoney(cur.income - was.income)}`,
             at: now,
           });
         }
