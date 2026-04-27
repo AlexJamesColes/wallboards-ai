@@ -44,7 +44,7 @@ export default function BrowseHeader({ right }: { right?: ReactNode }) {
               display: 'flex', alignItems: 'center', gap: 12, minWidth: 0,
             }}>
               <ShieldMark />
-              <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.01em', lineHeight: 1, whiteSpace: 'nowrap' }}>
+              <div style={{ fontSize: 20, fontWeight: 800, letterSpacing: '-0.005em', lineHeight: 1, whiteSpace: 'nowrap' }}>
                 <span style={{ color: '#f1f5f9' }}>Insure</span>
                 <span style={{ color: '#38bdf8' }}>Tec</span>
               </div>
@@ -185,32 +185,39 @@ function UserAvatar() {
   );
 }
 
-/** Shield + checkmark mark mirroring the InsureTec dashboard logo. */
+/** Shield mark — pixel-matches the InsureTec dashboard logo: a rounded
+ *  square chip with an indigo→cyan gradient fill, a soft cyan halo,
+ *  and the white shield-check glyph centred inside. */
 function ShieldMark() {
   return (
-    <svg width="32" height="32" viewBox="0 0 32 32" fill="none" aria-hidden style={{ flexShrink: 0 }}>
-      <defs>
-        <linearGradient id="wb-shield-grad" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%"   stopColor="#6366f1" />
-          <stop offset="100%" stopColor="#38bdf8" />
-        </linearGradient>
-      </defs>
-      <path
-        d="M16 3 L26 7 V15 C26 22 16 28 16 28 C16 28 6 22 6 15 V7 Z"
-        fill="url(#wb-shield-grad)"
-        fillOpacity="0.16"
-        stroke="url(#wb-shield-grad)"
-        strokeWidth="1.8"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M11 16 L14.5 19.5 L21 12.5"
-        stroke="#38bdf8"
-        strokeWidth="2.4"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        fill="none"
-      />
-    </svg>
+    <div
+      aria-hidden
+      style={{
+        width: 36, height: 36, borderRadius: 10,
+        background: 'linear-gradient(135deg, rgba(99,102,241,0.22) 0%, rgba(56,189,248,0.22) 100%)',
+        border: '1px solid rgba(56,189,248,0.35)',
+        boxShadow: '0 0 18px rgba(56,189,248,0.22)',
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+        flexShrink: 0,
+      }}
+    >
+      <svg width="22" height="22" viewBox="0 0 32 32" fill="none">
+        <path
+          d="M16 3 L26 7 V15 C26 22 16 28 16 28 C16 28 6 22 6 15 V7 Z"
+          fill="none"
+          stroke="#7dd3fc"
+          strokeWidth="2"
+          strokeLinejoin="round"
+        />
+        <path
+          d="M11 16 L14.5 19.5 L21 12.5"
+          stroke="#7dd3fc"
+          strokeWidth="2.4"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          fill="none"
+        />
+      </svg>
+    </div>
   );
 }
