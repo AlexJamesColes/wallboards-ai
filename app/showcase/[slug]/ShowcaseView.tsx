@@ -121,9 +121,12 @@ interface CardDelta {
   policyRef?: string;
 }
 
-/** How long a delta badge / glow stays on screen. Match wb-delta-rise +
- *  wb-card-pulse-* durations in globals.css. */
-const DELTA_TTL_MS = 4_000;
+/** How long a delta badge / glow stays on screen. Long enough to
+ *  notice from across the room — the keyframes (wb-delta-rise / sink
+ *  in globals.css) spend the bulk of the duration floating with full
+ *  opacity rather than rising and fading. Match this constant against
+ *  the keyframes' total cycle and the wb-card-pulse-* durations. */
+const DELTA_TTL_MS = 7_000;
 
 /** Same name normalisation used for the snapshot map and delta lookups —
  *  emoji-stripped, lowercase, single-space trimmed so "Joe Bloggs 🍪"

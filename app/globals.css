@@ -92,23 +92,25 @@ input, select, textarea, button { font-family: inherit; }
   100% { color: inherit; text-shadow: none; }
 }
 
-/* Floating "+£X" badge — drifts up + fades when an agent's income rises.
-   Silent: no audio cue, just an ambient "money in the air" feel. */
+/* Floating "+£X" badge — pops in, settles just above the card, dwells
+   in view for most of the cycle so the floor actually catches it from
+   across the room, then fades up. With DELTA_TTL_MS at 7s the chip
+   is fully visible for ~5 seconds. */
 @keyframes wb-delta-rise {
   0%   { opacity: 0; transform: translateY(0)    scale(0.7); }
-  15%  { opacity: 1; transform: translateY(-6px) scale(1.08); }
-  30%  { opacity: 1; transform: translateY(-12px) scale(1); }
-  85%  { opacity: 1; transform: translateY(-36px) scale(1); }
-  100% { opacity: 0; transform: translateY(-50px) scale(0.95); }
+  6%   { opacity: 1; transform: translateY(-6px) scale(1.12); }
+  14%  { opacity: 1; transform: translateY(-14px) scale(1); }
+  88%  { opacity: 1; transform: translateY(-20px) scale(1); }
+  100% { opacity: 0; transform: translateY(-34px) scale(0.95); }
 }
 
 /* Falling "−£X" badge — counterpart for drops / refunds / cancellations */
 @keyframes wb-delta-sink {
   0%   { opacity: 0; transform: translateY(0)    scale(0.7); }
-  15%  { opacity: 1; transform: translateY(6px)  scale(1.08); }
-  30%  { opacity: 1; transform: translateY(12px) scale(1); }
-  85%  { opacity: 1; transform: translateY(36px) scale(1); }
-  100% { opacity: 0; transform: translateY(50px) scale(0.95); }
+  6%   { opacity: 1; transform: translateY(6px)  scale(1.12); }
+  14%  { opacity: 1; transform: translateY(14px) scale(1); }
+  88%  { opacity: 1; transform: translateY(20px) scale(1); }
+  100% { opacity: 0; transform: translateY(34px) scale(0.95); }
 }
 
 /* Quick green glow on a card whose agent just earned */
