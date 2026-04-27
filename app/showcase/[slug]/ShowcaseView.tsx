@@ -617,6 +617,12 @@ export default function ShowcaseView({ board, slug, defaultTarget }: Props) {
         {/*    Latest deal on the left, OCBL/BISL stock-style ticker on
                 the right. Stacks on mobile so each strip stays readable. */}
         <BottomToolbar items={tickerItems} isMobile={isMobile} />
+
+        {/* ── Fullscreen toggle ───────────────────────────────────── */}
+        {/*    Subtle bottom-right button — one tap on a Samsung TV
+                remote is enough to enter true fullscreen and hide the
+                browser's URL bar. */}
+        <FullscreenToggle />
       </div>
     </CelebrationProvider>
     </ZoomWrap>
@@ -2071,6 +2077,82 @@ function ActivityTicker({ items }: { items: TickerItem[] }) {
         <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{item.text}</span>
       </div>
     </div>
+  );
+}
+
+// ────────────────────────────────────────────────────────────────────────
+//  Fullscreen toggle — for the TV walls
+// ────────────────────────────────────────────────────────────────────────
+
+/**
+ * Tiny corner button that requests browser fullscreen via the Fullscreen
+ * API. Most useful on the Samsung Tizen TVs in the office: one click
+ * with the remote hides the URL bar and the title chrome, reclaiming the
+ * top ~80px of the screen.
+ *
+ * On platforms where the page was launched via "Add to Home Screen"
+ * (the PWA path — see app/manifest.ts) the button is redundant; the
+ * launcher already opens without browser chrome. Hides itself when the
+ * Fullscreen API isn't available so phones / older browsers don't see a
+ * dead button.
+ */
+function FullscreenToggle() {
+  const [supported, setSupported] = useState(false);
+  const [isFs, setIsFs] = useState(false);
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    setSupported(!!document.documentElement.requestFullscreen);
+    const onChange = () => setIsFs(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', onChange);
+    onChange();
+    return () => document.removeEventListener('fullscreenchange', onChange);
+  }, []);
+
+  if (!supported) return null;
+
+  const toggle = async () => {
+    try {
+      if (document.fullscreenElement) {
+        await document.exitFullscreen();
+      } else {
+        await document.documentElement.requestFullscreen({ navigationUI: 'hide' });
+      }
+    } catch {
+      /* user dismissed / not allowed — silently ignore */
+    }
+  };
+
+  return (
+    <button
+      onClick={toggle}
+      aria-label={isFs ? 'Exit fullscreen' : 'Enter fullscreen'}
+      title={isFs ? 'Exit fullscreen' : 'Enter fullscreen'}
+      style={{
+        position: 'fixed', bottom: 'clamp(12px, 1.5vh, 22px)', right: 'clamp(12px, 1.5vw, 22px)',
+        zIndex: 50,
+        width: 36, height: 36, borderRadius: 10,
+        background: 'rgba(10,15,28,0.7)',
+        border: '1px solid rgba(255,255,255,0.1)',
+        backdropFilter: 'blur(8px)',
+        color: '#94a3b8', cursor: 'pointer',
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+        opacity: 0.55, transition: 'opacity 0.15s ease, color 0.15s ease',
+        fontFamily: 'inherit',
+      }}
+      onMouseEnter={e => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.color = '#f1f5f9'; }}
+      onMouseLeave={e => { e.currentTarget.style.opacity = '0.55'; e.currentTarget.style.color = '#94a3b8'; }}
+    >
+      {isFs ? (
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <path d="M9 9 H4 M9 9 V4 M15 9 H20 M15 9 V4 M9 15 H4 M9 15 V20 M15 15 H20 M15 15 V20" />
+        </svg>
+      ) : (
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <path d="M4 9 V4 H9 M20 9 V4 H15 M4 15 V20 H9 M20 15 V20 H15" />
+        </svg>
+      )}
+    </button>
   );
 }
 
