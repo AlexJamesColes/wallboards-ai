@@ -18,13 +18,6 @@ html, body { overscroll-behavior-y: contain; }
    `cursor: pointer` on buttons and links. */
 html.wb-cursor-hidden, html.wb-cursor-hidden * { cursor: none !important; }
 
-/* Corner navigation affordances (back button, etc.) ride the same
-   idle timer as the cursor — fade out together so a wallboard sat
-   showing the data isn't cluttered with chrome, fade back in the
-   moment someone reaches for the remote. */
-.wb-corner-nav { opacity: 0.92; pointer-events: auto; }
-html.wb-cursor-hidden .wb-corner-nav { opacity: 0; pointer-events: none; }
-
 /* Utility — hide native scrollbars on a horizontally-scrolling row
    (Today's Earn pills on mobile). Content is still scrollable, just
    without the visual track so the row reads as a clean strip. */
