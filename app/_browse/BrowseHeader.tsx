@@ -27,36 +27,42 @@ export default function BrowseHeader({ right }: { right?: ReactNode }) {
   ];
 
   return (
-    <div className="wb-mobile-sticky-top" style={{ marginBottom: 26 }}>
-      {/* ── Top row — identical to the dashboard ────────────────── */}
-      <div style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        gap: 16, marginBottom: 14,
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
-          {pathname !== '/' && <BrowseBackButton />}
-          <Link href="/" style={{
-            textDecoration: 'none', color: 'inherit',
-            display: 'flex', alignItems: 'center', gap: 12, minWidth: 0,
-          }}>
-            <ShieldMark />
-            <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.01em', lineHeight: 1, whiteSpace: 'nowrap' }}>
-              <span style={{ color: '#f1f5f9' }}>Insure</span>
-              <span style={{ color: '#38bdf8' }}>Tec</span>
-            </div>
-          </Link>
-        </div>
+    <>
+      {/* ── Brand strip — dark navy bar matching the dashboard ─────
+          Bleeds full-width past the page padding (matches the
+          dashboard's top chrome) and sticks to the top of the
+          viewport on mobile. */}
+      <div className="wb-brand-strip wb-mobile-sticky-top">
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          gap: 16,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+            {pathname !== '/' && <BrowseBackButton />}
+            <Link href="/" style={{
+              textDecoration: 'none', color: 'inherit',
+              display: 'flex', alignItems: 'center', gap: 12, minWidth: 0,
+            }}>
+              <ShieldMark />
+              <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.01em', lineHeight: 1, whiteSpace: 'nowrap' }}>
+                <span style={{ color: '#f1f5f9' }}>Insure</span>
+                <span style={{ color: '#38bdf8' }}>Tec</span>
+              </div>
+            </Link>
+          </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-          <BellButton />
-          <UserAvatar />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+            <BellButton />
+            <UserAvatar />
+          </div>
         </div>
       </div>
 
-      {/* ── Second row — tabs + page-specific controls ──────────── */}
+      {/* ── Tabs + page-specific controls — sit on the page bg, not
+          part of the dark brand strip. */}
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        gap: 12, flexWrap: 'wrap',
+        gap: 12, flexWrap: 'wrap', marginBottom: 26,
       }}>
         <nav role="tablist" aria-label="Sections" style={{
           display: 'inline-flex', gap: 4, padding: 4, borderRadius: 99,
@@ -89,7 +95,7 @@ export default function BrowseHeader({ right }: { right?: ReactNode }) {
 
         {right}
       </div>
-    </div>
+    </>
   );
 }
 
