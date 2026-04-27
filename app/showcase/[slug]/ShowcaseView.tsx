@@ -2100,6 +2100,12 @@ function ActivityTicker({ items }: { items: TickerItem[] }) {
 function FullscreenToggle() {
   const [supported, setSupported] = useState(false);
   const [isFs, setIsFs] = useState(false);
+  // Proximity reveal — the button is invisible until the cursor (or
+  // Samsung Smart Remote pointer) gets within HOTSPOT_PX of the
+  // top-right corner. Keeps the wallboard visually clean at rest;
+  // anyone reaching for "where's the fullscreen toggle" naturally
+  // moves the cursor up-right and the button fades in.
+  const [near, setNear] = useState(false);
 
   useEffect(() => {
     if (typeof document === 'undefined') return;
@@ -2107,7 +2113,24 @@ function FullscreenToggle() {
     const onChange = () => setIsFs(!!document.fullscreenElement);
     document.addEventListener('fullscreenchange', onChange);
     onChange();
-    return () => document.removeEventListener('fullscreenchange', onChange);
+
+    const HOTSPOT_PX = 220;
+    const onMove = (e: MouseEvent) => {
+      const fromRight = window.innerWidth - e.clientX;
+      const fromTop   = e.clientY;
+      setNear(fromRight < HOTSPOT_PX && fromTop < HOTSPOT_PX);
+    };
+    // pointermove also picks up Samsung remote pointer / touch hovers
+    window.addEventListener('pointermove', onMove);
+    // Hide as soon as the cursor leaves the page entirely
+    const onLeave = () => setNear(false);
+    window.addEventListener('mouseleave', onLeave);
+
+    return () => {
+      document.removeEventListener('fullscreenchange', onChange);
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('mouseleave', onLeave);
+    };
   }, []);
 
   if (!supported) return null;
@@ -2124,6 +2147,8 @@ function FullscreenToggle() {
     }
   };
 
+  // While focused (keyboard tab) the button stays visible regardless of
+  // proximity, so it remains keyboard-reachable.
   return (
     <button
       onClick={toggle}
@@ -2132,21 +2157,22 @@ function FullscreenToggle() {
       style={{
         position: 'fixed',
         top: 12, right: 12, zIndex: 200,
-        height: 38,
-        padding: '0 14px 0 12px',
-        borderRadius: 10,
-        background: 'rgba(99,102,241,0.18)',
-        border: '1px solid rgba(99,102,241,0.5)',
+        width: 34, height: 34, borderRadius: 9,
+        background: 'rgba(10,15,28,0.72)',
+        border: '1px solid rgba(255,255,255,0.12)',
         backdropFilter: 'blur(10px)',
-        boxShadow: '0 6px 20px rgba(0,0,0,0.5)',
-        color: '#e2e8f0', cursor: 'pointer',
-        display: 'inline-flex', alignItems: 'center', gap: 8,
+        color: '#cbd5e1', cursor: 'pointer',
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
         fontFamily: 'inherit',
-        fontSize: 12, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase',
-        opacity: 0.92, transition: 'opacity 0.15s ease, transform 0.15s ease',
+        opacity: near ? 0.92 : 0,
+        transform: near ? 'translateY(0)' : 'translateY(-6px)',
+        pointerEvents: near ? 'auto' : 'none',
+        transition: 'opacity 0.22s ease, transform 0.22s ease',
       }}
-      onMouseEnter={e => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
-      onMouseLeave={e => { e.currentTarget.style.opacity = '0.92'; e.currentTarget.style.transform = 'none'; }}
+      onFocus={e => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.pointerEvents = 'auto'; e.currentTarget.style.transform = 'translateY(0)'; }}
+      onBlur={e => { e.currentTarget.style.opacity = near ? '0.92' : '0'; }}
+      onMouseEnter={e => { e.currentTarget.style.opacity = '1'; }}
+      onMouseLeave={e => { e.currentTarget.style.opacity = near ? '0.92' : '0'; }}
     >
       {isFs ? (
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -2157,7 +2183,6 @@ function FullscreenToggle() {
           <path d="M4 9 V4 H9 M20 9 V4 H15 M4 15 V20 H9 M20 15 V20 H15" />
         </svg>
       )}
-      <span>{isFs ? 'Exit' : 'Fullscreen'}</span>
     </button>
   );
 }
