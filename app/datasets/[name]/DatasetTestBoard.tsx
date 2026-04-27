@@ -105,10 +105,10 @@ export default function DatasetTestBoard({ name }: { name: string }) {
         }}>← Connections</Link>
       </div>
 
-      <h1 style={{ fontSize: 'clamp(22px, 2.6vw, 34px)', fontWeight: 800, color: '#f1f5f9', marginBottom: 4 }}>
+      <h1 className="wb-page-lead" style={{ fontSize: 'clamp(22px, 2.6vw, 34px)', fontWeight: 800, color: '#f1f5f9', marginBottom: 4 }}>
         <code style={codeStyle}>{name}</code>
       </h1>
-      <p style={{ fontSize: 'clamp(13px, 1vw, 16px)', color: '#94a3b8', marginBottom: 24 }}>
+      <p className="wb-page-sub" style={{ fontSize: 'clamp(13px, 1vw, 16px)', color: '#94a3b8', marginBottom: 24 }}>
         Live read of whatever's stored under this dataset name. Auto-refreshes every {POLL_MS / 1000}s. Use this to confirm a webhook push has landed.
       </p>
 
@@ -154,7 +154,7 @@ function StatStrip({ count, updatedAt, columnCount }: {
   return (
     <div style={{
       display: 'grid', gap: 12, marginBottom: 22,
-      gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+      gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 160px), 1fr))',
     }}>
       <Stat label="Rows"        value={count.toLocaleString('en-GB')} />
       <Stat label="Columns"     value={String(columnCount)} />

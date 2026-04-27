@@ -64,10 +64,10 @@ export default function ConnectionsPage() {
         }
       />
 
-      <h1 style={{ fontSize: 'clamp(22px, 2.6vw, 34px)', fontWeight: 800, color: '#f1f5f9', marginBottom: 4 }}>
+      <h1 className="wb-page-lead" style={{ fontSize: 'clamp(22px, 2.6vw, 34px)', fontWeight: 800, color: '#f1f5f9', marginBottom: 4 }}>
         Connections
       </h1>
-      <p style={{ fontSize: 'clamp(13px, 1vw, 16px)', color: '#94a3b8', marginBottom: 28 }}>
+      <p className="wb-page-sub" style={{ fontSize: 'clamp(13px, 1vw, 16px)', color: '#94a3b8', marginBottom: 28 }}>
         Live status of every data source feeding the wallboards. A red light here usually explains why a board's gone quiet.
       </p>
 
@@ -76,7 +76,7 @@ export default function ConnectionsPage() {
       )}
 
       {!error && (
-        <div style={{ display: 'grid', gap: 14, gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))' }}>
+        <div style={{ display: 'grid', gap: 14, gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 320px), 1fr))' }}>
           <MssqlCard   health={data?.mssql}   loading={loading && !data} />
           <ZendeskCard health={data?.zendesk} loading={loading && !data} />
           <NoeticaCard health={data?.noetica} loading={loading && !data} />

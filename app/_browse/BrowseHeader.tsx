@@ -5,12 +5,19 @@ import { usePathname, useRouter } from 'next/navigation';
 import { ReactNode } from 'react';
 
 /**
- * Shared brand + tab header used by the browse home and the connections
- * page. Visual language matches the InsureTec dashboard's nav strip
- * exactly: shield-check icon to the left of the wordmark, single
- * horizontal line, the "Tec" in cyan-blue. No subtitle — the dashboard
- * doesn't use one and this kept reading as a different product. The
- * Boards/Connections tabs sit in their own row below.
+ * Top header for every browse / connections / dataset page. Top row
+ * exactly matches the InsureTec dashboard's nav strip:
+ *
+ *   [back?]  [shield] [InsureTec]                       [bell] [avatar]
+ *
+ * Everything else (Boards/Connections tabs, page-specific controls
+ * passed in `right`) lives in a SECOND row below the brand strip so
+ * the top of the screen is consistent across the two apps.
+ *
+ * Bell + avatar are placeholders today — once the dashboard is plugged
+ * in for SSO/redirects they'll point at the dashboard's alerts and
+ * profile routes. Kept visually present so the cross-app top bar
+ * doesn't look amputated.
  */
 export default function BrowseHeader({ right }: { right?: ReactNode }) {
   const pathname = usePathname() || '/';
@@ -21,65 +28,72 @@ export default function BrowseHeader({ right }: { right?: ReactNode }) {
 
   return (
     <div className="wb-mobile-sticky-top" style={{ marginBottom: 26 }}>
-      {/* Brand strip — single line, exactly mirrors the dashboard.
-          Back arrow appears on every non-home page (Connections,
-          Dataset test boards) so users can step back the same way
-          the dashboard's reminders / calendar pages let them. */}
+      {/* ── Top row — identical to the dashboard ────────────────── */}
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        flexWrap: 'wrap', gap: 16, marginBottom: 14,
+        gap: 16, marginBottom: 14,
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
           {pathname !== '/' && <BrowseBackButton />}
-          <Link href="/" style={{ textDecoration: 'none', color: 'inherit', display: 'flex', alignItems: 'center', gap: 12 }}>
+          <Link href="/" style={{
+            textDecoration: 'none', color: 'inherit',
+            display: 'flex', alignItems: 'center', gap: 12, minWidth: 0,
+          }}>
             <ShieldMark />
-            <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.01em', lineHeight: 1 }}>
+            <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.01em', lineHeight: 1, whiteSpace: 'nowrap' }}>
               <span style={{ color: '#f1f5f9' }}>Insure</span>
               <span style={{ color: '#38bdf8' }}>Tec</span>
             </div>
           </Link>
         </div>
 
-        {right}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+          <BellButton />
+          <UserAvatar />
+        </div>
       </div>
 
-      {/* Tabs — pill nav matching the dashboard's section pills. */}
-      <nav role="tablist" aria-label="Sections" style={{
-        display: 'inline-flex', gap: 4, padding: 4, borderRadius: 99,
-        background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)',
+      {/* ── Second row — tabs + page-specific controls ──────────── */}
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        gap: 12, flexWrap: 'wrap',
       }}>
-        {tabs.map(t => {
-          const active = t.matches(pathname);
-          return (
-            <Link
-              key={t.href}
-              href={t.href}
-              role="tab"
-              aria-selected={active}
-              style={{
-                padding: '8px 18px', borderRadius: 99, textDecoration: 'none',
-                fontSize: 13, fontWeight: 700, letterSpacing: '0.04em',
-                color: active ? '#f1f5f9' : '#94a3b8',
-                background: active
-                  ? 'linear-gradient(135deg, rgba(99,102,241,0.4) 0%, rgba(168,85,247,0.3) 100%)'
-                  : 'transparent',
-                boxShadow: active ? '0 4px 18px rgba(99,102,241,0.3)' : undefined,
-                transition: 'all 0.15s ease',
-              }}
-            >
-              {t.label}
-            </Link>
-          );
-        })}
-      </nav>
+        <nav role="tablist" aria-label="Sections" style={{
+          display: 'inline-flex', gap: 4, padding: 4, borderRadius: 99,
+          background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)',
+        }}>
+          {tabs.map(t => {
+            const active = t.matches(pathname);
+            return (
+              <Link
+                key={t.href}
+                href={t.href}
+                role="tab"
+                aria-selected={active}
+                style={{
+                  padding: '8px 18px', borderRadius: 99, textDecoration: 'none',
+                  fontSize: 13, fontWeight: 700, letterSpacing: '0.04em',
+                  color: active ? '#f1f5f9' : '#94a3b8',
+                  background: active
+                    ? 'linear-gradient(135deg, rgba(99,102,241,0.4) 0%, rgba(168,85,247,0.3) 100%)'
+                    : 'transparent',
+                  boxShadow: active ? '0 4px 18px rgba(99,102,241,0.3)' : undefined,
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                {t.label}
+              </Link>
+            );
+          })}
+        </nav>
+
+        {right}
+      </div>
     </div>
   );
 }
 
-/** Back chevron sitting before the brand mark on non-home pages.
- *  Goes back through history when there's something to go back to,
- *  otherwise lands on /. Same rounded-square treatment as the
- *  dashboard's nav-strip back button. */
+/** Back chevron sitting before the brand mark on non-home pages. */
 function BrowseBackButton() {
   const router = useRouter();
   const onBack = () => {
@@ -117,10 +131,55 @@ function BrowseBackButton() {
   );
 }
 
-/** Shield + checkmark mark mirroring the InsureTec dashboard logo —
- *  thin-stroke shield outline in cyan-blue with a white check. Sized
- *  to match the dashboard's inline icon (no chip / glow background) so
- *  the brand reads identically across the two apps. */
+/** Bell icon top-right matching the dashboard. Placeholder for now —
+ *  on click would route to the dashboard's alerts page. Inert until
+ *  cross-app routing is wired. */
+function BellButton() {
+  return (
+    <button
+      type="button"
+      aria-label="Alerts"
+      style={{
+        width: 40, height: 40, borderRadius: 10,
+        background: 'rgba(255,255,255,0.04)',
+        border: '1px solid rgba(255,255,255,0.08)',
+        color: '#cbd5e1', cursor: 'pointer',
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+        fontFamily: 'inherit', flexShrink: 0,
+      }}
+    >
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+        <path d="M6 8 a6 6 0 0 1 12 0 c0 7 3 9 3 9 H3 s3-2 3-9 z" />
+        <path d="M10.3 21 a1.94 1.94 0 0 0 3.4 0" />
+      </svg>
+    </button>
+  );
+}
+
+/** Avatar placeholder — circular gradient with the same default avatar
+ *  glyph the dashboard uses on a fresh account. Replaced when SSO
+ *  lands and we have a real user. */
+function UserAvatar() {
+  return (
+    <button
+      type="button"
+      aria-label="Account"
+      style={{
+        width: 40, height: 40, borderRadius: '50%',
+        background: 'linear-gradient(135deg, rgba(99,102,241,0.35) 0%, rgba(56,189,248,0.35) 100%)',
+        border: '1px solid rgba(255,255,255,0.12)',
+        color: '#fff', cursor: 'pointer',
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+        fontFamily: 'inherit', flexShrink: 0,
+        fontSize: 18,
+      }}
+    >
+      <span aria-hidden>🐶</span>
+    </button>
+  );
+}
+
+/** Shield + checkmark mark mirroring the InsureTec dashboard logo. */
 function ShieldMark() {
   return (
     <svg width="32" height="32" viewBox="0 0 32 32" fill="none" aria-hidden style={{ flexShrink: 0 }}>

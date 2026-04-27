@@ -45,6 +45,25 @@ html.wb-cursor-hidden, html.wb-cursor-hidden * { cursor: none !important; }
   }
 }
 
+/* Tap feedback on the browse / connection / dataset cards — hover
+   states don't fire on touch devices, so without this a tap looks
+   inert until the page navigates. The class is applied to anything
+   that should "press" visually on tap. */
+.wb-tappable { -webkit-tap-highlight-color: transparent; }
+.wb-tappable:active {
+  transform: translateY(0) scale(0.985) !important;
+  border-color: rgba(99,102,241,0.6) !important;
+  transition: transform 80ms ease, border-color 80ms ease !important;
+}
+
+/* Tighten page padding and lead-text spacing on phones so the live
+   content fills more of the screen instead of being cushioned by
+   layout chrome borrowed from desktop. */
+@media (max-width: 768px) {
+  .wb-page-lead { font-size: 20px !important; margin-bottom: 2px !important; }
+  .wb-page-sub  { font-size: 13px !important; margin-bottom: 14px !important; }
+}
+
 /* Utility — hide native scrollbars on a horizontally-scrolling row
    (Today's Earn pills on mobile). Content is still scrollable, just
    without the visual track so the row reads as a clean strip. */

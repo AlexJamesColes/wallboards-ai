@@ -195,10 +195,10 @@ export default function BrowsePage() {
         }
       />
 
-      <h1 style={{ fontSize: 'clamp(22px, 2.6vw, 34px)', fontWeight: 800, color: '#f1f5f9', marginBottom: 4 }}>
+      <h1 className="wb-page-lead" style={{ fontSize: 'clamp(22px, 2.6vw, 34px)', fontWeight: 800, color: '#f1f5f9', marginBottom: 4 }}>
         Pick a wallboard
       </h1>
-      <p style={{ fontSize: 'clamp(13px, 1vw, 16px)', color: '#94a3b8', marginBottom: 20 }}>
+      <p className="wb-page-sub" style={{ fontSize: 'clamp(13px, 1vw, 16px)', color: '#94a3b8', marginBottom: 20 }}>
         Live boards across the floor — opening in <strong style={{ color: '#a5b4fc' }}>{mode === 'mobile' ? 'mobile' : 'desktop'}</strong> mode.
       </p>
 
@@ -418,7 +418,7 @@ function BoardCard({ board: b, url, onOpen, isAdmin, onMove, onAskDelete }: {
   const [menuOpen, setMenuOpen] = useState(false);
 
   return (
-    <div style={{
+    <div className="wb-tappable" style={{
       position: 'relative',
       background: 'rgba(20,26,46,0.6)',
       border: '1px solid rgba(255,255,255,0.06)',
