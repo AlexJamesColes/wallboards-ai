@@ -285,6 +285,7 @@ export default function ShowcaseView({ board, slug, defaultTarget }: Props) {
   useAutoReloadOnDeploy();
   useAutoFullscreenOnFirstGesture();
   useAutoFullscreenAfterIdle(30_000);
+  useAutoHideCursor(3_000);
 
   // Poll /api/alerts for anything IT has pushed (Teams webhook forwards etc.)
   // and prepend them to the ticker as they arrive. Much shorter interval
@@ -2174,6 +2175,46 @@ function useAutoFullscreenAfterIdle(idleMs: number) {
       clearTimeout(timer);
       events.forEach(e => window.removeEventListener(e, arm));
       document.removeEventListener('fullscreenchange', onFsChange);
+    };
+  }, [idleMs]);
+}
+
+// ────────────────────────────────────────────────────────────────────────
+//  Auto-hide cursor — clean up the boardroom TVs
+// ────────────────────────────────────────────────────────────────────────
+
+/**
+ * Hides the mouse cursor / Samsung Smart Remote pointer after `idleMs`
+ * of no movement. Reappears on the next pointermove, then re-hides
+ * after the timer expires again. Showcase-only — the browse and
+ * connections pages keep their cursor since people are clicking
+ * around there.
+ *
+ * Uses a CSS class on <html> rather than inline styles so the
+ * specificity holds against any descendant element that's set its
+ * own cursor (e.g. a button with `cursor: pointer`).
+ */
+function useAutoHideCursor(idleMs: number) {
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    const root = document.documentElement;
+    let timer: ReturnType<typeof setTimeout>;
+    const HIDDEN = 'wb-cursor-hidden';
+
+    const arm = () => {
+      root.classList.remove(HIDDEN);
+      clearTimeout(timer);
+      timer = setTimeout(() => root.classList.add(HIDDEN), idleMs);
+    };
+    arm();
+    document.addEventListener('pointermove', arm, { passive: true });
+    document.addEventListener('keydown',     arm);
+
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener('pointermove', arm);
+      document.removeEventListener('keydown',     arm);
+      root.classList.remove(HIDDEN);
     };
   }, [idleMs]);
 }

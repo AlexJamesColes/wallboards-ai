@@ -12,6 +12,12 @@ html, body { overflow-x: hidden; }
    into a dark void below it reads like the page is broken. */
 html, body { overscroll-behavior-y: contain; }
 
+/* Auto-hide cursor on the showcase TVs. The class gets toggled by
+   useAutoHideCursor in ShowcaseView; using a class with descendant
+   selectors keeps it specific enough to override per-element
+   `cursor: pointer` on buttons and links. */
+html.wb-cursor-hidden, html.wb-cursor-hidden * { cursor: none !important; }
+
 /* Utility — hide native scrollbars on a horizontally-scrolling row
    (Today's Earn pills on mobile). Content is still scrollable, just
    without the visual track so the row reads as a clean strip. */
