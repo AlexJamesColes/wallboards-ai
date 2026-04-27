@@ -283,6 +283,7 @@ export default function ShowcaseView({ board, slug, defaultTarget }: Props) {
   const laziestSlide          = allowLaziest ? laziestSlideRaw : [];
   const isMobile              = useIsMobile();
   useAutoReloadOnDeploy();
+  useAutoFullscreenOnFirstGesture();
 
   // Poll /api/alerts for anything IT has pushed (Teams webhook forwards etc.)
   // and prepend them to the ticker as they arrive. Much shorter interval
@@ -2204,6 +2205,56 @@ function FullscreenToggle() {
       )}
     </button>
   );
+}
+
+// ────────────────────────────────────────────────────────────────────────
+//  Auto-fullscreen — triggered by the first user gesture after load
+// ────────────────────────────────────────────────────────────────────────
+
+/**
+ * Browsers refuse to enter fullscreen without a user gesture (security
+ * rule), so true "default to fullscreen" only happens via the PWA path
+ * (Add to Home Screen + display:fullscreen manifest). Next best thing:
+ * on the very first click / keypress / touch after load, request
+ * fullscreen automatically. The TV operator opens the URL, taps the
+ * remote once, URL bar gone for the rest of the session.
+ *
+ * Skipped via `?fs=off` so a developer poking around on a laptop isn't
+ * forced into fullscreen by every click. Skipped when we're already
+ * fullscreen (e.g. launched from the PWA shortcut).
+ */
+function useAutoFullscreenOnFirstGesture() {
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    if (!document.documentElement.requestFullscreen) return;
+
+    const search = new URLSearchParams(window.location.search);
+    if (search.get('fs') === 'off') return;
+
+    let fired = false;
+    const cleanup = () => {
+      window.removeEventListener('click',      fire);
+      window.removeEventListener('keydown',    fire);
+      window.removeEventListener('touchstart', fire);
+    };
+    function fire() {
+      if (fired) return;
+      fired = true;
+      cleanup();
+      // Already in fullscreen (e.g. PWA launcher) — nothing to do.
+      if (document.fullscreenElement) return;
+      // requestFullscreen returns a promise that rejects if the user
+      // dismisses the prompt or the browser refuses. Either way it's
+      // a noop from our side; the corner button is still available.
+      document.documentElement.requestFullscreen({ navigationUI: 'hide' }).catch(() => {});
+    }
+
+    window.addEventListener('click',      fire);
+    window.addEventListener('keydown',    fire);
+    window.addEventListener('touchstart', fire, { passive: true });
+
+    return cleanup;
+  }, []);
 }
 
 // ────────────────────────────────────────────────────────────────────────
