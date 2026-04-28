@@ -881,26 +881,19 @@ function BrandedSplash({ boardName, state, detail }: {
         animation: 'wb-celeb-burst 4s ease-out infinite',
       }} />
 
-      {/* InsureTec wordmark */}
-      <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 16 }}>
-        <div style={{
-          width: 56, height: 56, borderRadius: 14,
-          background: 'rgba(99,102,241,0.18)',
-          border: '1.5px solid rgba(99,102,241,0.4)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>
-          <svg width="30" height="30" viewBox="0 0 28 28" fill="none">
-            <rect x="2" y="4" width="24" height="16" rx="2.5" stroke="#a5b4fc" strokeWidth="1.8" fill="none" />
-            <rect x="9.5" y="12" width="2.5" height="6" rx="0.5" fill="#a5b4fc" opacity="0.8" />
-            <rect x="13.5" y="9"  width="2.5" height="9" rx="0.5" fill="#a5b4fc" />
-            <rect x="17.5" y="11" width="2.5" height="7" rx="0.5" fill="#a5b4fc" opacity="0.8" />
-          </svg>
-        </div>
-        <div>
-          <div style={{ fontSize: 14, fontWeight: 700, color: '#64748b', letterSpacing: '0.25em', textTransform: 'uppercase' }}>InsureTec</div>
-          <div style={{ fontSize: 28, fontWeight: 800, color: '#f1f5f9', marginTop: 2 }}>Wallboards</div>
-        </div>
-      </div>
+      {/* InsureTec brand mark — single source of truth at
+          public/insuretec-logo.svg. Scaled up here for the splash
+          screen but identical SVG to the nav strip. */}
+      <img
+        src="/insuretec-logo.svg"
+        alt="InsureTec"
+        draggable={false}
+        style={{
+          position: 'relative',
+          height: 'clamp(72px, 9vh, 110px)', width: 'auto',
+          display: 'block', userSelect: 'none',
+        }}
+      />
 
       {/* Board name */}
       <div style={{ fontSize: 'clamp(18px, 1.6vw, 26px)', fontWeight: 600, color: '#94a3b8', position: 'relative', textAlign: 'center', padding: '0 24px' }}>

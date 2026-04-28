@@ -8,11 +8,18 @@ import { ReactNode } from 'react';
  * Top header for every browse / connections / dataset page. Top row
  * exactly matches the InsureTec dashboard's nav strip:
  *
- *   [back?]  [shield] [InsureTec]                       [bell] [avatar]
+ *   [back?]  [InsureTec brand SVG]                       [bell] [avatar]
  *
  * Everything else (Boards/Connections tabs, page-specific controls
  * passed in `right`) lives in a SECOND row below the brand strip so
  * the top of the screen is consistent across the two apps.
+ *
+ * The brand mark is the canonical /insuretec-logo.svg — the single
+ * source of truth shared with the dashboard. Never re-draw the shield
+ * or re-type "InsureTec" inline (the SVG carries both, plus the
+ * "DASHBOARD" tagline). Sized purely via CSS — 40px tall on mobile,
+ * 48px on desktop — so a redesign of the SVG flows everywhere with
+ * zero code edits.
  *
  * Bell + avatar are placeholders today — once the dashboard is plugged
  * in for SSO/redirects they'll point at the dashboard's alerts and
@@ -39,15 +46,16 @@ export default function BrowseHeader({ right }: { right?: ReactNode }) {
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
             {pathname !== '/' && <BrowseBackButton />}
-            <Link href="/" style={{
+            <Link href="/" aria-label="InsureTec home" style={{
               textDecoration: 'none', color: 'inherit',
-              display: 'flex', alignItems: 'center', gap: 12, minWidth: 0,
+              display: 'flex', alignItems: 'center', minWidth: 0,
             }}>
-              <ShieldMark />
-              <div style={{ fontSize: 20, fontWeight: 800, letterSpacing: '-0.005em', lineHeight: 1, whiteSpace: 'nowrap' }}>
-                <span style={{ color: '#f1f5f9' }}>Insure</span>
-                <span style={{ color: '#38bdf8' }}>Tec</span>
-              </div>
+              <img
+                src="/insuretec-logo.svg"
+                alt="InsureTec"
+                className="wb-brand-logo"
+                draggable={false}
+              />
             </Link>
           </div>
 
@@ -135,41 +143,3 @@ function BrowseBackButton() {
   );
 }
 
-/** Shield mark — pixel-matches the InsureTec dashboard logo: a rounded
- *  square chip with a saturated indigo→cyan gradient fill and the
- *  white shield-check glyph centred inside, ringed with a soft cyan
- *  halo so the lockup reads as a proper brand mark rather than an
- *  outline sketch. */
-function ShieldMark() {
-  return (
-    <div
-      aria-hidden
-      style={{
-        width: 36, height: 36, borderRadius: 10,
-        background: 'linear-gradient(135deg, #6366f1 0%, #38bdf8 100%)',
-        border: '1px solid rgba(125,211,252,0.55)',
-        boxShadow: '0 0 22px rgba(56,189,248,0.35)',
-        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-        flexShrink: 0,
-      }}
-    >
-      <svg width="22" height="22" viewBox="0 0 32 32" fill="none">
-        <path
-          d="M16 3 L26 7 V15 C26 22 16 28 16 28 C16 28 6 22 6 15 V7 Z"
-          fill="rgba(255,255,255,0.18)"
-          stroke="#ffffff"
-          strokeWidth="2"
-          strokeLinejoin="round"
-        />
-        <path
-          d="M11 16 L14.5 19.5 L21 12.5"
-          stroke="#ffffff"
-          strokeWidth="2.6"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          fill="none"
-        />
-      </svg>
-    </div>
-  );
-}

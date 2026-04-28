@@ -22,6 +22,22 @@ html, body { overscroll-behavior-y: contain; }
    `cursor: pointer` on buttons and links. */
 html.wb-cursor-hidden, html.wb-cursor-hidden * { cursor: none !important; }
 
+/* The single canonical InsureTec brand mark (public/insuretec-logo.svg).
+   Sized purely via CSS — 40px tall on mobile, 48px on desktop, width
+   auto — so we never crop the shield off for a "mobile mark" or ship
+   PNG variants per breakpoint. Both the wordmark and the shield live
+   inside the SVG; nothing else in the codebase should re-draw either. */
+.wb-brand-logo {
+  height: 48px;
+  width: auto;
+  display: block;
+  flex-shrink: 0;
+  user-select: none;
+}
+@media (max-width: 768px) {
+  .wb-brand-logo { height: 40px; }
+}
+
 /* Brand strip — the dark navy bar at the very top of every browse /
    connections / dataset page. Matches the InsureTec dashboard's top
    chrome (a near-black strip distinct from the brighter page surface
