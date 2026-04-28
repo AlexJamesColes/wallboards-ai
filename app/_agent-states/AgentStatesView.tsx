@@ -2,6 +2,12 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import {
+  useAutoFullscreenOnFirstGesture,
+  useAutoFullscreenAfterIdle,
+  useAutoHideCursor,
+  useAutoReloadOnDeploy,
+} from '@/lib/kioskHooks';
 
 interface AgentRow {
   name:           string;
@@ -16,12 +22,27 @@ interface OfficeBlock {
   agents:   AgentRow[];
 }
 
+interface QueueSummary {
+  label:           string;
+  in_queue:        number;
+  offered:         number;
+  answered:        number;
+  abandoned:       number;
+  abandon_pct:     number;
+  average_wait:    number;
+  longest_wait:    number;
+  queues_matched:  string[];
+  queues_missing:  string[];
+  updated_at:      string | null;
+}
+
 interface Payload {
   slug:         string;
   dataset_name: string;
   updated_at:   string | null;
   offices:      OfficeBlock[];
   unmatched:    AgentRow[];
+  queues?:      QueueSummary[];
 }
 
 /** A row enriched with the office tag and a continuously-ticking livetime
@@ -60,54 +81,70 @@ interface StatusMeta {
   concernSec?:  number;        // tile gets concern rim past this many seconds
 }
 
+// Seven canonical buckets every Noetica status collapses into. Tier
+// shapes layout placement: alert at the top, active in the middle,
+// away at the bottom.
 const STATUS_META: Record<string, StatusMeta> = {
-  'Hold':                 { label: 'Hold',       tint: '#fb923c', glow: 'rgba(251,146,60,0.55)',  tier: 'alert',  concernSec: 60 },
-  // 'NotReady' is aliased to this key upstream (see STATUS_ALIASES) so
-  // both Noetica spellings collapse into a single "Not ready" lane.
-  'Permitted Not Ready':  { label: 'Not ready',  tint: '#f87171', glow: 'rgba(248,113,113,0.55)', tier: 'alert',  concernSec: 5 * 60 },
-  'Talking':              { label: 'Talking',    tint: '#10b981', glow: 'rgba(16,185,129,0.45)',  tier: 'active' },
-  'Dialling':             { label: 'Dialling',   tint: '#34d399', glow: 'rgba(52,211,153,0.45)',  tier: 'active' },
-  'Waiting':              { label: 'Waiting',    tint: '#38bdf8', glow: 'rgba(56,189,248,0.45)',  tier: 'active' },
-  'Logged in':            { label: 'Idle',       tint: '#67e8f9', glow: 'rgba(103,232,249,0.4)',  tier: 'active' },
-  // 'Completed' is aliased to 'Wrap' upstream — both mean post-call
-  // admin time, no value in splitting the lane.
-  'Wrap':                 { label: 'Wrap',       tint: '#fbbf24', glow: 'rgba(251,191,36,0.45)',  tier: 'active', concernSec: 3 * 60 },
-  'Consult':              { label: 'Consult',    tint: '#7dd3fc', glow: 'rgba(125,211,252,0.4)',  tier: 'active' },
-  'Transferred':          { label: 'Transferred',tint: '#86efac', glow: 'rgba(134,239,172,0.4)',  tier: 'active' },
-  'Lunch':                { label: 'Lunch',      tint: '#94a3b8', glow: 'rgba(148,163,184,0.35)', tier: 'away' },
-  'Comfort Break':        { label: 'Break',      tint: '#94a3b8', glow: 'rgba(148,163,184,0.35)', tier: 'away' },
-  // Synthetic status the server pads each office with when a roster
-  // member doesn't appear in the Noetica feed at all. Visually muted
-  // because it's "not at their desk" rather than a real working state.
-  'Not logged in':        { label: 'Not logged in', tint: '#475569', glow: 'rgba(71,85,105,0.25)', tier: 'away' },
+  'Hold':           { label: 'Hold',          tint: '#fb923c', glow: 'rgba(251,146,60,0.55)',  tier: 'alert',  concernSec: 60 },
+  'Not Ready':      { label: 'Not Ready',     tint: '#f87171', glow: 'rgba(248,113,113,0.55)', tier: 'alert',  concernSec: 5 * 60 },
+  'Talking':        { label: 'Talking',       tint: '#10b981', glow: 'rgba(16,185,129,0.45)',  tier: 'active' },
+  'Wrap':           { label: 'Wrap',          tint: '#fbbf24', glow: 'rgba(251,191,36,0.45)',  tier: 'active', concernSec: 3 * 60 },
+  'Waiting':        { label: 'Waiting',       tint: '#38bdf8', glow: 'rgba(56,189,248,0.45)',  tier: 'active' },
+  'Lunch':          { label: 'Lunch',         tint: '#94a3b8', glow: 'rgba(148,163,184,0.35)', tier: 'away' },
+  'Comfort Break':  { label: 'Comfort Break', tint: '#94a3b8', glow: 'rgba(148,163,184,0.35)', tier: 'away' },
+  // Synthetic — server-padded for rostered agents not in the Noetica
+  // feed at all. Distinct from Lunch/Break (those are signed in but
+  // away) because nobody's even at the desk.
+  'Not logged in':  { label: 'Not logged in', tint: '#475569', glow: 'rgba(71,85,105,0.25)',  tier: 'away' },
 };
 
 const NEUTRAL_META: StatusMeta = {
   label: 'Unknown', tint: '#64748b', glow: 'rgba(100,116,139,0.35)', tier: 'active',
 };
 
-/** Synonyms — both keys land in the same lane. Noetica occasionally
- *  emits a punctuation variant of an existing status (NotReady), and
- *  some statuses overlap operationally enough to share a lane
- *  (Completed → Wrap, since both mean post-call admin time). */
+/** Every Noetica status collapses into one of the seven canonical
+ *  buckets above. Anything not in this map falls through unchanged
+ *  (and would render as "Unknown" if it isn't a canonical key) — kept
+ *  as a safety net so a brand-new Noetica status surfaces visibly
+ *  rather than being silently merged. */
 const STATUS_ALIASES: Record<string, string> = {
-  'NotReady':  'Permitted Not Ready',
-  'Completed': 'Wrap',
+  // Spelling variants
+  'NotReady':             'Not Ready',
+  'Permitted Not Ready':  'Not Ready',
+
+  // Active call activity → Talking
+  'Dialling':    'Talking',
+  'Consult':     'Talking',
+
+  // Post-call admin → Wrap
+  'Completed':   'Wrap',
+  'Transferred': 'Wrap',
+
+  // Idle / signed-in waiting → Waiting
+  'Logged in':   'Waiting',
 };
 
 function canonicalStatus(s: string): string {
   return STATUS_ALIASES[s] ?? s;
 }
 
-/** Lane order within each tier — shapes the left-to-right reading order
- *  on desktop. Top of each tier list = most prominent placement. */
-const ALERT_ORDER  = ['Hold', 'Permitted Not Ready'];
-const ACTIVE_ORDER = ['Talking', 'Dialling', 'Wrap', 'Waiting', 'Logged in', 'Consult', 'Transferred'];
+/** Lane order within each tier — shapes the left-to-right reading
+ *  order on desktop. Top of each tier list = most prominent placement. */
+const ALERT_ORDER  = ['Hold', 'Not Ready'];
+const ACTIVE_ORDER = ['Talking', 'Wrap', 'Waiting'];
 const AWAY_ORDER   = ['Lunch', 'Comfort Break', 'Not logged in'];
 
 // ─── Component ──────────────────────────────────────────────────────────
 
 export default function AgentStatesView({ slug, title, department }: Props) {
+  // Kiosk-mode niceties — TV-only by default, ?fs=on/?fs=off override.
+  // Same set of hooks the leaderboards use so a TV running either kind
+  // of board behaves identically.
+  useAutoFullscreenOnFirstGesture();
+  useAutoFullscreenAfterIdle(30_000);
+  useAutoHideCursor(3_000);
+  useAutoReloadOnDeploy();
+
   const [data,    setData]    = useState<Payload | null>(null);
   const [error,   setError]   = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -213,6 +250,11 @@ export default function AgentStatesView({ slug, title, department }: Props) {
   const activeLanes = lanesFor(ACTIVE_ORDER);
   const awayLanes   = lanesFor(AWAY_ORDER);
 
+  // Single-office board (London XOR Guildford) → hide the office chip.
+  // Every tile would carry the same letter, claiming pixels for no info.
+  // Multi-office (combined) boards keep it.
+  const showOfficeChip = (data?.offices?.length ?? 0) > 1;
+
   return (
     <div style={{
       minHeight: '100vh',
@@ -250,6 +292,9 @@ export default function AgentStatesView({ slug, title, department }: Props) {
 
       {!error && data && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'clamp(16px, 2.4vh, 26px)' }}>
+          {data.queues && data.queues.length > 0 && (
+            <QueueStrip queues={data.queues} />
+          )}
           {alertLanes.length > 0 && (
             <Tier
               key="alert"
@@ -257,6 +302,7 @@ export default function AgentStatesView({ slug, title, department }: Props) {
               accent="#f87171"
               lanes={alertLanes}
               minColWidth={220}
+              showOfficeChip={showOfficeChip}
             />
           )}
           {activeLanes.length > 0 && (
@@ -266,6 +312,7 @@ export default function AgentStatesView({ slug, title, department }: Props) {
               accent="#10b981"
               lanes={activeLanes}
               minColWidth={220}
+              showOfficeChip={showOfficeChip}
             />
           )}
           {awayLanes.length > 0 && (
@@ -276,6 +323,7 @@ export default function AgentStatesView({ slug, title, department }: Props) {
               lanes={awayLanes}
               minColWidth={260}
               compact
+              showOfficeChip={showOfficeChip}
             />
           )}
         </div>
@@ -357,12 +405,13 @@ function Header({ title, department, loading, updatedAt, signedIn, rosterTotal }
 // A row of status lanes sharing a tier accent + label. Lanes auto-fit
 // to the available width; on mobile they stack one per row.
 
-function Tier({ label, accent, lanes, minColWidth, compact = false }: {
-  label:        string;
-  accent:       string;
-  lanes:        { status: string; agents: LiveAgent[] }[];
-  minColWidth:  number;
-  compact?:     boolean;
+function Tier({ label, accent, lanes, minColWidth, compact = false, showOfficeChip = false }: {
+  label:           string;
+  accent:          string;
+  lanes:           { status: string; agents: LiveAgent[] }[];
+  minColWidth:     number;
+  compact?:        boolean;
+  showOfficeChip?: boolean;
 }) {
   const total = lanes.reduce((s, l) => s + l.agents.length, 0);
   return (
@@ -392,7 +441,7 @@ function Tier({ label, accent, lanes, minColWidth, compact = false }: {
         alignItems: 'flex-start',
       }}>
         {lanes.map(lane => (
-          <Lane key={lane.status} lane={lane} compact={compact} />
+          <Lane key={lane.status} lane={lane} compact={compact} showOfficeChip={showOfficeChip} />
         ))}
       </div>
     </section>
@@ -404,8 +453,10 @@ function Tier({ label, accent, lanes, minColWidth, compact = false }: {
 // status accent. Body lists agents (full tiles for active/alert tiers,
 // compact name rows for the away tier).
 
-function Lane({ lane, compact }: {
-  lane: { status: string; agents: LiveAgent[] }; compact: boolean;
+function Lane({ lane, compact, showOfficeChip }: {
+  lane: { status: string; agents: LiveAgent[] };
+  compact: boolean;
+  showOfficeChip: boolean;
 }) {
   const meta = STATUS_META[lane.status] || NEUTRAL_META;
   return (
@@ -439,8 +490,8 @@ function Lane({ lane, compact }: {
       <div style={{ display: 'flex', flexDirection: 'column', gap: compact ? 4 : 6 }}>
         {lane.agents.map(a =>
           compact
-            ? <CompactRow key={a.name + a.office} agent={a} />
-            : <Tile       key={a.name + a.office} agent={a} accent={meta.tint} />
+            ? <CompactRow key={a.name + a.office} agent={a} showOfficeChip={showOfficeChip} />
+            : <Tile       key={a.name + a.office} agent={a} accent={meta.tint} showOfficeChip={showOfficeChip} />
         )}
       </div>
     </div>
@@ -449,7 +500,9 @@ function Lane({ lane, compact }: {
 
 // ─── Tile (active / alert tiers) ───────────────────────────────────────
 
-function Tile({ agent, accent }: { agent: LiveAgent; accent: string }) {
+function Tile({ agent, accent, showOfficeChip }: {
+  agent: LiveAgent; accent: string; showOfficeChip: boolean;
+}) {
   const rim = agent.concern ? '#f87171' : `${accent}33`;
   return (
     <div style={{
@@ -460,10 +513,10 @@ function Tile({ agent, accent }: { agent: LiveAgent; accent: string }) {
       display: 'flex', alignItems: 'center', gap: 8,
       transition: 'border-color 0.2s ease, box-shadow 0.2s ease',
     }}>
-      <OfficeChip office={agent.office} />
+      {showOfficeChip && <OfficeChip office={agent.office} />}
       <span style={{
         flex: 1, minWidth: 0,
-        fontSize: 13, fontWeight: 700, color: '#f1f5f9',
+        fontSize: 14, fontWeight: 700, color: '#f1f5f9',
         overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
       }}>
         {agent.name}
@@ -483,7 +536,9 @@ function Tile({ agent, accent }: { agent: LiveAgent; accent: string }) {
 
 // ─── Compact row (away tier — names only, less ink) ─────────────────────
 
-function CompactRow({ agent }: { agent: LiveAgent }) {
+function CompactRow({ agent, showOfficeChip }: {
+  agent: LiveAgent; showOfficeChip: boolean;
+}) {
   // Time-in-state has no meaning for "Not logged in" — those tiles are
   // padded server-side with time=0, so suppress it rather than showing
   // a misleading "0s".
@@ -492,10 +547,10 @@ function CompactRow({ agent }: { agent: LiveAgent }) {
     <div style={{
       display: 'flex', alignItems: 'center', gap: 8,
       padding: '4px 6px',
-      fontSize: 12,
+      fontSize: 13,
       color: agent.status === 'Not logged in' ? '#94a3b8' : '#cbd5e1',
     }}>
-      <OfficeChip office={agent.office} compact />
+      {showOfficeChip && <OfficeChip office={agent.office} compact />}
       <span style={{
         flex: 1, minWidth: 0,
         overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
@@ -531,6 +586,112 @@ function OfficeChip({ office, compact = false }: { office: string | null; compac
       letterSpacing: 0, flexShrink: 0,
     }}>{letter}</span>
   );
+}
+
+// ─── Queue strip — top of the board on kiosk-bound TVs ─────────────────
+//
+// Big-number summary of inbound call traffic, the question a floor
+// manager glances at first ("how many customers are on hold right
+// now?"). Each metric colour-codes by threshold so it reads from
+// across the room: green = healthy, amber = watch, red = act.
+
+function QueueStrip({ queues }: { queues: QueueSummary[] }) {
+  return (
+    <section style={{
+      display: 'grid', gap: 'clamp(10px, 1.4vh, 16px)',
+    }}>
+      {queues.map(q => (
+        <QueueGroup key={q.label} q={q} />
+      ))}
+    </section>
+  );
+}
+
+function QueueGroup({ q }: { q: QueueSummary }) {
+  const inQueueColor   = q.in_queue === 0       ? STAT_GREEN
+                       : q.in_queue <= 5        ? STAT_AMBER
+                       :                          STAT_RED;
+  const longestColor   = q.longest_wait < 30    ? STAT_GREEN
+                       : q.longest_wait < 120   ? STAT_AMBER
+                       :                          STAT_RED;
+  const abandonColor   = q.abandon_pct < 5      ? STAT_GREEN
+                       : q.abandon_pct < 10     ? STAT_AMBER
+                       :                          STAT_RED;
+  return (
+    <div style={{
+      borderRadius: 14,
+      border: '1px solid rgba(255,255,255,0.06)',
+      background: 'linear-gradient(180deg, rgba(99,102,241,0.10) 0%, rgba(20,26,46,0.55) 70%)',
+      padding: 'clamp(14px, 2.2vh, 22px) clamp(16px, 2.4vw, 26px)',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 'clamp(10px, 1.6vh, 18px)' }}>
+        <span aria-hidden style={{
+          fontSize: 'clamp(16px, 1.8vw, 22px)', lineHeight: 1,
+        }}>📞</span>
+        <h2 style={{
+          fontSize: 'clamp(11px, 1vw, 14px)', fontWeight: 800,
+          color: '#a5b4fc', letterSpacing: '0.22em', textTransform: 'uppercase',
+          margin: 0,
+        }}>{q.label}</h2>
+        {q.queues_matched.length > 0 && (
+          <span style={{ fontSize: 11, color: '#64748b', fontWeight: 600 }}>
+            {q.queues_matched.length} {q.queues_matched.length === 1 ? 'queue' : 'queues'}
+          </span>
+        )}
+      </div>
+      <div style={{
+        display: 'grid', gap: 'clamp(10px, 1.6vw, 18px)',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 180px), 1fr))',
+      }}>
+        <BigStat label="In queue"     value={String(q.in_queue)}              tint={inQueueColor} />
+        <BigStat label="Longest wait" value={formatWait(q.longest_wait)}      tint={longestColor} sub={q.longest_wait > 0 ? 'right now' : undefined} />
+        <BigStat label="Answered"     value={`${q.answered}`}                 tint={STAT_NEUTRAL} sub={`of ${q.offered} offered today`} />
+        <BigStat label="Abandoned"    value={`${q.abandon_pct}%`}             tint={abandonColor} sub={`${q.abandoned} today · avg wait ${formatWait(q.average_wait)}`} />
+      </div>
+    </div>
+  );
+}
+
+function BigStat({ label, value, tint, sub }: {
+  label: string; value: string; tint: { fg: string; glow: string }; sub?: string;
+}) {
+  return (
+    <div style={{
+      borderRadius: 12, padding: 'clamp(10px, 1.4vh, 14px) clamp(12px, 1.4vw, 16px)',
+      background: 'rgba(14,20,39,0.6)',
+      border: `1px solid ${tint.fg}33`,
+      display: 'flex', flexDirection: 'column', gap: 6,
+    }}>
+      <div style={{
+        fontSize: 'clamp(10px, 0.85vw, 12px)', fontWeight: 800,
+        color: '#94a3b8', letterSpacing: '0.18em', textTransform: 'uppercase',
+      }}>{label}</div>
+      <div style={{
+        fontSize: 'clamp(34px, 5.2vw, 64px)', fontWeight: 800, lineHeight: 1,
+        color: tint.fg, fontVariantNumeric: 'tabular-nums',
+        textShadow: `0 0 22px ${tint.glow}`,
+      }}>{value}</div>
+      {sub && (
+        <div style={{ fontSize: 'clamp(10px, 0.8vw, 12px)', color: '#64748b', fontWeight: 600 }}>
+          {sub}
+        </div>
+      )}
+    </div>
+  );
+}
+
+const STAT_GREEN   = { fg: '#10b981', glow: 'rgba(16,185,129,0.3)' };
+const STAT_AMBER   = { fg: '#fbbf24', glow: 'rgba(251,191,36,0.32)' };
+const STAT_RED     = { fg: '#f87171', glow: 'rgba(248,113,113,0.32)' };
+const STAT_NEUTRAL = { fg: '#f1f5f9', glow: 'rgba(241,245,249,0.18)' };
+
+function formatWait(seconds: number): string {
+  if (!Number.isFinite(seconds) || seconds <= 0) return '–';
+  const s = Math.round(seconds);
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  const r = s % 60;
+  return `${m}:${r.toString().padStart(2, '0')}`;
 }
 
 // ─── Helpers ───────────────────────────────────────────────────────────

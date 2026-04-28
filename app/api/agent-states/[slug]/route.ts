@@ -178,11 +178,76 @@ export async function GET(_req: Request, { params }: { params: { slug: string } 
     }
   }
 
+  // ── Inbound queue summary (optional). Aggregates one or more queue
+  // groups from a separate Noetica dataset so the board can surface
+  // "calls waiting / longest wait / today abandoned" alongside the
+  // live agent grid. Each group sums offered/answered/abandoned across
+  // its constituent queue names, takes the max for currentlongestwait,
+  // and weights averagewait by offered.
+  const queues: QueueSummary[] = [];
+  if (cfg.queueDataset && cfg.queueGroups && cfg.queueGroups.length > 0) {
+    const qDs = datasets.find(d => d.name === cfg.queueDataset);
+    if (qDs) {
+      const qData = await getDatasetData(qDs.id);
+      const qRows: any[] = qData?.data ?? [];
+      const byName = new Map<string, any>(qRows.map(r => [String(r.queue ?? r.name ?? ''), r]));
+      for (const group of cfg.queueGroups) {
+        let inQueue = 0, offered = 0, answered = 0, abandoned = 0;
+        let longest = 0, weightedWait = 0;
+        const matched: string[] = [];
+        const missing: string[] = [];
+        for (const qname of group.queues) {
+          const r = byName.get(qname);
+          if (!r) { missing.push(qname); continue; }
+          matched.push(qname);
+          inQueue   += Number(r.inqueue            ?? r.in_queue           ?? 0) || 0;
+          offered   += Number(r.offered            ?? 0) || 0;
+          answered  += Number(r.answered           ?? 0) || 0;
+          abandoned += Number(r.abandoned          ?? 0) || 0;
+          const w = Number(r.averagewait ?? r.average_wait ?? 0) || 0;
+          weightedWait += w * (Number(r.offered ?? 0) || 0);
+          const lw = Number(r.currentlongestwait ?? r.current_longest_wait ?? 0) || 0;
+          if (lw > longest) longest = lw;
+        }
+        const averageWait = offered > 0 ? +(weightedWait / offered).toFixed(1) : 0;
+        const abandonPct  = offered > 0 ? +((abandoned / offered) * 100).toFixed(1) : 0;
+        queues.push({
+          label:               group.label,
+          in_queue:            inQueue,
+          offered,
+          answered,
+          abandoned,
+          abandon_pct:         abandonPct,
+          average_wait:        averageWait,
+          longest_wait:        longest,
+          queues_matched:      matched,
+          queues_missing:      missing,
+          updated_at:          qData?.updated_at ?? null,
+        });
+      }
+    }
+  }
+
   return NextResponse.json({
     slug:         params.slug,
     dataset_name: cfg.dataset,
     updated_at:   updatedAt,
     offices,
     unmatched,
+    queues,
   });
+}
+
+interface QueueSummary {
+  label:           string;
+  in_queue:        number;
+  offered:         number;
+  answered:        number;
+  abandoned:       number;
+  abandon_pct:     number;
+  average_wait:    number;
+  longest_wait:    number;
+  queues_matched:  string[];
+  queues_missing:  string[];
+  updated_at:      string | null;
 }
