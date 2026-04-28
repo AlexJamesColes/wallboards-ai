@@ -8,6 +8,7 @@ import {
   useAutoHideCursor,
   useAutoReloadOnDeploy,
 } from '@/lib/kioskHooks';
+import { parseAgentName } from '@/lib/agentDisplayName';
 
 interface AgentRow {
   name:           string;
@@ -182,9 +183,17 @@ export default function AgentStatesView({ slug, title, department }: Props) {
     return Math.max(0, Math.floor((now - t) / 1000));
   }, [now, data?.updated_at]);
 
-  // Flatten — all agents in one list with an office tag. Unmatched rows
-  // come along with a null office so they still show up in the right
-  // status lane rather than being banished to a footer.
+  // Flatten — every matched agent in one list with an office tag.
+  //
+  // Unmatched rows are intentionally NOT rendered into the lanes on
+  // per-office boards (they're almost always cross-office drift — a
+  // Noetica/Gecko spelling typo for someone on the other office's
+  // roster — and showing them on whichever board happens to be open
+  // confuses floor managers). They surface in a small drift footer
+  // instead so the signal isn't lost. Combined boards (multi-roster)
+  // render unmatched into the lanes since "unknown office" is genuinely
+  // useful info there.
+  const isPerOffice = (data?.offices?.length ?? 0) <= 1;
   const agents = useMemo<LiveAgent[]>(() => {
     if (!data) return [];
     const out: LiveAgent[] = [];
@@ -202,20 +211,22 @@ export default function AgentStatesView({ slug, title, department }: Props) {
         });
       }
     }
-    for (const a of data.unmatched) {
-      const status = canonicalStatus(a.status);
-      const meta = STATUS_META[status] || NEUTRAL_META;
-      const livetime = a.time_in_state + elapsedSinceFetch;
-      out.push({
-        ...a,
-        status,
-        office:   null,
-        livetime,
-        concern:  !!(meta.concernSec && livetime >= meta.concernSec),
-      });
+    if (!isPerOffice) {
+      for (const a of data.unmatched) {
+        const status = canonicalStatus(a.status);
+        const meta = STATUS_META[status] || NEUTRAL_META;
+        const livetime = a.time_in_state + elapsedSinceFetch;
+        out.push({
+          ...a,
+          status,
+          office:   null,
+          livetime,
+          concern:  !!(meta.concernSec && livetime >= meta.concernSec),
+        });
+      }
     }
     return out;
-  }, [data, elapsedSinceFetch]);
+  }, [data, elapsedSinceFetch, isPerOffice]);
 
   // Group agents by status — the layout's spine.
   const byStatus = useMemo(() => {
@@ -254,7 +265,7 @@ export default function AgentStatesView({ slug, title, department }: Props) {
   // Single-office board (London XOR Guildford) → hide the office chip.
   // Every tile would carry the same letter, claiming pixels for no info.
   // Multi-office (combined) boards keep it.
-  const showOfficeChip = (data?.offices?.length ?? 0) > 1;
+  const showOfficeChip = !isPerOffice;
 
   return (
     <div style={{
@@ -326,6 +337,9 @@ export default function AgentStatesView({ slug, title, department }: Props) {
               compact
               showOfficeChip={showOfficeChip}
             />
+          )}
+          {isPerOffice && data.unmatched.length > 0 && (
+            <DriftFooter rows={data.unmatched} />
           )}
         </div>
       )}
@@ -532,7 +546,7 @@ function Tile({ agent, accent, showOfficeChip }: {
         fontSize: 14, fontWeight: 700, color: '#f1f5f9',
         overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
       }}>
-        {agent.name}
+        {parseAgentName(agent.name).display}
       </span>
       <span style={{
         flexShrink: 0,
@@ -567,7 +581,7 @@ function CompactRow({ agent, showOfficeChip }: {
       <span style={{
         flex: 1, minWidth: 0,
         overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-      }}>{agent.name}</span>
+      }}>{parseAgentName(agent.name).display}</span>
       {showTime && (
         <span style={{
           fontSize: 11, color: '#64748b',
@@ -749,6 +763,35 @@ function formatWait(seconds: number): string {
   const m = Math.floor(s / 60);
   const r = s % 60;
   return `${m}:${r.toString().padStart(2, '0')}`;
+}
+
+// ─── Drift footer — surface unmatched agents on per-office boards ─────
+//
+// Cross-office spelling drift (Noetica says "Reobuck", Gecko says
+// "Roebuck") leaves agents matching neither roster. Hiding them from
+// the lanes keeps the wrong-board misplacement off the screen, but
+// dropping them silently would let drift go unnoticed for weeks.
+// Compromise: a small amber pill with the count, names available on
+// hover / tap.
+
+function DriftFooter({ rows }: { rows: AgentRow[] }) {
+  const names = rows.map(r => parseAgentName(r.name).clean).join(', ');
+  return (
+    <details style={{
+      borderRadius: 10,
+      border: '1px solid rgba(251,191,36,0.3)',
+      background: 'rgba(251,191,36,0.06)',
+      padding: '8px 14px',
+      fontSize: 12, color: '#fcd34d',
+    }}>
+      <summary style={{ cursor: 'pointer', fontWeight: 700, letterSpacing: '0.06em' }}>
+        ⚠ {rows.length} {rows.length === 1 ? 'agent' : 'agents'} not matched to either office roster
+      </summary>
+      <div style={{ marginTop: 8, color: '#94a3b8', fontWeight: 500, lineHeight: 1.6 }}>
+        {names}. Likely a Noetica/Gecko spelling drift — fix the name in either source so the agent shows up on the right board.
+      </div>
+    </details>
+  );
 }
 
 // ─── Helpers ───────────────────────────────────────────────────────────

@@ -6,6 +6,12 @@ import type { WbBoard } from '@/lib/db';
 import { extractEmojis, tokenize } from '@/lib/emoji';
 import { CelebrationProvider, CelebrationCountdown, CelebrationRegistrar } from '@/components/Celebration';
 import { openingHoursFor as openingHoursForLib } from '@/lib/tradingHours';
+import {
+  useAutoFullscreenOnFirstGesture,
+  useAutoFullscreenAfterIdle,
+  useAutoHideCursor,
+  useAutoReloadOnDeploy,
+} from '@/lib/kioskHooks';
 
 interface Props {
   board:          WbBoard;
@@ -2080,129 +2086,6 @@ function ActivityTicker({ items }: { items: TickerItem[] }) {
 }
 
 // ────────────────────────────────────────────────────────────────────────
-//  Auto-fullscreen — triggered by the first user gesture after load
-// ────────────────────────────────────────────────────────────────────────
-
-/** True when the browser looks like a TV / set-top-box agent (Tizen,
- *  WebOS, generic SmartTV / HbbTV strings). Auto-fullscreen behaviour
- *  is gated on this so a phone or desktop browser doesn't get yanked
- *  into fullscreen on the first click. Conservative — pattern only
- *  matches user-agents we expect to come from a wall-mounted screen. */
-function isTvBrowser(): boolean {
-  if (typeof navigator === 'undefined') return false;
-  const ua = navigator.userAgent || '';
-  return /\b(Tizen|SmartTV|SMART-TV|WebOS|Web0S|HbbTV|VIDAA|NetCast|BRAVIA|GoogleTV|Android\s?TV)\b/i.test(ua);
-}
-
-/** Auto-fullscreen decision. ?fs=off disables everywhere (laptop dev),
- *  ?fs=on forces it on any browser (handy for one-off testing on a
- *  phone). Default: TV browsers only. */
-function shouldAutoFullscreen(): boolean {
-  if (typeof window === 'undefined') return false;
-  const flag = new URLSearchParams(window.location.search).get('fs');
-  if (flag === 'off') return false;
-  if (flag === 'on')  return true;
-  return isTvBrowser();
-}
-
-/**
- * Browsers refuse to enter fullscreen without a user gesture (security
- * rule), so true "default to fullscreen" only happens via the PWA path
- * (Add to Home Screen + display:fullscreen manifest). Next best thing:
- * on the very first click / keypress / touch after load, request
- * fullscreen automatically. The TV operator opens the URL, taps the
- * remote once, URL bar gone for the rest of the session.
- *
- * TV-only by default — phones and desktop browsers stay in normal
- * (non-fullscreen) mode so a click on a card doesn't yank the page
- * into fullscreen. Override with ?fs=on (force on) or ?fs=off
- * (force off).
- */
-function useAutoFullscreenOnFirstGesture() {
-  useEffect(() => {
-    if (typeof document === 'undefined') return;
-    if (!document.documentElement.requestFullscreen) return;
-    if (!shouldAutoFullscreen()) return;
-
-    let fired = false;
-    const cleanup = () => {
-      window.removeEventListener('click',      fire);
-      window.removeEventListener('keydown',    fire);
-      window.removeEventListener('touchstart', fire);
-    };
-    function fire() {
-      if (fired) return;
-      fired = true;
-      cleanup();
-      // Already in fullscreen (e.g. PWA launcher) — nothing to do.
-      if (document.fullscreenElement) return;
-      // requestFullscreen returns a promise that rejects if the user
-      // dismisses the prompt or the browser refuses. Either way it's
-      // a noop from our side; the corner button is still available.
-      document.documentElement.requestFullscreen({ navigationUI: 'hide' }).catch(() => {});
-    }
-
-    window.addEventListener('click',      fire);
-    window.addEventListener('keydown',    fire);
-    window.addEventListener('touchstart', fire, { passive: true });
-
-    return cleanup;
-  }, []);
-}
-
-/**
- * Best-effort auto-fullscreen after a period of no user activity.
- *
- * Modern browsers refuse fullscreen without "transient activation"
- * (a user gesture within the last few seconds), so on a TV that's
- * been sitting idle for 2 minutes the requestFullscreen call will
- * usually be rejected. Some Tizen kiosk-mode firmwares relax this
- * rule, so it's still worth firing — silent fail when refused, free
- * fullscreen when accepted.
- *
- * Re-arms after every user gesture and after the fullscreen state
- * changes, so it'll attempt again 2 minutes after the operator drops
- * the remote, and again 2 minutes after they Esc out.
- *
- * TV-only by default — same UA + URL-flag gate as the first-gesture
- * trigger.
- */
-function useAutoFullscreenAfterIdle(idleMs: number) {
-  useEffect(() => {
-    if (typeof document === 'undefined') return;
-    if (!document.documentElement.requestFullscreen) return;
-    if (!shouldAutoFullscreen()) return;
-
-    let timer: ReturnType<typeof setTimeout>;
-    const arm = () => {
-      clearTimeout(timer);
-      if (document.fullscreenElement) return;
-      timer = setTimeout(() => {
-        // Already fullscreen by the time the timer fires (e.g.
-        // someone clicked the corner button) — nothing to do.
-        if (document.fullscreenElement) return;
-        // Will be rejected by spec-compliant browsers because there's
-        // no recent user gesture; the .catch keeps it silent. Worth
-        // trying because Tizen kiosk-mode TVs sometimes allow it.
-        document.documentElement.requestFullscreen({ navigationUI: 'hide' }).catch(() => {});
-      }, idleMs);
-    };
-
-    arm();
-    const events = ['click', 'keydown', 'touchstart', 'mousemove', 'pointermove'];
-    events.forEach(e => window.addEventListener(e, arm, { passive: true }));
-    const onFsChange = () => arm();
-    document.addEventListener('fullscreenchange', onFsChange);
-
-    return () => {
-      clearTimeout(timer);
-      events.forEach(e => window.removeEventListener(e, arm));
-      document.removeEventListener('fullscreenchange', onFsChange);
-    };
-  }, [idleMs]);
-}
-
-// ────────────────────────────────────────────────────────────────────────
 //  Back button — top-left, dashboard-styled
 // ────────────────────────────────────────────────────────────────────────
 
@@ -2250,64 +2133,4 @@ function BackButton() {
   );
 }
 
-// ────────────────────────────────────────────────────────────────────────
-//  Auto-hide cursor — clean up the boardroom TVs
-// ────────────────────────────────────────────────────────────────────────
-
-/**
- * Hides the mouse cursor / Samsung Smart Remote pointer after `idleMs`
- * of no movement. Reappears on the next pointermove, then re-hides
- * after the timer expires again. Showcase-only — the browse and
- * connections pages keep their cursor since people are clicking
- * around there.
- *
- * Uses a CSS class on <html> rather than inline styles so the
- * specificity holds against any descendant element that's set its
- * own cursor (e.g. a button with `cursor: pointer`).
- */
-function useAutoHideCursor(idleMs: number) {
-  useEffect(() => {
-    if (typeof document === 'undefined') return;
-    const root = document.documentElement;
-    let timer: ReturnType<typeof setTimeout>;
-    const HIDDEN = 'wb-cursor-hidden';
-
-    const arm = () => {
-      root.classList.remove(HIDDEN);
-      clearTimeout(timer);
-      timer = setTimeout(() => root.classList.add(HIDDEN), idleMs);
-    };
-    arm();
-    document.addEventListener('pointermove', arm, { passive: true });
-    document.addEventListener('keydown',     arm);
-
-    return () => {
-      clearTimeout(timer);
-      document.removeEventListener('pointermove', arm);
-      document.removeEventListener('keydown',     arm);
-      root.classList.remove(HIDDEN);
-    };
-  }, [idleMs]);
-}
-
-// ────────────────────────────────────────────────────────────────────────
-//  Auto-reload — same trick the kiosk uses
-// ────────────────────────────────────────────────────────────────────────
-
-function useAutoReloadOnDeploy() {
-  useEffect(() => {
-    let firstId: string | null = null;
-    const check = async () => {
-      try {
-        const res = await fetch('/api/version', { cache: 'no-store' });
-        const { id } = await res.json();
-        if (!id) return;
-        if (firstId === null) { firstId = id; return; }
-        if (id !== firstId) window.location.reload();
-      } catch { /* ignore */ }
-    };
-    check();
-    const iv = setInterval(check, 120_000);
-    return () => clearInterval(iv);
-  }, []);
-}
+// (kiosk-mode hooks live in lib/kioskHooks.ts and are imported at the top.)

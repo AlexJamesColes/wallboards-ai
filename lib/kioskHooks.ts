@@ -45,36 +45,69 @@ export function shouldAutoFullscreen(): boolean {
 //  Auto-fullscreen on first user gesture
 // ────────────────────────────────────────────────────────────────────
 
+/** Vendor-aware fullscreen entry. Samsung Tizen builds vary — newer
+ *  ones support the spec-standard `requestFullscreen({navigationUI})`,
+ *  older ones only expose `webkitRequestFullscreen` (no options), and
+ *  some reject the options object entirely. Try in order, falling back
+ *  to no-options on rejection. Resolves true on success, false on every
+ *  attempt failing — caller can decide whether to keep listening. */
+function enterFullscreen(): Promise<boolean> {
+  if (typeof document === 'undefined') return Promise.resolve(false);
+  const el = document.documentElement as any;
+  if (document.fullscreenElement || el.webkitFullscreenElement) return Promise.resolve(true);
+
+  const req: ((opts?: any) => Promise<void> | void) | undefined =
+    el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen || el.msRequestFullscreen;
+  if (!req) return Promise.resolve(false);
+
+  const tryCall = (opts?: any): Promise<boolean> => {
+    try {
+      const result = req.call(el, opts);
+      // Older prefixed implementations are sync, no promise.
+      if (result && typeof (result as Promise<void>).then === 'function') {
+        return (result as Promise<void>).then(() => true).catch(() => false);
+      }
+      return Promise.resolve(true);
+    } catch {
+      return Promise.resolve(false);
+    }
+  };
+
+  // Try with the URL-bar-hiding option first (cleaner on Tizen 6+),
+  // fall back to no options if that's rejected (older Tizen / WebOS).
+  return tryCall({ navigationUI: 'hide' }).then(ok => ok ? true : tryCall());
+}
+
 /**
  * Browsers refuse to enter fullscreen without a user gesture (security
  * rule), so true "default to fullscreen" only happens via the PWA path
  * (Add to Home Screen + display:fullscreen manifest). Next best thing:
- * on the very first click / keypress / touch after load, request
- * fullscreen automatically.
+ * on every gesture until we successfully enter fullscreen, try to do so.
+ *
+ * Crucially we don't latch `fired = true` until the request *actually*
+ * succeeds — earlier versions disarmed after the first click even when
+ * Tizen rejected the call, which left the TV stuck with the URL bar
+ * visible until a page reload. Now subsequent clicks/keydowns keep
+ * retrying through the vendor-prefix fallback chain.
  */
 export function useAutoFullscreenOnFirstGesture() {
   useEffect(() => {
     if (typeof document === 'undefined') return;
-    if (!document.documentElement.requestFullscreen) return;
     if (!shouldAutoFullscreen()) return;
 
-    let fired = false;
+    let done = false;
+    const events = ['click', 'keydown', 'touchstart', 'pointerdown'] as const;
     const cleanup = () => {
-      window.removeEventListener('click',      fire);
-      window.removeEventListener('keydown',    fire);
-      window.removeEventListener('touchstart', fire);
+      events.forEach(e => window.removeEventListener(e, fire as any));
     };
-    function fire() {
-      if (fired) return;
-      fired = true;
-      cleanup();
-      if (document.fullscreenElement) return;
-      document.documentElement.requestFullscreen({ navigationUI: 'hide' }).catch(() => {});
+    async function fire() {
+      if (done) return;
+      const ok = await enterFullscreen();
+      if (ok) { done = true; cleanup(); }
+      // Failure → leave listeners armed so the next remote tap retries.
     }
 
-    window.addEventListener('click',      fire);
-    window.addEventListener('keydown',    fire);
-    window.addEventListener('touchstart', fire, { passive: true });
+    events.forEach(e => window.addEventListener(e, fire as any, { passive: true } as any));
 
     return cleanup;
   }, []);
@@ -92,17 +125,13 @@ export function useAutoFullscreenOnFirstGesture() {
 export function useAutoFullscreenAfterIdle(idleMs: number) {
   useEffect(() => {
     if (typeof document === 'undefined') return;
-    if (!document.documentElement.requestFullscreen) return;
     if (!shouldAutoFullscreen()) return;
 
     let timer: ReturnType<typeof setTimeout>;
     const arm = () => {
       clearTimeout(timer);
-      if (document.fullscreenElement) return;
-      timer = setTimeout(() => {
-        if (document.fullscreenElement) return;
-        document.documentElement.requestFullscreen({ navigationUI: 'hide' }).catch(() => {});
-      }, idleMs);
+      if (document.fullscreenElement || (document as any).webkitFullscreenElement) return;
+      timer = setTimeout(() => { void enterFullscreen(); }, idleMs);
     };
 
     arm();
@@ -110,11 +139,13 @@ export function useAutoFullscreenAfterIdle(idleMs: number) {
     events.forEach(e => window.addEventListener(e, arm, { passive: true }));
     const onFsChange = () => arm();
     document.addEventListener('fullscreenchange', onFsChange);
+    document.addEventListener('webkitfullscreenchange' as any, onFsChange);
 
     return () => {
       clearTimeout(timer);
       events.forEach(e => window.removeEventListener(e, arm));
       document.removeEventListener('fullscreenchange', onFsChange);
+      document.removeEventListener('webkitfullscreenchange' as any, onFsChange);
     };
   }, [idleMs]);
 }
