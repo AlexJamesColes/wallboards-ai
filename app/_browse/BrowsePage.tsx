@@ -21,9 +21,8 @@ type Mode = 'desktop' | 'mobile';
 const MOBILE_MAX_WIDTH = 768;
 
 const DEPT_ORDER  = ['Sales', 'Renewals', 'Operations', 'Internal Audit', 'Beta', 'Other'];
-const RECENT_KEY  = 'wb-recent-boards-v1';
+const FAVOURITES_KEY = 'wb-favourites-v1';
 const ADMIN_KEY_STORAGE = 'wb-admin-key-v1';
-const RECENT_MAX  = 6;
 
 /** Departments offered in the admin "move" dropdown. Same set as
  *  DEPT_ORDER without the catch-all "Other" — choosing nothing in the
@@ -36,7 +35,7 @@ export default function BrowsePage() {
   const [error,  setError]    = useState<string | null>(null);
   const [query,  setQuery]    = useState('');
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
-  const [recent, setRecent]   = useState<string[]>([]);
+  const [favourites, setFavourites] = useState<string[]>([]);
   const [adminKey, setAdminKey] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<PublicBoard | null>(null);
 
@@ -52,8 +51,8 @@ export default function BrowsePage() {
     mq.addEventListener('change', apply);
 
     try {
-      const raw = window.localStorage.getItem(RECENT_KEY);
-      if (raw) setRecent(JSON.parse(raw) || []);
+      const raw = window.localStorage.getItem(FAVOURITES_KEY);
+      if (raw) setFavourites(JSON.parse(raw) || []);
     } catch { /* ignore */ }
 
     // Admin-mode bootstrap. Either:
@@ -84,13 +83,19 @@ export default function BrowsePage() {
 
   useEffect(() => { loadBoards(); }, [loadBoards]);
 
-  const handleOpen = (b: PublicBoard) => {
-    try {
-      const next = [b.id, ...recent.filter(x => x !== b.id)].slice(0, RECENT_MAX);
-      setRecent(next);
-      window.localStorage.setItem(RECENT_KEY, JSON.stringify(next));
-    } catch { /* ignore */ }
+  // Toggle a board's favourite status. Persisted to localStorage so a
+  // tab-close doesn't lose the user's pinned boards. Newest favourite
+  // bumps to the front so the most-recently-pinned tile reads first
+  // in the Favourites section.
+  const toggleFavourite = (b: PublicBoard) => {
+    setFavourites(prev => {
+      const has  = prev.includes(b.id);
+      const next = has ? prev.filter(x => x !== b.id) : [b.id, ...prev];
+      try { window.localStorage.setItem(FAVOURITES_KEY, JSON.stringify(next)); } catch { /* ignore */ }
+      return next;
+    });
   };
+  const isFavourite = (id: string) => favourites.includes(id);
 
   const exitAdmin = () => {
     setAdminKey(null);
@@ -166,11 +171,11 @@ export default function BrowsePage() {
     }));
   }, [filtered]);
 
-  const recentBoards = useMemo(() => {
-    if (!boards || recent.length === 0) return [];
+  const favouriteBoards = useMemo(() => {
+    if (!boards || favourites.length === 0) return [];
     const byId = new Map(boards.map(b => [b.id, b]));
-    return recent.map(id => byId.get(id)).filter((b): b is PublicBoard => !!b);
-  }, [boards, recent]);
+    return favourites.map(id => byId.get(id)).filter((b): b is PublicBoard => !!b);
+  }, [boards, favourites]);
 
   const urlFor = (b: PublicBoard) => `${b.url}?mode=${mode}`;
 
@@ -256,13 +261,15 @@ export default function BrowsePage() {
 
       {!error && grouped.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
-          {!query && recentBoards.length > 0 && (
+          {!query && favouriteBoards.length > 0 && (
             <section>
-              <SectionHeader label="Recently viewed" accent="#38bdf8" count={recentBoards.length} collapsed={false} onToggle={() => {}} disabled />
+              <SectionHeader label="Favourites" accent="#fbbf24" count={favouriteBoards.length} collapsed={false} onToggle={() => {}} disabled />
               <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))' }}>
-                {recentBoards.map(b => (
-                  <BoardCard key={b.id} board={b} url={urlFor(b)} onOpen={() => handleOpen(b)}
+                {favouriteBoards.map(b => (
+                  <BoardCard key={b.id} board={b} url={urlFor(b)}
                     isAdmin={isAdmin}
+                    isFavourite={isFavourite(b.id)}
+                    onToggleFavourite={() => toggleFavourite(b)}
                     onMove={dept => moveBoard(b, dept)}
                     onAskDelete={() => setConfirmDelete(b)}
                   />
@@ -281,8 +288,10 @@ export default function BrowsePage() {
                 {!isCollapsed && (
                   <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))' }}>
                     {deptBoards.map(b => (
-                      <BoardCard key={b.id} board={b} url={urlFor(b)} onOpen={() => handleOpen(b)}
+                      <BoardCard key={b.id} board={b} url={urlFor(b)}
                         isAdmin={isAdmin}
+                        isFavourite={isFavourite(b.id)}
+                        onToggleFavourite={() => toggleFavourite(b)}
                         onMove={dept => moveBoard(b, dept)}
                         onAskDelete={() => setConfirmDelete(b)}
                       />
@@ -375,32 +384,37 @@ function SectionHeader({ label, accent, count, collapsed, onToggle, disabled }: 
   );
 }
 
-function BoardCard({ board: b, url, onOpen, isAdmin, onMove, onAskDelete }: {
+function BoardCard({ board: b, url, isAdmin, isFavourite, onToggleFavourite, onMove, onAskDelete }: {
   board: PublicBoard;
   url: string;
-  onOpen: () => void;
   isAdmin: boolean;
+  isFavourite: boolean;
+  onToggleFavourite: () => void;
   onMove: (dept: string | null) => void;
   onAskDelete: () => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
 
+  // Star is positioned absolutely top-right. Make space inside the
+  // card padding so the chevron / name don't crash into it.
+  const starGutter = isAdmin ? 64 : 32;
+
   return (
     <div className="wb-tappable" style={{
       position: 'relative',
       background: 'rgba(20,26,46,0.6)',
-      border: '1px solid rgba(255,255,255,0.06)',
+      border: `1px solid ${isFavourite ? 'rgba(251,191,36,0.32)' : 'rgba(255,255,255,0.06)'}`,
       borderRadius: 12,
       transition: 'transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease',
       overflow: 'visible',
     }}>
       <Link
         href={url}
-        onClick={onOpen}
         style={{
           display: 'flex', alignItems: 'center', gap: 14,
           textDecoration: 'none', color: 'inherit',
           padding: '14px 16px',
+          paddingRight: 16 + starGutter,
           borderRadius: 12,
         }}
         onMouseOver={e => {
@@ -421,7 +435,7 @@ function BoardCard({ board: b, url, onOpen, isAdmin, onMove, onAskDelete }: {
         {/* Icon on the left — matches the dashboard's alert-card pattern. */}
         <BoardIcon department={b.department} />
 
-        <div style={{ flex: 1, minWidth: 0, paddingRight: isAdmin ? 28 : 0 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{
             fontSize: 14, fontWeight: 700, color: '#f1f5f9',
             lineHeight: 1.3,
@@ -445,13 +459,42 @@ function BoardCard({ board: b, url, onOpen, isAdmin, onMove, onAskDelete }: {
         }}>→</span>
       </Link>
 
+      {/* Favourite toggle — always visible, top-right corner. Sits above
+          the Link so a click doesn't trigger navigation. */}
+      <button
+        onClick={e => { e.stopPropagation(); e.preventDefault(); onToggleFavourite(); }}
+        aria-label={isFavourite ? 'Remove from favourites' : 'Add to favourites'}
+        title={isFavourite ? 'Remove from favourites' : 'Add to favourites'}
+        style={{
+          position: 'absolute', top: 8, right: 8,
+          width: 28, height: 28, borderRadius: 8,
+          background: isFavourite ? 'rgba(251,191,36,0.18)' : 'rgba(0,0,0,0.25)',
+          border: `1px solid ${isFavourite ? 'rgba(251,191,36,0.55)' : 'rgba(255,255,255,0.08)'}`,
+          color: isFavourite ? '#fbbf24' : '#64748b',
+          cursor: 'pointer', fontFamily: 'inherit',
+          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+          lineHeight: 1, padding: 0,
+          transition: 'background 0.15s ease, border-color 0.15s ease, color 0.15s ease',
+        }}
+      >
+        <svg width="14" height="14" viewBox="0 0 24 24"
+          fill={isFavourite ? 'currentColor' : 'none'}
+          stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+          aria-hidden
+        >
+          <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+        </svg>
+      </button>
+
       {isAdmin && (
         <>
           <button
             onClick={e => { e.stopPropagation(); setMenuOpen(o => !o); }}
             aria-label="Board actions"
             style={{
-              position: 'absolute', top: 8, right: 8,
+              // Sits to the left of the favourite star so both are
+              // reachable without overlap.
+              position: 'absolute', top: 8, right: 44,
               width: 28, height: 28, borderRadius: 8,
               background: 'rgba(0,0,0,0.35)',
               border: '1px solid rgba(255,255,255,0.08)',
