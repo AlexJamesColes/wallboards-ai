@@ -126,10 +126,19 @@ export async function GET(_req: Request, { params }: { params: { slug: string } 
   const officeByLabel = new Map(offices.map(o => [o.label, o]));
   const unmatched: AgentRow[] = [];
 
+  // Pre-compute a Set so the per-row team filter is a quick lookup. An
+  // unset filter means "every team allowed" — same behaviour as before.
+  const allowedTeams = cfg.teamFilter ? new Set(cfg.teamFilter) : null;
+
   for (const raw of rows) {
     const f = pickAgentField(raw);
     if (!f.name) continue;
     if (isSalesManager(f.name)) continue;
+    // Drop rows whose team isn't part of the configured filter — keeps
+    // Renewals / Ops / Customer Service agents off the Sales board even
+    // when they share the same Noetica push.
+    if (allowedTeams && (f.team == null || !allowedTeams.has(f.team))) continue;
+
     const hit = rosterByKey.get(normalizeAgentName(f.name));
     const agent: AgentRow = {
       // Prefer the canonical Gecko spelling (clean of Noetica's double

@@ -35,7 +35,15 @@ export interface ShowcaseBoard {
   data:
     | { type: 'widget' }                                  // resolved via wb_widgets row attached to this slug
     | { type: 'combined'; sources: string[] }             // concatenated from other showcase slugs
-    | { type: 'agent-states'; dataset: string; rosters: { label: string; source: string }[] };
+    | { type: 'agent-states'; dataset: string;
+        rosters: { label: string; source: string }[];
+        /** Optional team-ID filter. When set, only rows whose `team` field
+         *  matches one of these IDs are kept; anything else is dropped at
+         *  the API layer (Renewals, Customer Service, etc. sharing the same
+         *  Noetica push). Stringly-typed because Noetica returns team as
+         *  a string in the JSON payload. */
+        teamFilter?: string[];
+      };
     // ↑ live-state board: a Noetica dataset name plus per-office leaderboard slugs whose
     //   SQL doubles as the roster (so we can split a flat dataset by office without a
     //   second source of truth).
@@ -69,6 +77,9 @@ export const SHOWCASE_BOARDS: ShowcaseBoard[] = [
     data:       {
       type:    'agent-states',
       dataset: 'noetica_agent_status',
+      // Sales teams in Noetica — anything else (Renewals/Ops/etc.)
+      // sharing the push is dropped server-side.
+      teamFilter: ['15', '23', '24', '25', '26'],
       rosters: [
         { label: 'London',    source: 'london-agents'    },
         { label: 'Guildford', source: 'guildford-agents' },
