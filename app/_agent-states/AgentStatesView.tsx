@@ -620,9 +620,11 @@ function QueueStrip({ queues }: { queues: QueueSummary[] }) {
 }
 
 function QueueGroup({ q }: { q: QueueSummary }) {
-  const inQueueColor   = q.in_queue === 0       ? STAT_GREEN
-                       : q.in_queue <= 5        ? STAT_AMBER
-                       :                          STAT_RED;
+  // Continuous In-queue ramp — white at 0, ladders through yellow /
+  // orange / red / deep red the longer the queue gets. Pulses whenever
+  // the count is above zero so a TV across the room broadcasts pressure
+  // even before anyone reads the digits.
+  const inQueueLook    = inQueueAppearance(q.in_queue);
   const longestColor   = q.longest_wait < 30    ? STAT_GREEN
                        : q.longest_wait < 120   ? STAT_AMBER
                        :                          STAT_RED;
@@ -655,7 +657,7 @@ function QueueGroup({ q }: { q: QueueSummary }) {
         display: 'grid', gap: 'clamp(10px, 1.6vw, 18px)',
         gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 180px), 1fr))',
       }}>
-        <BigStat label="In queue"     value={String(q.in_queue)}              tint={inQueueColor} />
+        <BigStat label="In queue"     value={String(q.in_queue)}              tint={inQueueLook.tint} pulseColor={inQueueLook.pulse} />
         <BigStat label="Longest wait" value={formatWait(q.longest_wait)}      tint={longestColor} sub={q.longest_wait > 0 ? 'right now' : undefined} />
         <BigStat label="Answered"     value={`${q.answered}`}                 tint={STAT_NEUTRAL} sub={`of ${q.offered} offered today`} />
         <BigStat label="Abandoned"    value={`${q.abandon_pct}%`}             tint={abandonColor} sub={`${q.abandoned} today · avg wait ${formatWait(q.average_wait)}`} />
@@ -664,16 +666,28 @@ function QueueGroup({ q }: { q: QueueSummary }) {
   );
 }
 
-function BigStat({ label, value, tint, sub }: {
+function BigStat({ label, value, tint, sub, pulseColor }: {
   label: string; value: string; tint: { fg: string; glow: string }; sub?: string;
+  /** When set, the tile pulses the given colour (used for In-queue
+   *  severity). Pass undefined / null to disable the pulse. */
+  pulseColor?: string | null;
 }) {
   return (
-    <div style={{
-      borderRadius: 12, padding: 'clamp(10px, 1.4vh, 14px) clamp(12px, 1.4vw, 16px)',
-      background: 'rgba(14,20,39,0.6)',
-      border: `1px solid ${tint.fg}33`,
-      display: 'flex', flexDirection: 'column', gap: 6,
-    }}>
+    <div
+      style={{
+        borderRadius: 12, padding: 'clamp(10px, 1.4vh, 14px) clamp(12px, 1.4vw, 16px)',
+        background: 'rgba(14,20,39,0.6)',
+        border: `1px solid ${tint.fg}33`,
+        display: 'flex', flexDirection: 'column', gap: 6,
+        // CSS custom prop drives the @keyframes wb-queue-pulse ring;
+        // unset means "no pulse" because the keyframe falls back to
+        // transparent.
+        ...(pulseColor ? {
+          ['--queue-pulse' as any]: pulseColor,
+          animation: 'wb-queue-pulse 1.6s ease-in-out infinite',
+        } : null),
+      }}
+    >
       <div style={{
         fontSize: 'clamp(10px, 0.85vw, 12px)', fontWeight: 800,
         color: '#94a3b8', letterSpacing: '0.18em', textTransform: 'uppercase',
@@ -690,6 +704,35 @@ function BigStat({ label, value, tint, sub }: {
       )}
     </div>
   );
+}
+
+/** Continuous severity ramp for the In-queue stat. White at 0, then
+ *  yellow → orange → red → deep red as the queue grows. Returns the
+ *  tint shape BigStat already speaks plus the pulse colour for the
+ *  CSS keyframe. */
+function inQueueAppearance(n: number): {
+  tint:  { fg: string; glow: string };
+  pulse: string | null;
+} {
+  if (n <= 0) {
+    return { tint: { fg: '#f1f5f9', glow: 'rgba(241,245,249,0.18)' }, pulse: null };
+  }
+  if (n === 1) {
+    return { tint: { fg: '#fde68a', glow: 'rgba(253,230,138,0.45)' }, pulse: 'rgba(253,230,138,0.55)' };
+  }
+  if (n === 2) {
+    return { tint: { fg: '#fbbf24', glow: 'rgba(251,191,36,0.45)' },  pulse: 'rgba(251,191,36,0.55)' };
+  }
+  if (n <= 4) {
+    return { tint: { fg: '#fb923c', glow: 'rgba(251,146,60,0.5)' },   pulse: 'rgba(251,146,60,0.6)' };
+  }
+  if (n <= 7) {
+    return { tint: { fg: '#f87171', glow: 'rgba(248,113,113,0.55)' }, pulse: 'rgba(248,113,113,0.65)' };
+  }
+  if (n <= 12) {
+    return { tint: { fg: '#dc2626', glow: 'rgba(220,38,38,0.6)' },    pulse: 'rgba(220,38,38,0.75)' };
+  }
+  return     { tint: { fg: '#991b1b', glow: 'rgba(153,27,27,0.7)' },  pulse: 'rgba(153,27,27,0.85)' };
 }
 
 const STAT_GREEN   = { fg: '#10b981', glow: 'rgba(16,185,129,0.3)' };
