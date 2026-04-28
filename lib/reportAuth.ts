@@ -3,37 +3,37 @@ import { createHash, timingSafeEqual } from 'crypto';
 
 /**
  * Lightweight cookie-based gate for the Cancellation Refund Report.
- * Reuses the existing WB_ADMIN_KEY shared secret (no new env var) — the
- * same key that gates destructive admin actions. Anyone with that key
- * is already trusted with the live wallboard system, so reusing it
- * keeps the surface area small.
+ * Uses a dedicated `WB_AUDIT_PASSWORD` env var so the report can be
+ * shared with the Internal Audit team without handing out the broader
+ * `WB_AUDIT_PASSWORD` (which gates destructive admin actions on the floor).
  *
- * The cookie value is a SHA-256 of WB_ADMIN_KEY with a fixed pepper.
- * Comparing against a freshly-derived expected value means rotating
- * WB_ADMIN_KEY automatically invalidates outstanding sessions.
+ * The cookie value is a SHA-256 of WB_AUDIT_PASSWORD with a fixed
+ * pepper. Comparing against a freshly-derived expected value means
+ * rotating WB_AUDIT_PASSWORD automatically invalidates outstanding
+ * sessions.
  */
 
 export const REPORT_COOKIE = 'wb_canx_refund_session';
 export const REPORT_COOKIE_MAX_AGE = 7 * 24 * 60 * 60; // 7 days
 
 export function isReportAuthConfigured(): boolean {
-  return !!process.env.WB_ADMIN_KEY;
+  return !!process.env.WB_AUDIT_PASSWORD;
 }
 
 function expectedToken(): string | null {
-  const key = process.env.WB_ADMIN_KEY;
+  const key = process.env.WB_AUDIT_PASSWORD;
   if (!key) return null;
-  return createHash('sha256').update('canx-refund-report:' + key).digest('hex');
+  return createHash('sha256').update('canx-refund-report:audit:' + key).digest('hex');
 }
 
 export function getReportToken(): string {
   const t = expectedToken();
-  if (!t) throw new Error('WB_ADMIN_KEY is not set');
+  if (!t) throw new Error('WB_AUDIT_PASSWORD is not set');
   return t;
 }
 
 export function checkReportPassword(input: string): boolean {
-  const expected = process.env.WB_ADMIN_KEY || '';
+  const expected = process.env.WB_AUDIT_PASSWORD || '';
   if (!expected || !input) return false;
   // Constant-time comparison; pad shorter string to avoid early-return leak.
   const a = Buffer.from(input.padEnd(expected.length));
@@ -59,7 +59,7 @@ function safeEqualHex(a: string, b: string): boolean {
 
 /** Server-component check (uses next/headers cookies()). */
 export function isReportAuthenticated(): boolean {
-  if (!process.env.WB_ADMIN_KEY) return false;
+  if (!process.env.WB_AUDIT_PASSWORD) return false;
   try {
     const token = cookies().get(REPORT_COOKIE)?.value;
     if (!token) return false;
@@ -72,7 +72,7 @@ export function isReportAuthenticated(): boolean {
 
 /** Route-handler check (reads cookie off the raw Request). */
 export function isReportAuthenticatedFromRequest(req: Request): boolean {
-  if (!process.env.WB_ADMIN_KEY) return false;
+  if (!process.env.WB_AUDIT_PASSWORD) return false;
   try {
     const cookieHeader = req.headers.get('cookie') || '';
     const jar = Object.fromEntries(
