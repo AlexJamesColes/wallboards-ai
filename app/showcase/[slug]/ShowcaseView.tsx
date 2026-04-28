@@ -1391,7 +1391,7 @@ function PodiumCard({ row, rank, cols, isMobile, fullWidth, deltas, agentState }
       // they're still on the leaderboard (their MTD numbers count) but
       // not actively contributing today, so the visual hierarchy gives
       // the floor manager a glance at "who's actually on shift".
-      opacity: agentState?.offline ? 0.42 : 1,
+      opacity: agentState?.offline ? 0.55 : 1,
       transition: 'opacity 320ms ease',
       animation: latestDelta
         ? `wb-card-pulse-${latestDelta.amount > 0 ? 'up' : 'down'} ${DELTA_TTL_MS}ms ease-out${rank === 1 ? ', wb-leader-pulse 3.2s ease-in-out infinite' : ''}`
@@ -1399,23 +1399,21 @@ function PodiumCard({ row, rank, cols, isMobile, fullWidth, deltas, agentState }
     }}>
       <DeltaBadges deltas={myDeltas} />
 
-      {/* Tier label + avatar inline */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 10 }}>
-        <div style={{ position: 'relative', flexShrink: 0 }}>
-          <Avatar
-            name={name}
-            size={isMobile ? `${mobileSize.avatar}px` : (rank === 1 ? 'clamp(40px, 4.2vw, 64px)' : 'clamp(34px, 3.6vw, 54px)')}
-            gradient={grad}
-            rim={agentState ? avatarRimFor(agentState) : null}
-          />
-          {online && <OnlineDot size={rank === 1 ? 'clamp(11px, 1vw, 15px)' : 'clamp(10px, 0.9vw, 13px)'} />}
-        </div>
+      {/* Tier label on the left, live call-state chip pinned top-right.
+          Avatar dropped — initials cost more pixels than they returned,
+          the call-state chip is now the primary "what's this agent
+          doing" cue. */}
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        gap: isMobile ? 8 : 10, width: '100%',
+      }}>
         <div style={{
           fontSize: isMobile ? mobileSize.label : 'clamp(10px, 0.9vw, 15px)', fontWeight: 900,
           letterSpacing: '0.3em', color: tier.labelColor,
           textShadow: `0 0 14px ${tier.ringGlow}`,
           whiteSpace: 'nowrap',
         }}>{tier.label}</div>
+        {agentState && <CallStateChip state={agentState} />}
       </div>
 
       {/* Name — never collapses */}
@@ -1593,36 +1591,35 @@ function Stat({ label, value, valueSize, labelSize }: {
   );
 }
 
-/** Avatar rim for an agent's live state. Returns null for "Not logged
- *  in" — the card is already dimmed to ~40% so adding a grey rim would
- *  just compete with the dim signal. */
-function avatarRimFor(state: AgentLiveState): { color: string; glow: string } | null {
+/** Live-state chip — small pill that pins to the top right of every
+ *  card on the leaderboard, replacing the avatar as the primary
+ *  "what's this agent doing right now" signal. Same colour palette
+ *  as the agent-states board so a TV running both side-by-side stays
+ *  visually consistent. Returns null for "Not logged in" — the card
+ *  is already dimmed for that, no need to label it twice. */
+function CallStateChip({ state, compact = false }: {
+  state: AgentLiveState; compact?: boolean;
+}) {
   if (state.offline) return null;
   const meta = statusMetaFor(state.status);
-  return { color: meta.tint, glow: meta.glow };
-}
-
-function Avatar({ name, size, gradient, rim }: {
-  name: string; size: string; gradient: { from: string; to: string };
-  /** Optional state-coloured ring around the avatar. Used by the
-   *  leaderboards to overlay live call-state (Talking / Hold / Not
-   *  Ready / etc.) onto each card without claiming any extra layout
-   *  space — the rim sits inside the avatar's existing footprint. */
-  rim?: { color: string; glow: string } | null;
-}) {
-  const baseShadow = '0 10px 30px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.2)';
-  const rimShadow  = rim ? `0 0 0 3px ${rim.color}, 0 0 14px ${rim.glow}, ${baseShadow}` : baseShadow;
   return (
-    <div style={{
-      width: size, height: size, borderRadius: '50%',
-      background: `linear-gradient(135deg, ${gradient.from} 0%, ${gradient.to} 100%)`,
-      color: '#fff', fontWeight: 900,
-      fontSize: `calc(${size} * 0.36)`,
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      boxShadow: rimShadow,
-      letterSpacing: '-0.04em', flexShrink: 0,
-      transition: 'box-shadow 240ms ease',
-    }}>{initials(name)}</div>
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', gap: compact ? 4 : 5,
+      padding: compact ? '2px 7px' : '3px 9px',
+      borderRadius: 99,
+      background: `${meta.tint}1f`,
+      border: `1px solid ${meta.tint}66`,
+      fontSize: compact ? 'clamp(9px, 0.7vw, 11px)' : 'clamp(10px, 0.85vw, 13px)',
+      fontWeight: 800,
+      color: meta.tint, letterSpacing: '0.06em',
+      whiteSpace: 'nowrap', flexShrink: 0,
+    }}>
+      <span aria-hidden style={{
+        width: compact ? 5 : 6, height: compact ? 5 : 6, borderRadius: 99,
+        background: meta.tint, boxShadow: `0 0 6px ${meta.glow}`,
+      }} />
+      {meta.label}
+    </span>
   );
 }
 
@@ -1740,22 +1737,18 @@ function AgentCard({ row, rank, cols, leaderIncome, deltas, agentState }: {
       overflow: 'visible', position: 'relative',
       backdropFilter: 'blur(8px)',
       // Dim cards whose agent isn't logged into Noetica right now.
-      opacity: agentState?.offline ? 0.42 : 1,
+      opacity: agentState?.offline ? 0.55 : 1,
       transition: 'opacity 320ms ease',
       animation: latestDelta
         ? `wb-card-pulse-${latestDelta.amount > 0 ? 'up' : 'down'} ${DELTA_TTL_MS}ms ease-out`
         : undefined,
     }}>
       <DeltaBadges deltas={myDeltas} />
-      {/* Top row: avatar + name + rank chip */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <div style={{ position: 'relative', flexShrink: 0 }}>
-          <Avatar
-            name={name} size="clamp(30px, 2.8vw, 44px)" gradient={grad}
-            rim={agentState ? avatarRimFor(agentState) : null}
-          />
-          {online && <OnlineDot />}
-        </div>
+      {/* Top row: name + rank on the left, live call-state chip pinned
+          to the top right. Avatar dropped — initials cost more pixels
+          than they returned, the call-state chip is now the primary
+          "what's this agent doing" cue. */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{
             fontSize: 'clamp(13px, 1.1vw, 18px)', fontWeight: 700, color: '#f1f5f9',
@@ -1763,6 +1756,7 @@ function AgentCard({ row, rank, cols, leaderIncome, deltas, agentState }: {
           }}>{name}</div>
           <div style={{ fontSize: 'clamp(9px, 0.75vw, 12px)', color: '#64748b', fontWeight: 700, letterSpacing: '0.08em' }}>#{rank}</div>
         </div>
+        {agentState && <CallStateChip state={agentState} compact />}
       </div>
 
       {/* MTD-only main tile. Today's stats live in the linear leaderboard
