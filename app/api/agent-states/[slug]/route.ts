@@ -153,6 +153,31 @@ export async function GET(_req: Request, { params }: { params: { slug: string } 
     else     unmatched.push(agent);
   }
 
+  // ── Pad each office with rostered agents who didn't appear in the
+  // Noetica feed at all — they're on the team but not currently signed
+  // into the dialler. Showing them as "Not logged in" rather than
+  // dropping them from the board means a missing tile reads as "they're
+  // not at their desk" rather than "the system lost them", and gives
+  // the floor manager a true count of Sales coverage.
+  const seenKeys = new Set<string>();
+  for (const o of offices) for (const a of o.agents) seenKeys.add(normalizeAgentName(a.name));
+  for (const a of unmatched)                          seenKeys.add(normalizeAgentName(a.name));
+
+  for (const entry of rosterEntries) {
+    const office = officeByLabel.get(entry.label)!;
+    for (const name of entry.names) {
+      const key = normalizeAgentName(name);
+      if (!key || seenKeys.has(key)) continue;
+      office.agents.push({
+        name,
+        status:        'Not logged in',
+        time_in_state: 0,
+        team:          null,
+      });
+      seenKeys.add(key);
+    }
+  }
+
   return NextResponse.json({
     slug:         params.slug,
     dataset_name: cfg.dataset,

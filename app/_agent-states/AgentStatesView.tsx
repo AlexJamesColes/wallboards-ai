@@ -62,7 +62,7 @@ interface StatusMeta {
 
 const STATUS_META: Record<string, StatusMeta> = {
   'Hold':                 { label: 'Hold',       tint: '#fb923c', glow: 'rgba(251,146,60,0.55)',  tier: 'alert',  concernSec: 60 },
-  'Permitted Not Ready':  { label: 'PNR',        tint: '#f87171', glow: 'rgba(248,113,113,0.55)', tier: 'alert',  concernSec: 5 * 60 },
+  'Permitted Not Ready':  { label: 'Not ready',  tint: '#f87171', glow: 'rgba(248,113,113,0.55)', tier: 'alert',  concernSec: 5 * 60 },
   'Talking':              { label: 'Talking',    tint: '#10b981', glow: 'rgba(16,185,129,0.45)',  tier: 'active' },
   'Waiting':              { label: 'Waiting',    tint: '#38bdf8', glow: 'rgba(56,189,248,0.45)',  tier: 'active' },
   'Wrap':                 { label: 'Wrap',       tint: '#fbbf24', glow: 'rgba(251,191,36,0.45)',  tier: 'active', concernSec: 3 * 60 },
@@ -71,6 +71,10 @@ const STATUS_META: Record<string, StatusMeta> = {
   'Transferred':          { label: 'Transferred',tint: '#86efac', glow: 'rgba(134,239,172,0.4)',  tier: 'active' },
   'Lunch':                { label: 'Lunch',      tint: '#94a3b8', glow: 'rgba(148,163,184,0.35)', tier: 'away' },
   'Comfort Break':        { label: 'Break',      tint: '#94a3b8', glow: 'rgba(148,163,184,0.35)', tier: 'away' },
+  // Synthetic status the server pads each office with when a roster
+  // member doesn't appear in the Noetica feed at all. Visually muted
+  // because it's "not at their desk" rather than a real working state.
+  'Not logged in':        { label: 'Not logged in', tint: '#475569', glow: 'rgba(71,85,105,0.25)', tier: 'away' },
 };
 
 const NEUTRAL_META: StatusMeta = {
@@ -81,7 +85,7 @@ const NEUTRAL_META: StatusMeta = {
  *  on desktop. Top of each tier list = most prominent placement. */
 const ALERT_ORDER  = ['Hold', 'Permitted Not Ready'];
 const ACTIVE_ORDER = ['Talking', 'Wrap', 'Waiting', 'Completed', 'Consult', 'Transferred'];
-const AWAY_ORDER   = ['Lunch', 'Comfort Break'];
+const AWAY_ORDER   = ['Lunch', 'Comfort Break', 'Not logged in'];
 
 // ─── Component ──────────────────────────────────────────────────────────
 
@@ -205,7 +209,8 @@ export default function AgentStatesView({ slug, title, department }: Props) {
         department={department}
         loading={loading}
         updatedAt={data?.updated_at ?? null}
-        totalAgents={agents.length}
+        signedIn={agents.filter(a => a.status !== 'Not logged in').length}
+        rosterTotal={agents.length}
       />
 
       {error && (
@@ -265,9 +270,9 @@ export default function AgentStatesView({ slug, title, department }: Props) {
 
 // ─── Header ─────────────────────────────────────────────────────────────
 
-function Header({ title, department, loading, updatedAt, totalAgents }: {
+function Header({ title, department, loading, updatedAt, signedIn, rosterTotal }: {
   title: string; department: string; loading: boolean;
-  updatedAt: string | null; totalAgents: number;
+  updatedAt: string | null; signedIn: number; rosterTotal: number;
 }) {
   const stale = updatedAt ? (Date.now() - new Date(updatedAt).getTime()) > 60_000 : true;
   const fresh = formatFreshness(updatedAt);
@@ -302,7 +307,7 @@ function Header({ title, department, loading, updatedAt, totalAgents }: {
             fontSize: 13, fontWeight: 600, color: '#94a3b8',
             marginTop: 6, letterSpacing: '0.04em',
           }}>
-            {totalAgents} {totalAgents === 1 ? 'agent' : 'agents'} signed in
+            <strong style={{ color: '#f1f5f9' }}>{signedIn}</strong> of {rosterTotal} signed in
           </div>
         </div>
         <div style={{
@@ -457,23 +462,30 @@ function Tile({ agent, accent }: { agent: LiveAgent; accent: string }) {
 // ─── Compact row (away tier — names only, less ink) ─────────────────────
 
 function CompactRow({ agent }: { agent: LiveAgent }) {
+  // Time-in-state has no meaning for "Not logged in" — those tiles are
+  // padded server-side with time=0, so suppress it rather than showing
+  // a misleading "0s".
+  const showTime = agent.status !== 'Not logged in';
   return (
     <div style={{
       display: 'flex', alignItems: 'center', gap: 8,
       padding: '4px 6px',
-      fontSize: 12, color: '#cbd5e1',
+      fontSize: 12,
+      color: agent.status === 'Not logged in' ? '#94a3b8' : '#cbd5e1',
     }}>
       <OfficeChip office={agent.office} compact />
       <span style={{
         flex: 1, minWidth: 0,
         overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
       }}>{agent.name}</span>
-      <span style={{
-        fontSize: 11, color: '#64748b',
-        fontVariantNumeric: 'tabular-nums',
-      }}>
-        {formatDuration(agent.livetime)}
-      </span>
+      {showTime && (
+        <span style={{
+          fontSize: 11, color: '#64748b',
+          fontVariantNumeric: 'tabular-nums',
+        }}>
+          {formatDuration(agent.livetime)}
+        </span>
+      )}
     </div>
   );
 }
