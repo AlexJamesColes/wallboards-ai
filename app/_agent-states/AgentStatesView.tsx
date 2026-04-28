@@ -62,11 +62,16 @@ interface StatusMeta {
 
 const STATUS_META: Record<string, StatusMeta> = {
   'Hold':                 { label: 'Hold',       tint: '#fb923c', glow: 'rgba(251,146,60,0.55)',  tier: 'alert',  concernSec: 60 },
+  // 'NotReady' is aliased to this key upstream (see STATUS_ALIASES) so
+  // both Noetica spellings collapse into a single "Not ready" lane.
   'Permitted Not Ready':  { label: 'Not ready',  tint: '#f87171', glow: 'rgba(248,113,113,0.55)', tier: 'alert',  concernSec: 5 * 60 },
   'Talking':              { label: 'Talking',    tint: '#10b981', glow: 'rgba(16,185,129,0.45)',  tier: 'active' },
+  'Dialling':             { label: 'Dialling',   tint: '#34d399', glow: 'rgba(52,211,153,0.45)',  tier: 'active' },
   'Waiting':              { label: 'Waiting',    tint: '#38bdf8', glow: 'rgba(56,189,248,0.45)',  tier: 'active' },
+  'Logged in':            { label: 'Idle',       tint: '#67e8f9', glow: 'rgba(103,232,249,0.4)',  tier: 'active' },
+  // 'Completed' is aliased to 'Wrap' upstream — both mean post-call
+  // admin time, no value in splitting the lane.
   'Wrap':                 { label: 'Wrap',       tint: '#fbbf24', glow: 'rgba(251,191,36,0.45)',  tier: 'active', concernSec: 3 * 60 },
-  'Completed':            { label: 'Completed',  tint: '#a855f7', glow: 'rgba(168,85,247,0.45)',  tier: 'active' },
   'Consult':              { label: 'Consult',    tint: '#7dd3fc', glow: 'rgba(125,211,252,0.4)',  tier: 'active' },
   'Transferred':          { label: 'Transferred',tint: '#86efac', glow: 'rgba(134,239,172,0.4)',  tier: 'active' },
   'Lunch':                { label: 'Lunch',      tint: '#94a3b8', glow: 'rgba(148,163,184,0.35)', tier: 'away' },
@@ -81,10 +86,23 @@ const NEUTRAL_META: StatusMeta = {
   label: 'Unknown', tint: '#64748b', glow: 'rgba(100,116,139,0.35)', tier: 'active',
 };
 
+/** Synonyms — both keys land in the same lane. Noetica occasionally
+ *  emits a punctuation variant of an existing status (NotReady), and
+ *  some statuses overlap operationally enough to share a lane
+ *  (Completed → Wrap, since both mean post-call admin time). */
+const STATUS_ALIASES: Record<string, string> = {
+  'NotReady':  'Permitted Not Ready',
+  'Completed': 'Wrap',
+};
+
+function canonicalStatus(s: string): string {
+  return STATUS_ALIASES[s] ?? s;
+}
+
 /** Lane order within each tier — shapes the left-to-right reading order
  *  on desktop. Top of each tier list = most prominent placement. */
 const ALERT_ORDER  = ['Hold', 'Permitted Not Ready'];
-const ACTIVE_ORDER = ['Talking', 'Wrap', 'Waiting', 'Completed', 'Consult', 'Transferred'];
+const ACTIVE_ORDER = ['Talking', 'Dialling', 'Wrap', 'Waiting', 'Logged in', 'Consult', 'Transferred'];
 const AWAY_ORDER   = ['Lunch', 'Comfort Break', 'Not logged in'];
 
 // ─── Component ──────────────────────────────────────────────────────────
@@ -134,10 +152,12 @@ export default function AgentStatesView({ slug, title, department }: Props) {
     const out: LiveAgent[] = [];
     for (const office of data.offices) {
       for (const a of office.agents) {
-        const meta = STATUS_META[a.status] || NEUTRAL_META;
+        const status = canonicalStatus(a.status);
+        const meta = STATUS_META[status] || NEUTRAL_META;
         const livetime = a.time_in_state + elapsedSinceFetch;
         out.push({
           ...a,
+          status,
           office:   office.label,
           livetime,
           concern:  !!(meta.concernSec && livetime >= meta.concernSec),
@@ -145,10 +165,12 @@ export default function AgentStatesView({ slug, title, department }: Props) {
       }
     }
     for (const a of data.unmatched) {
-      const meta = STATUS_META[a.status] || NEUTRAL_META;
+      const status = canonicalStatus(a.status);
+      const meta = STATUS_META[status] || NEUTRAL_META;
       const livetime = a.time_in_state + elapsedSinceFetch;
       out.push({
         ...a,
+        status,
         office:   null,
         livetime,
         concern:  !!(meta.concernSec && livetime >= meta.concernSec),
