@@ -13,11 +13,12 @@ export const dynamic = 'force-dynamic';
  * tagged postrefund / postrefundready in open / pending / hold), and
  * exposes a CSV download with the same column layout.
  *
- * Reuses WB_ADMIN_KEY as the access key — no new env var needed.
+ * Access key is `WB_AUDIT_PASSWORD` — set on Heroku, shared with
+ * the Internal Audit team only.
  */
 export default function CanxRefundReportPage() {
   if (!isReportAuthConfigured()) {
-    // Server hasn't been configured (no WB_ADMIN_KEY). Show the form
+    // Server hasn't been configured (no WB_AUDIT_PASSWORD). Show the form
     // disabled so the page still renders something explanatory.
     return <LoginForm disabled />;
   }
