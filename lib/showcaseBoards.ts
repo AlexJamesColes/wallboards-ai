@@ -97,9 +97,12 @@ export const SHOWCASE_BOARDS: ShowcaseBoard[] = [
       rosters:        [{ label: 'London', source: 'london-agents' }],
       excludeRosters: ['guildford-agents'],
       queueDataset:   'noetica_call_queues',
+      // Ancillary Sales + SME Sales belong to other departments — kept
+      // out of the customer-facing inbound aggregate so the in-queue /
+      // longest-wait numbers reflect Sales' actual phone load.
       queueGroups: [{
         label:  'Inbound Sales',
-        queues: ['Sales', 'Sales Priority', 'Ancillary Sales', 'SME Sales', 'Sales Fallback', 'Sales Car'],
+        queues: ['Sales', 'Sales Priority', 'Sales Fallback', 'Sales Car'],
       }],
     },
   },
@@ -114,9 +117,12 @@ export const SHOWCASE_BOARDS: ShowcaseBoard[] = [
       rosters:        [{ label: 'Guildford', source: 'guildford-agents' }],
       excludeRosters: ['london-agents'],
       queueDataset:   'noetica_call_queues',
+      // Ancillary Sales + SME Sales belong to other departments — kept
+      // out of the customer-facing inbound aggregate so the in-queue /
+      // longest-wait numbers reflect Sales' actual phone load.
       queueGroups: [{
         label:  'Inbound Sales',
-        queues: ['Sales', 'Sales Priority', 'Ancillary Sales', 'SME Sales', 'Sales Fallback', 'Sales Car'],
+        queues: ['Sales', 'Sales Priority', 'Sales Fallback', 'Sales Car'],
       }],
     },
   },

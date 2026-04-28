@@ -487,7 +487,19 @@ function Lane({ lane, compact, showOfficeChip }: {
         }}>{lane.agents.length}</span>
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: compact ? 4 : 6 }}>
+      <div style={{
+        display: 'grid',
+        gap: compact ? 4 : 6,
+        // Horizontal grid — tiles flow across the lane's available width
+        // instead of stacking in one tall column. Min cell width is the
+        // smallest size each tile still reads cleanly at; auto-fit packs
+        // as many columns as fit. On a TV this means a single populated
+        // status lane fills the row width with 4-7 tiles per line
+        // instead of one centred name per line.
+        gridTemplateColumns: compact
+          ? 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))'
+          : 'repeat(auto-fit, minmax(min(100%, 230px), 1fr))',
+      }}>
         {lane.agents.map(a =>
           compact
             ? <CompactRow key={a.name + a.office} agent={a} showOfficeChip={showOfficeChip} />
@@ -622,9 +634,9 @@ function QueueGroup({ q }: { q: QueueSummary }) {
       borderRadius: 14,
       border: '1px solid rgba(255,255,255,0.06)',
       background: 'linear-gradient(180deg, rgba(99,102,241,0.10) 0%, rgba(20,26,46,0.55) 70%)',
-      padding: 'clamp(14px, 2.2vh, 22px) clamp(16px, 2.4vw, 26px)',
+      padding: 'clamp(10px, 1.6vh, 16px) clamp(14px, 2vw, 22px)',
     }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 'clamp(10px, 1.6vh, 18px)' }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 'clamp(8px, 1.2vh, 12px)' }}>
         <span aria-hidden style={{
           fontSize: 'clamp(16px, 1.8vw, 22px)', lineHeight: 1,
         }}>📞</span>
@@ -667,7 +679,7 @@ function BigStat({ label, value, tint, sub }: {
         color: '#94a3b8', letterSpacing: '0.18em', textTransform: 'uppercase',
       }}>{label}</div>
       <div style={{
-        fontSize: 'clamp(34px, 5.2vw, 64px)', fontWeight: 800, lineHeight: 1,
+        fontSize: 'clamp(28px, 4vw, 50px)', fontWeight: 800, lineHeight: 1,
         color: tint.fg, fontVariantNumeric: 'tabular-nums',
         textShadow: `0 0 22px ${tint.glow}`,
       }}>{value}</div>
