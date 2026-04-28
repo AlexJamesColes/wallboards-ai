@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
 import {
   useAutoFullscreenOnFirstGesture,
   useAutoFullscreenAfterIdle,
@@ -9,6 +8,7 @@ import {
   useAutoReloadOnDeploy,
 } from '@/lib/kioskHooks';
 import { parseAgentName } from '@/lib/agentDisplayName';
+import BoardBackButton from '@/components/BoardBackButton';
 
 interface AgentRow {
   name:           string;
@@ -363,7 +363,8 @@ function Header({ title, department, loading, updatedAt, signedIn, rosterTotal }
   const fresh = formatFreshness(updatedAt);
   return (
     <header style={{ marginBottom: 'clamp(18px, 2.6vh, 30px)' }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap', marginBottom: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 10 }}>
+        <BoardBackButton />
         <span style={{
           display: 'inline-flex', alignItems: 'center', gap: 8,
           padding: '5px 12px', borderRadius: 99,
@@ -374,10 +375,6 @@ function Header({ title, department, loading, updatedAt, signedIn, rosterTotal }
           <span aria-hidden style={{ width: 6, height: 6, borderRadius: 99, background: '#a855f7', boxShadow: '0 0 8px rgba(168,85,247,0.6)' }} />
           {department} · Live agent states
         </span>
-        <Link href="/" style={{
-          fontSize: 12, fontWeight: 600, color: '#64748b',
-          textDecoration: 'none', letterSpacing: '0.06em',
-        }}>← Boards</Link>
       </div>
       <div style={{
         display: 'flex', alignItems: 'flex-end', gap: 14, flexWrap: 'wrap',

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import type { WbBoard, WbWidget } from '@/lib/db';
 import WidgetRenderer from '@/components/WidgetRenderer';
 import { CelebrationProvider, CelebrationCountdown } from '@/components/Celebration';
+import BoardBackButton from '@/components/BoardBackButton';
 
 /**
  * "Laziest Manager" joke agent, populated live from Zendesk via
@@ -109,10 +110,13 @@ export default function KioskView({ board }: Props) {
     <CelebrationProvider intervalMs={3_600_000} extraAgents={laziestSlide}>
     <div style={{ width: '100vw', height: '100vh', background, overflow: 'hidden', fontFamily: 'var(--font-raleway, sans-serif)', display: 'flex', flexDirection: 'column' }}>
       {/* Minimal header bar */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', borderBottom: '1px solid rgba(255,255,255,0.04)', flexShrink: 0 }}>
-        <span style={{ fontSize: 12, fontWeight: 600, color: '#334155', letterSpacing: '0.04em' }}>
-          {name}
-          {isMobile && <span style={{ color: '#475569' }}> · {activeIdx + 1}/{ordered.length}</span>}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', borderBottom: '1px solid rgba(255,255,255,0.04)', flexShrink: 0, gap: 12 }}>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+          <BoardBackButton />
+          <span style={{ fontSize: 12, fontWeight: 600, color: '#334155', letterSpacing: '0.04em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {name}
+            {isMobile && <span style={{ color: '#475569' }}> · {activeIdx + 1}/{ordered.length}</span>}
+          </span>
         </span>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 12 }}>
           <CelebrationCountdown />

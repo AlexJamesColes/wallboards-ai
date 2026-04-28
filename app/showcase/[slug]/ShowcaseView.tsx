@@ -16,6 +16,7 @@ import { useAgentStates, type AgentLiveState } from '@/lib/useAgentStates';
 import { getShowcaseBoard } from '@/lib/showcaseBoards';
 import { statusMetaFor } from '@/lib/agentStateMeta';
 import { normalizeAgentName } from '@/lib/normalizeAgentName';
+import BoardBackButton from '@/components/BoardBackButton';
 
 interface Props {
   board:          WbBoard;
@@ -674,7 +675,7 @@ function Header({ boardName, teamTotal, target, targetPct, isMobile }: {
         flexShrink: 0, zIndex: 30,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <BackButton />
+          <BoardBackButton />
           <div style={{ flex: 1, fontSize: 16, fontWeight: 800, color: '#f1f5f9', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {boardName}
           </div>
@@ -714,7 +715,7 @@ function Header({ boardName, teamTotal, target, targetPct, isMobile }: {
       background: 'rgba(10,15,28,0.5)', backdropFilter: 'blur(12px)',
       flexShrink: 0, zIndex: 2,
     }}>
-      <BackButton />
+      <BoardBackButton />
       {/* Board name — compact one-line */}
       <div style={{ flexShrink: 0, lineHeight: 1.2 }}>
         <div style={{ fontSize: 'clamp(15px, 1.4vw, 22px)', fontWeight: 800, color: '#f1f5f9' }}>
@@ -1595,13 +1596,17 @@ function Stat({ label, value, valueSize, labelSize }: {
  *  card on the leaderboard, replacing the avatar as the primary
  *  "what's this agent doing right now" signal. Same colour palette
  *  as the agent-states board so a TV running both side-by-side stays
- *  visually consistent. Returns null for "Not logged in" — the card
- *  is already dimmed for that, no need to label it twice. */
+ *  visually consistent. "Not logged in" agents still get a chip
+ *  (labelled "Offline") so the floor manager can tell at a glance
+ *  why a high-ranking card is dimmed. */
 function CallStateChip({ state, compact = false }: {
   state: AgentLiveState; compact?: boolean;
 }) {
-  if (state.offline) return null;
-  const meta = statusMetaFor(state.status);
+  // "Not logged in" gets a muted grey rather than the bold status
+  // palette — the dim card already does the heavy visual lifting.
+  const meta = state.offline
+    ? { label: 'Offline', tint: '#94a3b8', glow: 'rgba(148,163,184,0.35)' }
+    : statusMetaFor(state.status);
   return (
     <span style={{
       display: 'inline-flex', alignItems: 'center', gap: compact ? 4 : 5,
@@ -2146,48 +2151,6 @@ function ActivityTicker({ items }: { items: TickerItem[] }) {
 //  Back button — top-left, dashboard-styled
 // ────────────────────────────────────────────────────────────────────────
 
-/**
- * Square chevron-left button matching the InsureTec dashboard's back
- * affordance. Lives inside the Header layout so it sits in flow with
- * the board name + countdown rather than floating over them. Goes
- * back through history when there's something to go back to (e.g.
- * arrived from the browse home), otherwise lands on /.
- */
-function BackButton() {
-  const router = useRouter();
-  const onBack = () => {
-    if (typeof window === 'undefined') return;
-    if (window.history.length > 1) router.back();
-    else router.push('/');
-  };
-  return (
-    <button
-      onClick={onBack}
-      aria-label="Back"
-      style={{
-        flexShrink: 0,
-        width: 36, height: 36, borderRadius: 10,
-        background: 'rgba(20,26,46,0.85)',
-        border: '1px solid rgba(255,255,255,0.08)',
-        color: '#e2e8f0', cursor: 'pointer',
-        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-        fontFamily: 'inherit',
-        transition: 'transform 150ms ease, border-color 150ms ease',
-      }}
-      onMouseEnter={e => {
-        e.currentTarget.style.transform = 'translateX(-1px)';
-        e.currentTarget.style.borderColor = 'rgba(255,255,255,0.18)';
-      }}
-      onMouseLeave={e => {
-        e.currentTarget.style.transform = 'none';
-        e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)';
-      }}
-    >
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-        <path d="M15 18 L9 12 L15 6" />
-      </svg>
-    </button>
-  );
-}
+// BackButton is the shared BoardBackButton from components/ — see import at top.
 
 // (kiosk-mode hooks live in lib/kioskHooks.ts and are imported at the top.)

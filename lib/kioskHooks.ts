@@ -89,11 +89,21 @@ function enterFullscreen(): Promise<boolean> {
  * Tizen rejected the call, which left the TV stuck with the URL bar
  * visible until a page reload. Now subsequent clicks/keydowns keep
  * retrying through the vendor-prefix fallback chain.
+ *
+ * No UA gate on the click trigger — Samsung Tizen builds occasionally
+ * report a UA that doesn't match our regex, and the result on those
+ * TVs was tap-anywhere-does-nothing. The pages this hook runs on are
+ * dedicated kiosk surfaces (showcase + agent-states), so a desktop
+ * user clicking through to them entering fullscreen is benign — Esc
+ * gets them out. ?fs=off still suppresses for laptop dev work.
  */
 export function useAutoFullscreenOnFirstGesture() {
   useEffect(() => {
     if (typeof document === 'undefined') return;
-    if (!shouldAutoFullscreen()) return;
+    if (typeof window !== 'undefined') {
+      const flag = new URLSearchParams(window.location.search).get('fs');
+      if (flag === 'off') return;
+    }
 
     let done = false;
     const events = ['click', 'keydown', 'touchstart', 'pointerdown'] as const;
