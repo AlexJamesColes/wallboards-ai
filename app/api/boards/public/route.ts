@@ -54,7 +54,9 @@ export async function GET() {
 
   // Inject synthetic showcase boards. They land in the same listing the
   // browse page already renders, so departments / search / recents all
-  // just work without further code.
+  // just work without further code. Rotation boards link to /kiosk/<slug>
+  // which redirects to the first source — direct /<slug> doesn't make
+  // sense for a rotator (no view to render at the rotator's own slug).
   const syntheticOut = SHOWCASE_BOARDS
     .filter(b => isSyntheticBoard(b.slug))
     .map(b => ({
@@ -64,7 +66,7 @@ export async function GET() {
       slug_token: '',
       department: b.department,
       synthetic:  true,
-      url:        `/${b.slug}`,
+      url:        b.data.type === 'rotation' ? `/kiosk/${b.slug}` : `/${b.slug}`,
     }));
 
   // External (non-showcase) bespoke pages — gated reports, etc.

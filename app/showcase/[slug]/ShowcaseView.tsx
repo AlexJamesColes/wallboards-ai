@@ -11,6 +11,7 @@ import {
   useAutoFullscreenAfterIdle,
   useAutoHideCursor,
   useAutoReloadOnDeploy,
+  useKioskRotation,
 } from '@/lib/kioskHooks';
 import { useAgentStates, type AgentLiveState } from '@/lib/useAgentStates';
 import { getShowcaseBoard } from '@/lib/showcaseBoards';
@@ -301,6 +302,7 @@ export default function ShowcaseView({ board, slug, defaultTarget }: Props) {
   useAutoFullscreenOnFirstGesture();
   useAutoFullscreenAfterIdle(30_000);
   useAutoHideCursor(3_000);
+  useKioskRotation();
 
   // Live agent-state overlay. Each card learns to dim when the agent's
   // not signed in, and a coloured rim around the avatar matches the

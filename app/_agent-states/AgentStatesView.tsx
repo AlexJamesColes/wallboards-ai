@@ -6,6 +6,7 @@ import {
   useAutoFullscreenAfterIdle,
   useAutoHideCursor,
   useAutoReloadOnDeploy,
+  useKioskRotation,
 } from '@/lib/kioskHooks';
 import { parseAgentName } from '@/lib/agentDisplayName';
 import BoardBackButton from '@/components/BoardBackButton';
@@ -146,6 +147,7 @@ export default function AgentStatesView({ slug, title, department }: Props) {
   useAutoFullscreenAfterIdle(30_000);
   useAutoHideCursor(3_000);
   useAutoReloadOnDeploy();
+  useKioskRotation();
 
   const [data,    setData]    = useState<Payload | null>(null);
   const [error,   setError]   = useState<string | null>(null);

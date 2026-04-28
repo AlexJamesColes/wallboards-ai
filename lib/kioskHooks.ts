@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
+import { getShowcaseBoard } from './showcaseBoards';
 
 /**
  * Shared kiosk-mode behaviours for any wallboard rendered on a wall-
@@ -198,6 +199,54 @@ export function useAutoHideCursor(idleMs: number) {
 // ────────────────────────────────────────────────────────────────────
 //  Auto-reload on new deploy
 // ────────────────────────────────────────────────────────────────────
+
+// ────────────────────────────────────────────────────────────────────
+//  Kiosk rotation — slideshow between several boards
+// ────────────────────────────────────────────────────────────────────
+
+/**
+ * Drives the /kiosk/<slug> slideshow. When a board view loads with
+ * `?rotate=<rotation-slug>&step=<N>&interval=<ms>` on its URL, this
+ * hook starts a timer that swaps the page to the next source in the
+ * rotation when the interval elapses. Each view in the cycle runs its
+ * own copy — wherever the TV navigates to next, the same hook re-arms.
+ *
+ * Fullscreen state survives same-origin navigation in every browser
+ * we care about (Tizen / Chromium / Safari), so the URL bar doesn't
+ * pop back during the swap on a TV that started the cycle in
+ * fullscreen.
+ */
+export function useKioskRotation() {
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const rotationSlug = params.get('rotate');
+    if (!rotationSlug) return;
+
+    const config = getShowcaseBoard(rotationSlug);
+    if (!config || config.data.type !== 'rotation') return;
+    const sources = config.data.sources;
+    if (!Array.isArray(sources) || sources.length < 2) return;
+
+    const step       = Number(params.get('step') ?? 0) || 0;
+    const intervalMs = Number(params.get('interval') ?? config.data.intervalMs ?? 60_000) || 60_000;
+    const nextIdx    = (step + 1) % sources.length;
+    const nextSlug   = sources[nextIdx];
+
+    const timer = setTimeout(() => {
+      const next = `/${encodeURIComponent(nextSlug)}`
+                 + `?rotate=${encodeURIComponent(rotationSlug)}`
+                 + `&step=${nextIdx}`
+                 + `&interval=${intervalMs}`;
+      // location.replace keeps the back-stack from filling with
+      // rotation hops, so the back button still goes to the page the
+      // operator opened the kiosk URL from.
+      window.location.replace(next);
+    }, intervalMs);
+
+    return () => clearTimeout(timer);
+  }, []);
+}
 
 /**
  * Polls /api/version every 2 minutes. When the build id changes,

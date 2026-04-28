@@ -40,6 +40,11 @@ export interface ShowcaseBoard {
   data:
     | { type: 'widget' }                                  // resolved via wb_widgets row attached to this slug
     | { type: 'combined'; sources: string[] }             // concatenated from other showcase slugs
+    | { type: 'rotation'; sources: string[]; intervalMs?: number }
+    // ↑ kiosk slideshow — cycles a TV between two or more board slugs
+    //   (e.g. /london-agents ↔ /london-agent-states). The /kiosk/<slug>
+    //   route bootstraps the cycle; useKioskRotation in each view
+    //   handles the timer + navigation. Default interval 60 000 ms.
     | { type: 'agent-states'; dataset: string;
         rosters: { label: string; source: string }[];
         /** Optional team-ID filter. When set, only rows whose `team` field
@@ -132,6 +137,42 @@ export const SHOWCASE_BOARDS: ShowcaseBoard[] = [
         label:  'Inbound Sales',
         queues: ['Sales', 'Sales Priority', 'Sales Fallback', 'Sales Car'],
       }],
+    },
+  },
+
+  // ─── Kiosk slideshow rotators ───────────────────────────────────────
+  // Each rotator URL (/kiosk/<slug>) cycles a TV between two or more
+  // boards every `intervalMs`. Floor managers get to read each board
+  // at full resolution — same kiosk pattern they're already used to,
+  // no split-screen density hit.
+  {
+    slug:       'london-kiosk',
+    name:       'London · Kiosk Rotation',
+    department: 'Sales',
+    data:       {
+      type:       'rotation',
+      sources:    ['london-agents', 'london-agent-states'],
+      intervalMs: 60_000,
+    },
+  },
+  {
+    slug:       'guildford-kiosk',
+    name:       'Guildford · Kiosk Rotation',
+    department: 'Sales',
+    data:       {
+      type:       'rotation',
+      sources:    ['guildford-agents', 'guildford-agent-states'],
+      intervalMs: 60_000,
+    },
+  },
+  {
+    slug:       'sales-kiosk',
+    name:       'Sales · Kiosk Rotation',
+    department: 'Sales',
+    data:       {
+      type:       'rotation',
+      sources:    ['sales-group', 'london-agent-states', 'guildford-agent-states'],
+      intervalMs: 60_000,
     },
   },
 ];
