@@ -208,16 +208,16 @@ input, select, textarea, button { font-family: inherit; }
   50%      { box-shadow: 0 0 0 5px rgba(16,185,129,0);   }
 }
 
-/* In-queue pulse — bigger ring, used for the "calls in queue" stat on
-   the agent-states board. The colour is set per-tile via a CSS custom
-   property so the same keyframe drives every severity level (yellow
-   for 1, orange for a few, deep red for many). Two-stage ring keeps
-   the pulse readable from across the room without strobing. */
+/* In-queue pulse — soft halo for the "calls in queue" stat. The colour
+   is set per-tile via a CSS custom property so the same keyframe drives
+   every severity (soft yellow → amber → orange → red, all in the
+   InsureTec brand range). Toned down vs. the earlier version so a busy
+   queue reads urgent but doesn't dominate the rest of the board. */
 @keyframes wb-queue-pulse {
-  0%, 100% { box-shadow: 0 0 0 0 var(--queue-pulse, transparent),
-                         0 0 22px 0 var(--queue-pulse, transparent); }
-  50%      { box-shadow: 0 0 0 14px transparent,
-                         0 0 28px 4px var(--queue-pulse, transparent); }
+  0%, 100% { box-shadow: 0 0 0 0  var(--queue-pulse, transparent),
+                         0 0 14px 0 var(--queue-pulse, transparent); }
+  50%      { box-shadow: 0 0 0 8px transparent,
+                         0 0 20px 2px var(--queue-pulse, transparent); }
 }
 
 /* ─── Hall-of-fame takeover ────────────────────────────────────────────── */

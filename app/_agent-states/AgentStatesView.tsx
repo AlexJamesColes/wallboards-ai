@@ -108,9 +108,10 @@ const NEUTRAL_META: StatusMeta = {
  *  as a safety net so a brand-new Noetica status surfaces visibly
  *  rather than being silently merged. */
 const STATUS_ALIASES: Record<string, string> = {
-  // Spelling variants
+  // Spelling / phrasing variants of "agent is signed in but unavailable"
   'NotReady':             'Not Ready',
   'Permitted Not Ready':  'Not Ready',
+  'Pending Not Ready':    'Not Ready',
 
   // Active call activity → Talking
   'Dialling':    'Talking',
@@ -706,10 +707,12 @@ function BigStat({ label, value, tint, sub, pulseColor }: {
   );
 }
 
-/** Continuous severity ramp for the In-queue stat. White at 0, then
- *  yellow → orange → red → deep red as the queue grows. Returns the
- *  tint shape BigStat already speaks plus the pulse colour for the
- *  CSS keyframe. */
+/** Continuous severity ramp for the In-queue stat — stays inside the
+ *  InsureTec dashboard palette. White at 0, soft yellow at 1, amber
+ *  at 2-3, orange at 4-7, and the same #f87171 the Hold / Not-ready
+ *  lanes use from 8 onwards (no fire-engine deep reds). Higher counts
+ *  bump the pulse intensity rather than darkening the colour, so a
+ *  busy queue still reads urgent without breaking the brand language. */
 function inQueueAppearance(n: number): {
   tint:  { fg: string; glow: string };
   pulse: string | null;
@@ -718,21 +721,20 @@ function inQueueAppearance(n: number): {
     return { tint: { fg: '#f1f5f9', glow: 'rgba(241,245,249,0.18)' }, pulse: null };
   }
   if (n === 1) {
-    return { tint: { fg: '#fde68a', glow: 'rgba(253,230,138,0.45)' }, pulse: 'rgba(253,230,138,0.55)' };
+    return { tint: { fg: '#fde68a', glow: 'rgba(253,230,138,0.35)' }, pulse: 'rgba(253,230,138,0.32)' };
   }
-  if (n === 2) {
-    return { tint: { fg: '#fbbf24', glow: 'rgba(251,191,36,0.45)' },  pulse: 'rgba(251,191,36,0.55)' };
-  }
-  if (n <= 4) {
-    return { tint: { fg: '#fb923c', glow: 'rgba(251,146,60,0.5)' },   pulse: 'rgba(251,146,60,0.6)' };
+  if (n <= 3) {
+    return { tint: { fg: '#fbbf24', glow: 'rgba(251,191,36,0.32)' },  pulse: 'rgba(251,191,36,0.30)' };
   }
   if (n <= 7) {
-    return { tint: { fg: '#f87171', glow: 'rgba(248,113,113,0.55)' }, pulse: 'rgba(248,113,113,0.65)' };
+    return { tint: { fg: '#fb923c', glow: 'rgba(251,146,60,0.34)' },  pulse: 'rgba(251,146,60,0.34)' };
   }
   if (n <= 12) {
-    return { tint: { fg: '#dc2626', glow: 'rgba(220,38,38,0.6)' },    pulse: 'rgba(220,38,38,0.75)' };
+    return { tint: { fg: '#f87171', glow: 'rgba(248,113,113,0.34)' }, pulse: 'rgba(248,113,113,0.36)' };
   }
-  return     { tint: { fg: '#991b1b', glow: 'rgba(153,27,27,0.7)' },  pulse: 'rgba(153,27,27,0.85)' };
+  // 13+ — stay on #f87171, lift the pulse a touch so the tile feels
+  // more insistent without the colour going darker / angrier.
+  return     { tint: { fg: '#f87171', glow: 'rgba(248,113,113,0.4)' },  pulse: 'rgba(248,113,113,0.5)' };
 }
 
 const STAT_GREEN   = { fg: '#10b981', glow: 'rgba(16,185,129,0.3)' };
