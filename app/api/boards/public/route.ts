@@ -1,8 +1,28 @@
 import { NextResponse } from 'next/server';
 import { ensureDbReady, listBoards } from '@/lib/db';
 import { SHOWCASE_BOARDS, isSyntheticBoard } from '@/lib/showcaseBoards';
+import { isZendeskConfigured } from '@/lib/zendesk';
 
 export const dynamic = 'force-dynamic';
+
+/**
+ * Bespoke pages that should appear in the directory but don't fit the
+ * showcase / agent-states model — currently just the audit-only
+ * cancellation refund report. Each entry is gated by an `available`
+ * predicate so we don't list a tile that would 503 on click.
+ */
+const EXTERNAL_BOARDS: Array<{
+  slug: string; name: string; department: string;
+  url: string; available: () => boolean;
+}> = [
+  {
+    slug:       'canx-refund-report',
+    name:       'Cancellation Refund Report',
+    department: 'Internal Audit',
+    url:        '/canx-refund-report',
+    available:  isZendeskConfigured,
+  },
+];
 
 /**
  * Public board directory — no auth. Returns the minimum a viewer needs
@@ -47,5 +67,18 @@ export async function GET() {
       url:        `/${b.slug}`,
     }));
 
-  return NextResponse.json({ boards: [...dbOut, ...syntheticOut] });
+  // External (non-showcase) bespoke pages — gated reports, etc.
+  const externalOut = EXTERNAL_BOARDS
+    .filter(b => b.available())
+    .map(b => ({
+      id:         `external:${b.slug}`,
+      name:       b.name,
+      slug:       b.slug,
+      slug_token: '',
+      department: b.department,
+      synthetic:  true,
+      url:        b.url,
+    }));
+
+  return NextResponse.json({ boards: [...dbOut, ...syntheticOut, ...externalOut] });
 }

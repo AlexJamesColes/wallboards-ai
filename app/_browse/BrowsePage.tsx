@@ -20,7 +20,7 @@ type Mode = 'desktop' | 'mobile';
  *  browse page chrome and the chosen wallboard layout flip together. */
 const MOBILE_MAX_WIDTH = 768;
 
-const DEPT_ORDER  = ['Sales', 'Renewals', 'Operations', 'Beta', 'Other'];
+const DEPT_ORDER  = ['Sales', 'Renewals', 'Operations', 'Internal Audit', 'Beta', 'Other'];
 const RECENT_KEY  = 'wb-recent-boards-v1';
 const ADMIN_KEY_STORAGE = 'wb-admin-key-v1';
 const RECENT_MAX  = 6;
@@ -480,11 +480,12 @@ function BoardCard({ board: b, url, onOpen, isAdmin, onMove, onAskDelete }: {
 function BoardIcon({ department }: { department: string | null }) {
   const dept = department || 'Other';
   const tints: Record<string, { bg: string; border: string; emoji: string }> = {
-    Sales:      { bg: 'rgba(168,85,247,0.18)', border: 'rgba(168,85,247,0.4)',  emoji: '📈' },
-    Renewals:   { bg: 'rgba(56,189,248,0.18)', border: 'rgba(56,189,248,0.4)',  emoji: '🔁' },
-    Operations: { bg: 'rgba(16,185,129,0.18)', border: 'rgba(16,185,129,0.4)',  emoji: '⚙️' },
-    Beta:       { bg: 'rgba(251,191,36,0.18)', border: 'rgba(251,191,36,0.4)',  emoji: '🧪' },
-    Other:      { bg: 'rgba(148,163,184,0.18)',border: 'rgba(148,163,184,0.4)', emoji: '📊' },
+    Sales:           { bg: 'rgba(168,85,247,0.18)', border: 'rgba(168,85,247,0.4)',  emoji: '📈' },
+    Renewals:        { bg: 'rgba(56,189,248,0.18)', border: 'rgba(56,189,248,0.4)',  emoji: '🔁' },
+    Operations:      { bg: 'rgba(16,185,129,0.18)', border: 'rgba(16,185,129,0.4)',  emoji: '⚙️' },
+    'Internal Audit':{ bg: 'rgba(251,191,36,0.18)', border: 'rgba(251,191,36,0.4)',  emoji: '🛡️' },
+    Beta:            { bg: 'rgba(251,191,36,0.18)', border: 'rgba(251,191,36,0.4)',  emoji: '🧪' },
+    Other:           { bg: 'rgba(148,163,184,0.18)',border: 'rgba(148,163,184,0.4)', emoji: '📊' },
   };
   const tint = tints[dept] || tints.Other;
   return (
