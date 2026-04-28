@@ -43,6 +43,11 @@ export interface ShowcaseBoard {
          *  Noetica push). Stringly-typed because Noetica returns team as
          *  a string in the JSON payload. */
         teamFilter?: string[];
+        /** Sibling rosters whose matches should drop entirely (rather than
+         *  fall into "unmatched"). On a per-office board (London XOR
+         *  Guildford), name this office's counterpart so its agents don't
+         *  surface as orphans on the wrong screen. */
+        excludeRosters?: string[];
         /** Optional inbound-call-queue summary surfaced as a strip at the
          *  top of the board. Pulls from a separate Noetica dataset and
          *  aggregates one or more queue groups (typically "Inbound Sales"
@@ -86,11 +91,12 @@ export const SHOWCASE_BOARDS: ShowcaseBoard[] = [
     name:       'London · Agent States',
     department: 'Sales',
     data:       {
-      type:        'agent-states',
-      dataset:     'noetica_agent_status',
-      teamFilter:  ['15', '23', '24', '25', '26'],
-      rosters:     [{ label: 'London', source: 'london-agents' }],
-      queueDataset: 'noetica_call_queues',
+      type:           'agent-states',
+      dataset:        'noetica_agent_status',
+      teamFilter:     ['15', '23', '24', '25', '26'],
+      rosters:        [{ label: 'London', source: 'london-agents' }],
+      excludeRosters: ['guildford-agents'],
+      queueDataset:   'noetica_call_queues',
       queueGroups: [{
         label:  'Inbound Sales',
         queues: ['Sales', 'Sales Priority', 'Ancillary Sales', 'SME Sales', 'Sales Fallback', 'Sales Car'],
@@ -102,11 +108,12 @@ export const SHOWCASE_BOARDS: ShowcaseBoard[] = [
     name:       'Guildford · Agent States',
     department: 'Sales',
     data:       {
-      type:        'agent-states',
-      dataset:     'noetica_agent_status',
-      teamFilter:  ['15', '23', '24', '25', '26'],
-      rosters:     [{ label: 'Guildford', source: 'guildford-agents' }],
-      queueDataset: 'noetica_call_queues',
+      type:           'agent-states',
+      dataset:        'noetica_agent_status',
+      teamFilter:     ['15', '23', '24', '25', '26'],
+      rosters:        [{ label: 'Guildford', source: 'guildford-agents' }],
+      excludeRosters: ['london-agents'],
+      queueDataset:   'noetica_call_queues',
       queueGroups: [{
         label:  'Inbound Sales',
         queues: ['Sales', 'Sales Priority', 'Ancillary Sales', 'SME Sales', 'Sales Fallback', 'Sales Car'],

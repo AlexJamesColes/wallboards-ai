@@ -106,6 +106,19 @@ export async function GET(_req: Request, { params }: { params: { slug: string } 
     }
   }
 
+  // ── Exclude set — agents on a sibling office's roster get dropped
+  // entirely instead of falling into "unmatched". On a single-office
+  // board (London XOR Guildford) this keeps the other office's agents
+  // off the screen rather than showing them as orphans.
+  const excludeKeys = new Set<string>();
+  if (cfg.excludeRosters && cfg.excludeRosters.length > 0) {
+    const excludeNameLists = await Promise.all(cfg.excludeRosters.map(getRosterNames));
+    for (const names of excludeNameLists) for (const n of names) {
+      const key = normalizeAgentName(n);
+      if (key) excludeKeys.add(key);
+    }
+  }
+
   // ── Dataset rows (Noetica push).
   const datasets = await listDatasets();
   const ds = datasets.find(d => d.name === cfg.dataset);
@@ -138,8 +151,14 @@ export async function GET(_req: Request, { params }: { params: { slug: string } 
     // Renewals / Ops / Customer Service agents off the Sales board even
     // when they share the same Noetica push.
     if (allowedTeams && (f.team == null || !allowedTeams.has(f.team))) continue;
+    // Drop agents who belong to a sibling office's roster on this board
+    // (London board hides Guildford agents, vice versa). Stops them
+    // from leaking into the unmatched bucket and showing up on the
+    // wrong screen.
+    const nameKey = normalizeAgentName(f.name);
+    if (excludeKeys.has(nameKey)) continue;
 
-    const hit = rosterByKey.get(normalizeAgentName(f.name));
+    const hit = rosterByKey.get(nameKey);
     const agent: AgentRow = {
       // Prefer the canonical Gecko spelling (clean of Noetica's double
       // spaces / casing quirks) when we have a match; fall back to the
