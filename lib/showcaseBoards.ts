@@ -32,6 +32,11 @@ export interface ShowcaseBoard {
    *  `?target=` URL param still wins. Fall-through: 1.3M (single-office
    *  default). */
   defaultTarget?: number;
+  /** Agent-state feeds the leaderboard pulls from to overlay live
+   *  status (Talking / Hold / Not Ready / Lunch / Not logged in) onto
+   *  each card. One slug for a per-office board, both for the combined
+   *  sales-group view. Leaderboards without this stay state-blind. */
+  agentStateSlugs?: string[];
   data:
     | { type: 'widget' }                                  // resolved via wb_widgets row attached to this slug
     | { type: 'combined'; sources: string[] }             // concatenated from other showcase slugs
@@ -66,12 +71,14 @@ export const SHOWCASE_BOARDS: ShowcaseBoard[] = [
     name:       'London Agents Leaderboard',
     department: 'Sales',
     data:       { type: 'widget' },
+    agentStateSlugs: ['london-agent-states'],
   },
   {
     slug:       'guildford-agents',
     name:       'Guildford Agents Leaderboard',
     department: 'Sales',
     data:       { type: 'widget' },
+    agentStateSlugs: ['guildford-agent-states'],
   },
   {
     slug:          'sales-group',
@@ -80,6 +87,7 @@ export const SHOWCASE_BOARDS: ShowcaseBoard[] = [
     // London + Guildford combined NB budget. Override via ?target= per TV.
     defaultTarget: 2_590_000,
     data:          { type: 'combined', sources: ['london-agents', 'guildford-agents'] },
+    agentStateSlugs: ['london-agent-states', 'guildford-agent-states'],
   },
   // ─── Per-office agent-state boards ──────────────────────────────────
   // Same Noetica feed, same queue summary, just a different roster +

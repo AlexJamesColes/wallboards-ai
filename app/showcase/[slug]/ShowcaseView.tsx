@@ -12,6 +12,10 @@ import {
   useAutoHideCursor,
   useAutoReloadOnDeploy,
 } from '@/lib/kioskHooks';
+import { useAgentStates, type AgentLiveState } from '@/lib/useAgentStates';
+import { getShowcaseBoard } from '@/lib/showcaseBoards';
+import { statusMetaFor } from '@/lib/agentStateMeta';
+import { normalizeAgentName } from '@/lib/normalizeAgentName';
 
 interface Props {
   board:          WbBoard;
@@ -296,6 +300,14 @@ export default function ShowcaseView({ board, slug, defaultTarget }: Props) {
   useAutoFullscreenOnFirstGesture();
   useAutoFullscreenAfterIdle(30_000);
   useAutoHideCursor(3_000);
+
+  // Live agent-state overlay. Each card learns to dim when the agent's
+  // not signed in, and a coloured rim around the avatar matches the
+  // status they're in (Talking green / Hold orange / Not Ready red /
+  // etc.). Configured per leaderboard via SHOWCASE_BOARDS.agentStateSlugs;
+  // empty array → state-blind board, no extra fetches.
+  const agentStateSlugs = getShowcaseBoard(slug)?.agentStateSlugs ?? [];
+  const agentStates = useAgentStates(agentStateSlugs);
 
   // Poll /api/alerts for anything IT has pushed (Teams webhook forwards etc.)
   // and prepend them to the ticker as they arrive. Much shorter interval
@@ -606,6 +618,7 @@ export default function ShowcaseView({ board, slug, defaultTarget }: Props) {
           cols={{ nameCol, incomeMtdCol, polMtdCol, polTodayCol, incomeTodayCol, ippCol, gwpCol, addonsCol }}
           isMobile={isMobile}
           deltas={cardDeltas}
+          agentStates={agentStates}
         />
 
         {/* ── Rest of the pack ────────────────────────────────────── */}
@@ -616,6 +629,7 @@ export default function ShowcaseView({ board, slug, defaultTarget }: Props) {
           teamLeaderIncome={parseMoney(top3[0]?.[incomeMtdCol]) || 1}
           isMobile={isMobile}
           deltas={cardDeltas}
+          agentStates={agentStates}
         />
 
         {/* ── Bottom toolbar ──────────────────────────────────────── */}
@@ -1241,7 +1255,10 @@ function bracketFor(income: number): BracketState {
   return { current, next, pct, toNext };
 }
 
-function Podium({ rows, cols, isMobile, deltas }: { rows: Row[]; cols: ColMap; isMobile: boolean; deltas: CardDelta[] }) {
+function Podium({ rows, cols, isMobile, deltas, agentStates }: {
+  rows: Row[]; cols: ColMap; isMobile: boolean; deltas: CardDelta[];
+  agentStates: Map<string, AgentLiveState>;
+}) {
   if (rows.length === 0) return null;
 
   // Mobile: stack into two rows so each card has real width to breathe.
@@ -1263,12 +1280,13 @@ function Podium({ rows, cols, isMobile, deltas }: { rows: Row[]; cols: ColMap; i
           <PodiumCard
             key={String(rows[0][cols.nameCol])}
             row={rows[0]} rank={1} cols={cols} isMobile fullWidth deltas={deltas}
+            agentState={agentStates.get(normalizeAgentName(String(rows[0][cols.nameCol] ?? '')))}
           />
         )}
         {(rows[1] || rows[2]) && (
           <div style={{ display: 'flex', gap: 10 }}>
-            {rows[1] && <PodiumCard key={String(rows[1][cols.nameCol])} row={rows[1]} rank={2} cols={cols} isMobile deltas={deltas} />}
-            {rows[2] && <PodiumCard key={String(rows[2][cols.nameCol])} row={rows[2]} rank={3} cols={cols} isMobile deltas={deltas} />}
+            {rows[1] && <PodiumCard key={String(rows[1][cols.nameCol])} row={rows[1]} rank={2} cols={cols} isMobile deltas={deltas} agentState={agentStates.get(normalizeAgentName(String(rows[1][cols.nameCol] ?? '')))} />}
+            {rows[2] && <PodiumCard key={String(rows[2][cols.nameCol])} row={rows[2]} rank={3} cols={cols} isMobile deltas={deltas} agentState={agentStates.get(normalizeAgentName(String(rows[2][cols.nameCol] ?? '')))} />}
           </div>
         )}
       </div>
@@ -1292,15 +1310,20 @@ function Podium({ rows, cols, isMobile, deltas }: { rows: Row[]; cols: ColMap; i
       position: 'relative', zIndex: 1,
     }}>
       {arranged.map(({ row, rank }) => (
-        <PodiumCard key={String(row[cols.nameCol])} row={row} rank={rank} cols={cols} deltas={deltas} />
+        <PodiumCard
+          key={String(row[cols.nameCol])}
+          row={row} rank={rank} cols={cols} deltas={deltas}
+          agentState={agentStates.get(normalizeAgentName(String(row[cols.nameCol] ?? '')))}
+        />
       ))}
     </div>
   );
 }
 
-function PodiumCard({ row, rank, cols, isMobile, fullWidth, deltas }: {
+function PodiumCard({ row, rank, cols, isMobile, fullWidth, deltas, agentState }: {
   row: Row; rank: number; cols: ColMap;
   isMobile?: boolean; fullWidth?: boolean; deltas?: CardDelta[];
+  agentState?: AgentLiveState;
 }) {
   const rawName  = String(row[cols.nameCol] ?? '');
   const name     = cleanName(rawName);
@@ -1364,6 +1387,12 @@ function PodiumCard({ row, rank, cols, isMobile, fullWidth, deltas }: {
       // rounded corners; nothing else inside the card overflows so we
       // don't lose anything by dropping the prior `overflow:hidden`.
       overflow: 'visible',
+      // Dim cards whose agent isn't signed into Noetica right now —
+      // they're still on the leaderboard (their MTD numbers count) but
+      // not actively contributing today, so the visual hierarchy gives
+      // the floor manager a glance at "who's actually on shift".
+      opacity: agentState?.offline ? 0.42 : 1,
+      transition: 'opacity 320ms ease',
       animation: latestDelta
         ? `wb-card-pulse-${latestDelta.amount > 0 ? 'up' : 'down'} ${DELTA_TTL_MS}ms ease-out${rank === 1 ? ', wb-leader-pulse 3.2s ease-in-out infinite' : ''}`
         : (rank === 1 ? 'wb-leader-pulse 3.2s ease-in-out infinite' : undefined),
@@ -1377,6 +1406,7 @@ function PodiumCard({ row, rank, cols, isMobile, fullWidth, deltas }: {
             name={name}
             size={isMobile ? `${mobileSize.avatar}px` : (rank === 1 ? 'clamp(40px, 4.2vw, 64px)' : 'clamp(34px, 3.6vw, 54px)')}
             gradient={grad}
+            rim={agentState ? avatarRimFor(agentState) : null}
           />
           {online && <OnlineDot size={rank === 1 ? 'clamp(11px, 1vw, 15px)' : 'clamp(10px, 0.9vw, 13px)'} />}
         </div>
@@ -1563,7 +1593,25 @@ function Stat({ label, value, valueSize, labelSize }: {
   );
 }
 
-function Avatar({ name, size, gradient }: { name: string; size: string; gradient: { from: string; to: string } }) {
+/** Avatar rim for an agent's live state. Returns null for "Not logged
+ *  in" — the card is already dimmed to ~40% so adding a grey rim would
+ *  just compete with the dim signal. */
+function avatarRimFor(state: AgentLiveState): { color: string; glow: string } | null {
+  if (state.offline) return null;
+  const meta = statusMetaFor(state.status);
+  return { color: meta.tint, glow: meta.glow };
+}
+
+function Avatar({ name, size, gradient, rim }: {
+  name: string; size: string; gradient: { from: string; to: string };
+  /** Optional state-coloured ring around the avatar. Used by the
+   *  leaderboards to overlay live call-state (Talking / Hold / Not
+   *  Ready / etc.) onto each card without claiming any extra layout
+   *  space — the rim sits inside the avatar's existing footprint. */
+  rim?: { color: string; glow: string } | null;
+}) {
+  const baseShadow = '0 10px 30px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.2)';
+  const rimShadow  = rim ? `0 0 0 3px ${rim.color}, 0 0 14px ${rim.glow}, ${baseShadow}` : baseShadow;
   return (
     <div style={{
       width: size, height: size, borderRadius: '50%',
@@ -1571,8 +1619,9 @@ function Avatar({ name, size, gradient }: { name: string; size: string; gradient
       color: '#fff', fontWeight: 900,
       fontSize: `calc(${size} * 0.36)`,
       display: 'flex', alignItems: 'center', justifyContent: 'center',
-      boxShadow: '0 10px 30px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.2)',
+      boxShadow: rimShadow,
       letterSpacing: '-0.04em', flexShrink: 0,
+      transition: 'box-shadow 240ms ease',
     }}>{initials(name)}</div>
   );
 }
@@ -1606,8 +1655,9 @@ function OnlineDot({ size }: { size?: string } = {}) {
 //  Agent grid — rank 4+
 // ────────────────────────────────────────────────────────────────────────
 
-function AgentGrid({ rows, startIndex, cols, teamLeaderIncome, isMobile, deltas }: {
+function AgentGrid({ rows, startIndex, cols, teamLeaderIncome, isMobile, deltas, agentStates }: {
   rows: Row[]; startIndex: number; cols: ColMap; teamLeaderIncome: number; isMobile: boolean; deltas: CardDelta[];
+  agentStates: Map<string, AgentLiveState>;
 }) {
   // Give cards a firm minimum height so they can actually breathe — content
   // (avatar + big number + progress bar + emoji shelf) needs ~110px. The
@@ -1642,14 +1692,21 @@ function AgentGrid({ rows, startIndex, cols, teamLeaderIncome, isMobile, deltas 
         gap: isMobile ? 10 : 'clamp(10px, 1.2vh, 16px)',
       }}>
         {rows.map((row, i) => (
-          <AgentCard key={String(row[cols.nameCol])} row={row} rank={startIndex + i} cols={cols} leaderIncome={teamLeaderIncome} deltas={deltas} />
+          <AgentCard
+            key={String(row[cols.nameCol])}
+            row={row} rank={startIndex + i} cols={cols} leaderIncome={teamLeaderIncome} deltas={deltas}
+            agentState={agentStates.get(normalizeAgentName(String(row[cols.nameCol] ?? '')))}
+          />
         ))}
       </div>
     </div>
   );
 }
 
-function AgentCard({ row, rank, cols, leaderIncome, deltas }: { row: Row; rank: number; cols: ColMap; leaderIncome: number; deltas?: CardDelta[] }) {
+function AgentCard({ row, rank, cols, leaderIncome, deltas, agentState }: {
+  row: Row; rank: number; cols: ColMap; leaderIncome: number; deltas?: CardDelta[];
+  agentState?: AgentLiveState;
+}) {
   const rawName = String(row[cols.nameCol] ?? '');
   const name    = cleanName(rawName);
   const emojis  = [...extractEmojis(rawName)];
@@ -1682,6 +1739,9 @@ function AgentCard({ row, rank, cols, leaderIncome, deltas }: { row: Row; rank: 
       // top edge of the card; nothing else inside ever overflows.
       overflow: 'visible', position: 'relative',
       backdropFilter: 'blur(8px)',
+      // Dim cards whose agent isn't logged into Noetica right now.
+      opacity: agentState?.offline ? 0.42 : 1,
+      transition: 'opacity 320ms ease',
       animation: latestDelta
         ? `wb-card-pulse-${latestDelta.amount > 0 ? 'up' : 'down'} ${DELTA_TTL_MS}ms ease-out`
         : undefined,
@@ -1690,7 +1750,10 @@ function AgentCard({ row, rank, cols, leaderIncome, deltas }: { row: Row; rank: 
       {/* Top row: avatar + name + rank chip */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         <div style={{ position: 'relative', flexShrink: 0 }}>
-          <Avatar name={name} size="clamp(30px, 2.8vw, 44px)" gradient={grad} />
+          <Avatar
+            name={name} size="clamp(30px, 2.8vw, 44px)" gradient={grad}
+            rim={agentState ? avatarRimFor(agentState) : null}
+          />
           {online && <OnlineDot />}
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
