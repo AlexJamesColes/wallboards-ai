@@ -40,23 +40,55 @@ interface OfficeBlock {
   agents:   AgentRow[];
 }
 
+// ── Roster-name cache. The leaderboard SQL is heavy (computes MTD
+// totals across thousands of rows) but the agent NAMES it returns
+// rarely change — once a fortnight when someone joins or leaves
+// Sales. Caching for 5 minutes drops a cold agent-states call from
+// 6-7s per roster down to <50ms after the first hit, which is what
+// makes the kiosk rotation feel snappy. The cache is per-dyno
+// (Heroku), so each new dyno warms up on first request.
+const ROSTER_CACHE = new Map<string, { names: string[]; ts: number }>();
+const ROSTER_TTL_MS = 5 * 60 * 1000;
+let pendingRoster: Map<string, Promise<string[]>> = new Map();
+
 async function getRosterNames(sourceSlug: string): Promise<string[]> {
-  const board = await getBoardBySlug(sourceSlug);
-  if (!board) return [];
-  const tables = (board.widgets || []).filter(w =>
-    w.type === 'table' && !(w.display_config as any)?.hide_header,
-  );
-  tables.sort((a, b) => (b.col_span * b.row_span) - (a.col_span * a.row_span));
-  const main = tables[0];
-  if (!main || main.data_source_type !== 'sql') return [];
-  const query = (main.data_source_config as any)?.query;
-  if (!query) return [];
-  const result = await runQuery(query);
-  const cols = result.columns || [];
-  const nameCol = cols[0] || 'name';
-  return (result.rows || [])
-    .map((r: any) => String(r[nameCol] ?? ''))
-    .filter(n => n && !isSalesManager(n));
+  const cached = ROSTER_CACHE.get(sourceSlug);
+  if (cached && (Date.now() - cached.ts) < ROSTER_TTL_MS) return cached.names;
+
+  // Coalesce concurrent misses into one in-flight SQL. Without this,
+  // a kiosk rotation that fans out a fresh dyno's first hit could fire
+  // the same SQL twice (once for the rotation hook's queue probe, once
+  // for the page render) and double the cold-start latency.
+  const inFlight = pendingRoster.get(sourceSlug);
+  if (inFlight) return inFlight;
+
+  const promise = (async () => {
+    const board = await getBoardBySlug(sourceSlug);
+    if (!board) return [];
+    const tables = (board.widgets || []).filter(w =>
+      w.type === 'table' && !(w.display_config as any)?.hide_header,
+    );
+    tables.sort((a, b) => (b.col_span * b.row_span) - (a.col_span * a.row_span));
+    const main = tables[0];
+    if (!main || main.data_source_type !== 'sql') return [];
+    const query = (main.data_source_config as any)?.query;
+    if (!query) return [];
+    const result = await runQuery(query);
+    const cols = result.columns || [];
+    const nameCol = cols[0] || 'name';
+    return (result.rows || [])
+      .map((r: any) => String(r[nameCol] ?? ''))
+      .filter((n: string) => n && !isSalesManager(n));
+  })();
+
+  pendingRoster.set(sourceSlug, promise);
+  try {
+    const names = await promise;
+    ROSTER_CACHE.set(sourceSlug, { names, ts: Date.now() });
+    return names;
+  } finally {
+    pendingRoster.delete(sourceSlug);
+  }
 }
 
 function pickAgentField(row: any): { name: string; status: string; time: number; team: string | null } {
@@ -87,14 +119,22 @@ export async function GET(_req: Request, { params }: { params: { slug: string } 
   // don't have to re-narrow at every property access below.
   const cfg = config.data;
 
-  // ── Roster — names per office, derived from the leaderboard SQL.
-  const rosterEntries = await Promise.all(
-    cfg.rosters.map(async r => ({
-      label:  r.label,
-      source: r.source,
-      names:  await getRosterNames(r.source),
-    })),
-  );
+  // ── Roster + exclude lookups in a single parallel batch. Previously
+  // these awaited sequentially, doubling the cold-start latency on a
+  // per-office board (which has 1 roster + 1 exclude SQL). With one
+  // Promise.all both queries fire at once and the response time tracks
+  // the slower of the two, not their sum.
+  const excludeRosters = cfg.excludeRosters ?? [];
+  const [rosterNamesArrays, excludeNamesArrays] = await Promise.all([
+    Promise.all(cfg.rosters.map(r => getRosterNames(r.source))),
+    Promise.all(excludeRosters.map(getRosterNames)),
+  ]);
+
+  const rosterEntries = cfg.rosters.map((r, i) => ({
+    label:  r.label,
+    source: r.source,
+    names:  rosterNamesArrays[i],
+  }));
   const rosterByKey = new Map<string, { label: string; source: string; canonical: string }>();
   for (const entry of rosterEntries) {
     for (const n of entry.names) {
@@ -111,9 +151,8 @@ export async function GET(_req: Request, { params }: { params: { slug: string } 
   // board (London XOR Guildford) this keeps the other office's agents
   // off the screen rather than showing them as orphans.
   const excludeKeys = new Set<string>();
-  if (cfg.excludeRosters && cfg.excludeRosters.length > 0) {
-    const excludeNameLists = await Promise.all(cfg.excludeRosters.map(getRosterNames));
-    for (const names of excludeNameLists) for (const n of names) {
+  if (excludeNamesArrays.length > 0) {
+    for (const names of excludeNamesArrays) for (const n of names) {
       const key = normalizeAgentName(n);
       if (key) excludeKeys.add(key);
     }
