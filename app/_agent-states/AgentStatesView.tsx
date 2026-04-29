@@ -149,6 +149,13 @@ export default function AgentStatesView({ slug, title, department }: Props) {
   useAutoReloadOnDeploy();
   useKioskRotation();
 
+  // Kiosk rotation context — when the page is part of a slideshow
+  // (?rotate=...), TVs can't scroll, so we drop the lowest-priority
+  // tier ("Not logged in") and tighten padding so the queue stats +
+  // alert lanes + active lanes always fit a 1080p viewport.
+  const isInKioskRotation = typeof window !== 'undefined'
+    && new URLSearchParams(window.location.search).has('rotate');
+
   const [data,    setData]    = useState<Payload | null>(null);
   const [error,   setError]   = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -262,7 +269,14 @@ export default function AgentStatesView({ slug, title, department }: Props) {
 
   const alertLanes  = lanesFor(ALERT_ORDER);
   const activeLanes = lanesFor(ACTIVE_ORDER);
-  const awayLanes   = lanesFor(AWAY_ORDER);
+  // In a kiosk rotation the TV can't scroll — drop the "Not logged
+  // in" lane (highest space cost, lowest urgency on a wallboard) so
+  // the queue strip + alert + active lanes always fit. The roster
+  // count stays in the header so the info isn't lost.
+  const awayOrder   = isInKioskRotation
+    ? AWAY_ORDER.filter(s => s !== 'Not logged in')
+    : AWAY_ORDER;
+  const awayLanes   = lanesFor(awayOrder);
 
   // Single-office board (London XOR Guildford) → hide the office chip.
   // Every tile would carry the same letter, claiming pixels for no info.
@@ -272,6 +286,8 @@ export default function AgentStatesView({ slug, title, department }: Props) {
   return (
     <div style={{
       minHeight: '100vh',
+      maxHeight: isInKioskRotation ? '100vh' : undefined,
+      overflow:  isInKioskRotation ? 'hidden' : undefined,
       background: '#131b30',
       backgroundImage: `
         radial-gradient(ellipse at 50% -10%, rgba(56,189,248,0.06) 0%, transparent 55%),
@@ -280,7 +296,12 @@ export default function AgentStatesView({ slug, title, department }: Props) {
       `,
       backgroundSize: 'auto, 40px 40px, 40px 40px',
       color: '#f1f5f9', fontFamily: 'var(--font-raleway, sans-serif)',
-      padding: 'clamp(20px, 4vh, 40px) clamp(16px, 4vw, 40px)',
+      // Tighter padding in kiosk rotation — TV viewport already loses
+      // space to the system status bar, the rotation can't afford to
+      // waste another 40px to chrome on each side.
+      padding: isInKioskRotation
+        ? '14px clamp(14px, 2vw, 28px)'
+        : 'clamp(20px, 4vh, 40px) clamp(16px, 4vw, 40px)',
     }}>
       <Header
         title={title}
@@ -305,7 +326,10 @@ export default function AgentStatesView({ slug, title, department }: Props) {
       )}
 
       {!error && data && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 'clamp(16px, 2.4vh, 26px)' }}>
+        <div style={{
+          display: 'flex', flexDirection: 'column',
+          gap: isInKioskRotation ? 10 : 'clamp(16px, 2.4vh, 26px)',
+        }}>
           {data.queues && data.queues.length > 0 && (
             <QueueStrip queues={data.queues} />
           )}
