@@ -269,14 +269,7 @@ export default function AgentStatesView({ slug, title, department }: Props) {
 
   const alertLanes  = lanesFor(ALERT_ORDER);
   const activeLanes = lanesFor(ACTIVE_ORDER);
-  // In a kiosk rotation the TV can't scroll — drop the "Not logged
-  // in" lane (highest space cost, lowest urgency on a wallboard) so
-  // the queue strip + alert + active lanes always fit. The roster
-  // count stays in the header so the info isn't lost.
-  const awayOrder   = isInKioskRotation
-    ? AWAY_ORDER.filter(s => s !== 'Not logged in')
-    : AWAY_ORDER;
-  const awayLanes   = lanesFor(awayOrder);
+  const awayLanes   = lanesFor(AWAY_ORDER);
 
   // Single-office board (London XOR Guildford) → hide the office chip.
   // Every tile would carry the same letter, claiming pixels for no info.
@@ -339,8 +332,9 @@ export default function AgentStatesView({ slug, title, department }: Props) {
               label="Needs attention"
               accent="#f87171"
               lanes={alertLanes}
-              minColWidth={220}
+              minColWidth={isInKioskRotation ? 320 : 220}
               showOfficeChip={showOfficeChip}
+              dense={isInKioskRotation}
             />
           )}
           {activeLanes.length > 0 && (
@@ -349,8 +343,9 @@ export default function AgentStatesView({ slug, title, department }: Props) {
               label="On the floor"
               accent="#10b981"
               lanes={activeLanes}
-              minColWidth={220}
+              minColWidth={isInKioskRotation ? 320 : 220}
               showOfficeChip={showOfficeChip}
+              dense={isInKioskRotation}
             />
           )}
           {awayLanes.length > 0 && (
@@ -359,9 +354,10 @@ export default function AgentStatesView({ slug, title, department }: Props) {
               label="Away"
               accent="#94a3b8"
               lanes={awayLanes}
-              minColWidth={260}
+              minColWidth={isInKioskRotation ? 360 : 260}
               compact
               showOfficeChip={showOfficeChip}
+              dense={isInKioskRotation}
             />
           )}
           {isPerOffice && data.unmatched.length > 0 && (
@@ -443,13 +439,14 @@ function Header({ title, department, loading, updatedAt, signedIn, rosterTotal }
 // A row of status lanes sharing a tier accent + label. Lanes auto-fit
 // to the available width; on mobile they stack one per row.
 
-function Tier({ label, accent, lanes, minColWidth, compact = false, showOfficeChip = false }: {
+function Tier({ label, accent, lanes, minColWidth, compact = false, showOfficeChip = false, dense = false }: {
   label:           string;
   accent:          string;
   lanes:           { status: string; agents: LiveAgent[] }[];
   minColWidth:     number;
   compact?:        boolean;
   showOfficeChip?: boolean;
+  dense?:          boolean;
 }) {
   const total = lanes.reduce((s, l) => s + l.agents.length, 0);
   return (
@@ -479,7 +476,7 @@ function Tier({ label, accent, lanes, minColWidth, compact = false, showOfficeCh
         alignItems: 'flex-start',
       }}>
         {lanes.map(lane => (
-          <Lane key={lane.status} lane={lane} compact={compact} showOfficeChip={showOfficeChip} />
+          <Lane key={lane.status} lane={lane} compact={compact} showOfficeChip={showOfficeChip} dense={dense} />
         ))}
       </div>
     </section>
@@ -491,10 +488,14 @@ function Tier({ label, accent, lanes, minColWidth, compact = false, showOfficeCh
 // status accent. Body lists agents (full tiles for active/alert tiers,
 // compact name rows for the away tier).
 
-function Lane({ lane, compact, showOfficeChip }: {
+function Lane({ lane, compact, showOfficeChip, dense = false }: {
   lane: { status: string; agents: LiveAgent[] };
   compact: boolean;
   showOfficeChip: boolean;
+  /** Pack tiles tighter — used in kiosk-rotation context where the
+   *  TV can't scroll, so we drop the per-tile min width to let
+   *  9-10 names fit per row on a 50" display. */
+  dense?: boolean;
 }) {
   const meta = STATUS_META[lane.status] || NEUTRAL_META;
   return (
@@ -529,14 +530,17 @@ function Lane({ lane, compact, showOfficeChip }: {
         display: 'grid',
         gap: compact ? 4 : 6,
         // Horizontal grid — tiles flow across the lane's available width
-        // instead of stacking in one tall column. Min cell width is the
-        // smallest size each tile still reads cleanly at; auto-fit packs
-        // as many columns as fit. On a TV this means a single populated
-        // status lane fills the row width with 4-7 tiles per line
-        // instead of one centred name per line.
-        gridTemplateColumns: compact
-          ? 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))'
-          : 'repeat(auto-fit, minmax(min(100%, 230px), 1fr))',
+        // instead of stacking in one tall column. `dense` mode drops
+        // the per-tile min width by ~30% so a 50" kiosk TV can pack
+        // 9-10 tiles per row instead of 6-7, avoiding the need to
+        // scroll on a TV that can't.
+        gridTemplateColumns: dense
+          ? (compact
+              ? 'repeat(auto-fit, minmax(min(100%, 150px), 1fr))'
+              : 'repeat(auto-fit, minmax(min(100%, 165px), 1fr))')
+          : (compact
+              ? 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))'
+              : 'repeat(auto-fit, minmax(min(100%, 230px), 1fr))'),
       }}>
         {lane.agents.map(a =>
           compact
