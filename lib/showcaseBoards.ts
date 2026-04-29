@@ -145,10 +145,13 @@ export const SHOWCASE_BOARDS: ShowcaseBoard[] = [
   // boards every `intervalMs`. Floor managers get to read each board
   // at full resolution — same kiosk pattern they're already used to,
   // no split-screen density hit.
+  // Rotators live under their own "Kiosk" department so a TV-bookmark
+  // URL doesn't clutter the per-department directory. Pinned on top
+  // when starred, otherwise at the bottom of the browse page.
   {
     slug:       'london-kiosk',
     name:       'London · Kiosk Rotation',
-    department: 'Sales',
+    department: 'Kiosk',
     data:       {
       type:       'rotation',
       sources:    ['london-agents', 'london-agent-states'],
@@ -158,7 +161,7 @@ export const SHOWCASE_BOARDS: ShowcaseBoard[] = [
   {
     slug:       'guildford-kiosk',
     name:       'Guildford · Kiosk Rotation',
-    department: 'Sales',
+    department: 'Kiosk',
     data:       {
       type:       'rotation',
       sources:    ['guildford-agents', 'guildford-agent-states'],
@@ -168,7 +171,7 @@ export const SHOWCASE_BOARDS: ShowcaseBoard[] = [
   {
     slug:       'sales-kiosk',
     name:       'Sales · Kiosk Rotation',
-    department: 'Sales',
+    department: 'Kiosk',
     data:       {
       type:       'rotation',
       sources:    ['sales-group', 'london-agent-states', 'guildford-agent-states'],

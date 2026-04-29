@@ -211,6 +211,12 @@ export function useAutoHideCursor(idleMs: number) {
  * rotation when the interval elapses. Each view in the cycle runs its
  * own copy — wherever the TV navigates to next, the same hook re-arms.
  *
+ * Smart pinning: if the rotation includes an agent-states source AND
+ * its queue has calls in flight (`in_queue > 0`), the timer pins the
+ * TV to that source instead of advancing. Floor managers want the
+ * live queue stats on screen during pressure, not the leaderboard.
+ * When the queue clears the rotation resumes normally.
+ *
  * Fullscreen state survives same-origin navigation in every browser
  * we care about (Tizen / Chromium / Safari), so the URL bar doesn't
  * pop back during the swap on a TV that started the cycle in
@@ -230,10 +236,46 @@ export function useKioskRotation() {
 
     const step       = Number(params.get('step') ?? 0) || 0;
     const intervalMs = Number(params.get('interval') ?? config.data.intervalMs ?? 60_000) || 60_000;
-    const nextIdx    = (step + 1) % sources.length;
-    const nextSlug   = sources[nextIdx];
+    const currentIdx = step % sources.length;
 
-    const timer = setTimeout(() => {
+    // Find the agent-states source (if any) — used as the pin target
+    // when calls are queued. For a rotation with multiple agent-states
+    // sources (e.g. sales-kiosk: London + Guildford states), the first
+    // one is checked since both share the same Inbound Sales queue.
+    const agentStatesSource = sources.find(s => {
+      const c = getShowcaseBoard(s);
+      return c?.data.type === 'agent-states';
+    });
+
+    let timer: ReturnType<typeof setTimeout>;
+
+    const tick = async () => {
+      let nextIdx = (step + 1) % sources.length;
+
+      if (agentStatesSource) {
+        try {
+          const res = await fetch(`/api/agent-states/${encodeURIComponent(agentStatesSource)}`, { cache: 'no-store' });
+          if (res.ok) {
+            const d = await res.json();
+            const queues: Array<{ in_queue?: number }> = d?.queues || [];
+            const totalInQueue = queues.reduce((sum, q) => sum + (Number(q.in_queue) || 0), 0);
+            if (totalInQueue > 0) {
+              const target = sources.indexOf(agentStatesSource);
+              if (target >= 0) nextIdx = target;
+            }
+          }
+        } catch { /* ignore — fall back to normal rotation */ }
+      }
+
+      // If the pin target is the page we're already on, re-arm the
+      // timer rather than navigating to the same URL — avoids a TV
+      // reload flash while the queue stays hot.
+      if (nextIdx === currentIdx) {
+        timer = setTimeout(tick, intervalMs);
+        return;
+      }
+
+      const nextSlug = sources[nextIdx];
       const next = `/${encodeURIComponent(nextSlug)}`
                  + `?rotate=${encodeURIComponent(rotationSlug)}`
                  + `&step=${nextIdx}`
@@ -242,8 +284,9 @@ export function useKioskRotation() {
       // rotation hops, so the back button still goes to the page the
       // operator opened the kiosk URL from.
       window.location.replace(next);
-    }, intervalMs);
+    };
 
+    timer = setTimeout(tick, intervalMs);
     return () => clearTimeout(timer);
   }, []);
 }

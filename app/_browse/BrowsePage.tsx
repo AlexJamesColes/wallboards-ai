@@ -20,7 +20,11 @@ type Mode = 'desktop' | 'mobile';
  *  browse page chrome and the chosen wallboard layout flip together. */
 const MOBILE_MAX_WIDTH = 768;
 
-const DEPT_ORDER  = ['Sales', 'Renewals', 'Operations', 'Internal Audit', 'Beta', 'Other'];
+// "Kiosk" sits at the bottom — these are TV-bookmark rotator URLs,
+// not boards an analyst opens day-to-day. Last in the list keeps them
+// out of the way unless the user has favourited them (favourites
+// section pins to the top regardless of department).
+const DEPT_ORDER  = ['Sales', 'Renewals', 'Operations', 'Internal Audit', 'Beta', 'Other', 'Kiosk'];
 const FAVOURITES_KEY = 'wb-favourites-v1';
 const ADMIN_KEY_STORAGE = 'wb-admin-key-v1';
 
@@ -528,6 +532,7 @@ function BoardIcon({ department }: { department: string | null }) {
     Operations:      { bg: 'rgba(16,185,129,0.18)', border: 'rgba(16,185,129,0.4)',  emoji: '⚙️' },
     'Internal Audit':{ bg: 'rgba(251,191,36,0.18)', border: 'rgba(251,191,36,0.4)',  emoji: '🛡️' },
     Beta:            { bg: 'rgba(251,191,36,0.18)', border: 'rgba(251,191,36,0.4)',  emoji: '🧪' },
+    Kiosk:           { bg: 'rgba(99,102,241,0.18)', border: 'rgba(99,102,241,0.4)',  emoji: '📺' },
     Other:           { bg: 'rgba(148,163,184,0.18)',border: 'rgba(148,163,184,0.4)', emoji: '📊' },
   };
   const tint = tints[dept] || tints.Other;
