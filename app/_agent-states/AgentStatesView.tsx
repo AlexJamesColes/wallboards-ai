@@ -303,6 +303,7 @@ export default function AgentStatesView({ slug, title, department }: Props) {
         updatedAt={data?.updated_at ?? null}
         signedIn={agents.filter(a => a.status !== 'Not logged in').length}
         rosterTotal={agents.length}
+        compact={isInKioskRotation}
       />
 
       {error && (
@@ -324,7 +325,7 @@ export default function AgentStatesView({ slug, title, department }: Props) {
           gap: isInKioskRotation ? 10 : 'clamp(16px, 2.4vh, 26px)',
         }}>
           {data.queues && data.queues.length > 0 && (
-            <QueueStrip queues={data.queues} />
+            <QueueStrip queues={data.queues} compact={isInKioskRotation} />
           )}
           {alertLanes.length > 0 && (
             <Tier
@@ -335,6 +336,10 @@ export default function AgentStatesView({ slug, title, department }: Props) {
               minColWidth={isInKioskRotation ? 320 : 220}
               showOfficeChip={showOfficeChip}
               dense={isInKioskRotation}
+              // In kiosk rotation every tier uses compact single-line
+              // rows so the page fits 1080p without scrolling, even
+              // when Talking has 40+ agents.
+              compact={isInKioskRotation}
             />
           )}
           {activeLanes.length > 0 && (
@@ -346,6 +351,7 @@ export default function AgentStatesView({ slug, title, department }: Props) {
               minColWidth={isInKioskRotation ? 320 : 220}
               showOfficeChip={showOfficeChip}
               dense={isInKioskRotation}
+              compact={isInKioskRotation}
             />
           )}
           {awayLanes.length > 0 && (
@@ -377,15 +383,19 @@ export default function AgentStatesView({ slug, title, department }: Props) {
 
 // ─── Header ─────────────────────────────────────────────────────────────
 
-function Header({ title, department, loading, updatedAt, signedIn, rosterTotal }: {
+function Header({ title, department, loading, updatedAt, signedIn, rosterTotal, compact = false }: {
   title: string; department: string; loading: boolean;
   updatedAt: string | null; signedIn: number; rosterTotal: number;
+  compact?: boolean;
 }) {
   const stale = updatedAt ? (Date.now() - new Date(updatedAt).getTime()) > 60_000 : true;
   const fresh = formatFreshness(updatedAt);
   return (
-    <header style={{ marginBottom: 'clamp(18px, 2.6vh, 30px)' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 10 }}>
+    <header style={{ marginBottom: compact ? 10 : 'clamp(18px, 2.6vh, 30px)' }}>
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
+        marginBottom: compact ? 6 : 10,
+      }}>
         <BoardBackButton />
         <span style={{
           display: 'inline-flex', alignItems: 'center', gap: 8,
@@ -404,12 +414,12 @@ function Header({ title, department, loading, updatedAt, signedIn, rosterTotal }
       }}>
         <div>
           <h1 style={{
-            fontSize: 'clamp(22px, 3vw, 38px)', fontWeight: 800,
-            color: '#f1f5f9', lineHeight: 1.1, margin: 0,
+            fontSize: compact ? 22 : 'clamp(22px, 3vw, 38px)',
+            fontWeight: 800, color: '#f1f5f9', lineHeight: 1.1, margin: 0,
           }}>{title}</h1>
           <div style={{
-            fontSize: 13, fontWeight: 600, color: '#94a3b8',
-            marginTop: 6, letterSpacing: '0.04em',
+            fontSize: compact ? 12 : 13, fontWeight: 600, color: '#94a3b8',
+            marginTop: compact ? 3 : 6, letterSpacing: '0.04em',
           }}>
             <strong style={{ color: '#f1f5f9' }}>{signedIn}</strong> of {rosterTotal} signed in
           </div>
@@ -649,19 +659,19 @@ function OfficeChip({ office, compact = false }: { office: string | null; compac
 // now?"). Each metric colour-codes by threshold so it reads from
 // across the room: green = healthy, amber = watch, red = act.
 
-function QueueStrip({ queues }: { queues: QueueSummary[] }) {
+function QueueStrip({ queues, compact = false }: { queues: QueueSummary[]; compact?: boolean }) {
   return (
     <section style={{
-      display: 'grid', gap: 'clamp(10px, 1.4vh, 16px)',
+      display: 'grid', gap: compact ? 8 : 'clamp(10px, 1.4vh, 16px)',
     }}>
       {queues.map(q => (
-        <QueueGroup key={q.label} q={q} />
+        <QueueGroup key={q.label} q={q} compact={compact} />
       ))}
     </section>
   );
 }
 
-function QueueGroup({ q }: { q: QueueSummary }) {
+function QueueGroup({ q, compact = false }: { q: QueueSummary; compact?: boolean }) {
   // Continuous In-queue ramp — white at 0, ladders through yellow /
   // orange / red / deep red the longer the queue gets. Pulses whenever
   // the count is above zero so a TV across the room broadcasts pressure
@@ -678,14 +688,19 @@ function QueueGroup({ q }: { q: QueueSummary }) {
       borderRadius: 14,
       border: '1px solid rgba(255,255,255,0.06)',
       background: 'linear-gradient(180deg, rgba(99,102,241,0.10) 0%, rgba(20,26,46,0.55) 70%)',
-      padding: 'clamp(10px, 1.6vh, 16px) clamp(14px, 2vw, 22px)',
+      padding: compact
+        ? '8px 14px'
+        : 'clamp(10px, 1.6vh, 16px) clamp(14px, 2vw, 22px)',
     }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 'clamp(8px, 1.2vh, 12px)' }}>
+      <div style={{
+        display: 'flex', alignItems: 'baseline', gap: 10,
+        marginBottom: compact ? 6 : 'clamp(8px, 1.2vh, 12px)',
+      }}>
         <span aria-hidden style={{
-          fontSize: 'clamp(16px, 1.8vw, 22px)', lineHeight: 1,
+          fontSize: compact ? 16 : 'clamp(16px, 1.8vw, 22px)', lineHeight: 1,
         }}>📞</span>
         <h2 style={{
-          fontSize: 'clamp(11px, 1vw, 14px)', fontWeight: 800,
+          fontSize: compact ? 11 : 'clamp(11px, 1vw, 14px)', fontWeight: 800,
           color: '#a5b4fc', letterSpacing: '0.22em', textTransform: 'uppercase',
           margin: 0,
         }}>{q.label}</h2>
@@ -696,31 +711,33 @@ function QueueGroup({ q }: { q: QueueSummary }) {
         )}
       </div>
       <div style={{
-        display: 'grid', gap: 'clamp(10px, 1.6vw, 18px)',
+        display: 'grid', gap: compact ? 10 : 'clamp(10px, 1.6vw, 18px)',
         gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 180px), 1fr))',
       }}>
-        <BigStat label="In queue"     value={String(q.in_queue)}              tint={inQueueLook.tint} pulseColor={inQueueLook.pulse} />
-        <BigStat label="Longest wait" value={formatWait(q.longest_wait)}      tint={longestColor} sub={q.longest_wait > 0 ? 'right now' : undefined} />
-        <BigStat label="Answered"     value={`${q.answered}`}                 tint={STAT_NEUTRAL} sub={`of ${q.offered} offered today`} />
-        <BigStat label="Abandoned"    value={`${q.abandon_pct}%`}             tint={abandonColor} sub={`${q.abandoned} today · avg wait ${formatWait(q.average_wait)}`} />
+        <BigStat compact={compact} label="In queue"     value={String(q.in_queue)}              tint={inQueueLook.tint} pulseColor={inQueueLook.pulse} />
+        <BigStat compact={compact} label="Longest wait" value={formatWait(q.longest_wait)}      tint={longestColor} sub={q.longest_wait > 0 ? 'right now' : undefined} />
+        <BigStat compact={compact} label="Answered"     value={`${q.answered}`}                 tint={STAT_NEUTRAL} sub={`of ${q.offered} offered today`} />
+        <BigStat compact={compact} label="Abandoned"    value={`${q.abandon_pct}%`}             tint={abandonColor} sub={`${q.abandoned} today · avg wait ${formatWait(q.average_wait)}`} />
       </div>
     </div>
   );
 }
 
-function BigStat({ label, value, tint, sub, pulseColor }: {
+function BigStat({ label, value, tint, sub, pulseColor, compact = false }: {
   label: string; value: string; tint: { fg: string; glow: string }; sub?: string;
   /** When set, the tile pulses the given colour (used for In-queue
    *  severity). Pass undefined / null to disable the pulse. */
   pulseColor?: string | null;
+  compact?: boolean;
 }) {
   return (
     <div
       style={{
-        borderRadius: 12, padding: 'clamp(10px, 1.4vh, 14px) clamp(12px, 1.4vw, 16px)',
+        borderRadius: 12,
+        padding: compact ? '8px 12px' : 'clamp(10px, 1.4vh, 14px) clamp(12px, 1.4vw, 16px)',
         background: 'rgba(14,20,39,0.6)',
         border: `1px solid ${tint.fg}33`,
-        display: 'flex', flexDirection: 'column', gap: 6,
+        display: 'flex', flexDirection: 'column', gap: compact ? 2 : 6,
         // CSS custom prop drives the @keyframes wb-queue-pulse ring;
         // unset means "no pulse" because the keyframe falls back to
         // transparent.
@@ -731,16 +748,20 @@ function BigStat({ label, value, tint, sub, pulseColor }: {
       }}
     >
       <div style={{
-        fontSize: 'clamp(10px, 0.85vw, 12px)', fontWeight: 800,
+        fontSize: compact ? 10 : 'clamp(10px, 0.85vw, 12px)', fontWeight: 800,
         color: '#94a3b8', letterSpacing: '0.18em', textTransform: 'uppercase',
       }}>{label}</div>
       <div style={{
-        fontSize: 'clamp(28px, 4vw, 50px)', fontWeight: 800, lineHeight: 1,
+        fontSize: compact ? 28 : 'clamp(28px, 4vw, 50px)',
+        fontWeight: 800, lineHeight: 1,
         color: tint.fg, fontVariantNumeric: 'tabular-nums',
         textShadow: `0 0 22px ${tint.glow}`,
       }}>{value}</div>
       {sub && (
-        <div style={{ fontSize: 'clamp(10px, 0.8vw, 12px)', color: '#64748b', fontWeight: 600 }}>
+        <div style={{
+          fontSize: compact ? 10 : 'clamp(10px, 0.8vw, 12px)',
+          color: '#64748b', fontWeight: 600,
+        }}>
           {sub}
         </div>
       )}
