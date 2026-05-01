@@ -328,14 +328,21 @@ function DirectExternal({ direct, external }: {
   const d = direct.result?.value ?? 0;
   const e = external.result?.value ?? 0;
   const total = d + e;
-  const dPct = total > 0 ? d / total : 0.5;
+  const dPct = total > 0 ? d / total : 0;
+  const ePct = total > 0 ? e / total : 0;
+
+  // Two horizontal bars share the same scale (max = total) so the
+  // longer bar visually wins, giving the eye an immediate "which
+  // channel is bigger" read. Mirrors the progress-bar idiom we use
+  // for NB Earn MTD target — same vocabulary across the board.
+  const ROW_H = 36; // ample room for value text inside the bar
   return (
     <section style={{
-      ...tileStyle, padding: '14px 18px',
+      ...tileStyle, padding: '16px 20px',
     }}>
       <div style={{
         display: 'flex', justifyContent: 'space-between', alignItems: 'baseline',
-        marginBottom: 10,
+        marginBottom: 14,
       }}>
         <span style={tileLabelStyle}>Direct v External</span>
         <span style={{
@@ -345,31 +352,143 @@ function DirectExternal({ direct, external }: {
           Total {formatValue(total, 'gbp-k')}
         </span>
       </div>
+
+      <ChannelBar
+        label="Direct"   value={d} pct={dPct} total={total} rowHeight={ROW_H}
+        gradient="linear-gradient(90deg, #38bdf8 0%, #818cf8 100%)"
+        labelColor="#a5b4fc"
+      />
+      <div style={{ height: 8 }} />
+      <ChannelBar
+        label="External" value={e} pct={ePct} total={total} rowHeight={ROW_H}
+        gradient="linear-gradient(90deg, #94a3b8 0%, #64748b 100%)"
+        labelColor="#cbd5e1"
+      />
+    </section>
+  );
+}
+
+function ChannelBar({ label, value, pct, total, rowHeight, gradient, labelColor }: {
+  label: string; value: number; pct: number; total: number;
+  rowHeight: number; gradient: string; labelColor: string;
+}) {
+  return (
+    <div style={{
+      display: 'grid',
+      gridTemplateColumns: '90px 1fr 90px',
+      alignItems: 'center', gap: 12,
+    }}>
+      <span style={{
+        fontSize: 12, fontWeight: 800,
+        color: labelColor, letterSpacing: '0.18em', textTransform: 'uppercase',
+      }}>{label}</span>
+
       <div style={{
-        position: 'relative', height: 12, borderRadius: 99, overflow: 'hidden',
+        position: 'relative', height: rowHeight, borderRadius: 8, overflow: 'hidden',
         background: 'rgba(255,255,255,0.04)',
         border: '1px solid rgba(255,255,255,0.06)',
       }}>
         <div style={{
-          position: 'absolute', inset: 0, width: `${dPct * 100}%`,
-          background: 'linear-gradient(90deg, #38bdf8 0%, #818cf8 100%)',
+          position: 'absolute', inset: 0,
+          width: `${Math.max(2, pct * 100)}%`, // min 2% so a £0 channel still shows a sliver
+          background: gradient,
+          transition: 'width 0.6s ease',
         }} />
-      </div>
-      <div style={{
-        display: 'flex', justifyContent: 'space-between',
-        marginTop: 8, fontSize: 13, fontWeight: 700,
-      }}>
-        <span style={{ color: '#a5b4fc' }}>
-          ● Direct {formatValue(d, 'gbp-k')}{' '}
-          <span style={{ color: '#64748b', fontWeight: 600 }}>{Math.round(dPct * 100)}%</span>
+        {/* Value floats inside the bar at the right edge — keeps the
+            eye anchored to where the bar ends */}
+        <span style={{
+          position: 'absolute', top: 0, bottom: 0,
+          left: total > 0 ? `calc(${pct * 100}% + 8px)` : 8,
+          display: 'flex', alignItems: 'center',
+          fontSize: 16, fontWeight: 800, color: '#f1f5f9',
+          fontVariantNumeric: 'tabular-nums',
+          textShadow: '0 1px 2px rgba(0,0,0,0.4)',
+          whiteSpace: 'nowrap',
+        }}>
+          {formatValue(value, 'gbp-k')}
         </span>
-        <span style={{ color: '#94a3b8' }}>
-          ● External {formatValue(e, 'gbp-k')}{' '}
-          <span style={{ color: '#64748b', fontWeight: 600 }}>{Math.round((1 - dPct) * 100)}%</span>
-        </span>
       </div>
-    </section>
+
+      <span style={{
+        fontSize: 18, fontWeight: 800, color: '#f1f5f9',
+        fontVariantNumeric: 'tabular-nums', textAlign: 'right',
+      }}>{Math.round(pct * 100)}%</span>
+    </div>
   );
+}
+
+// ─── Custom Recharts tooltip ───────────────────────────────────────────
+//
+// Default tooltip showed "17" as the heading and stacked the series
+// awkwardly. This one renders the hour as a real time ("5pm" / "17:00"),
+// shows both series side-by-side colour-coded, and matches the dark
+// glass aesthetic used elsewhere on the board.
+
+interface HourTooltipProps {
+  active?:  boolean;
+  payload?: Array<{ dataKey: string; value: number | null }>;
+  label?:   string | number;
+  yFormat:  WidgetFormat;
+  series:   Array<{ key: string; label: string; tint: string }>;
+}
+
+function HourTooltip({ active, payload, label, yFormat, series }: HourTooltipProps) {
+  if (!active || !payload || payload.length === 0) return null;
+  return (
+    <div style={{
+      background: 'rgba(14,20,39,0.96)',
+      border: '1px solid rgba(255,255,255,0.12)',
+      borderRadius: 10, padding: '10px 14px',
+      boxShadow: '0 8px 24px rgba(0,0,0,0.35)',
+      fontFamily: 'var(--font-raleway, sans-serif)',
+      minWidth: 140,
+    }}>
+      <div style={{
+        fontSize: 11, fontWeight: 800,
+        color: '#94a3b8', letterSpacing: '0.18em', textTransform: 'uppercase',
+        marginBottom: 8,
+      }}>{formatHourLabel(label)}</div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {series.map(s => {
+          const entry = payload?.find(p => p.dataKey === s.key);
+          const v     = entry?.value;
+          return (
+            <div key={s.key} style={{
+              display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
+              gap: 16,
+            }}>
+              <span style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                fontSize: 12, fontWeight: 600, color: '#cbd5e1',
+              }}>
+                <span aria-hidden style={{
+                  width: 8, height: 8, borderRadius: 99, background: s.tint,
+                }} />
+                {s.label}
+              </span>
+              <span style={{
+                fontSize: 14, fontWeight: 800, color: s.tint,
+                fontVariantNumeric: 'tabular-nums',
+              }}>
+                {v == null ? '–' : formatValue(Number(v), yFormat)}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/** "17" → "5pm", "08" → "8am", "00" → "12am". Falls back to the raw
+ *  string for anything that doesn't parse as an hour. */
+function formatHourLabel(raw: string | number | undefined): string {
+  if (raw == null) return '';
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 0 || n > 23) return String(raw);
+  const suffix = n < 12 ? 'am' : 'pm';
+  const h12 = ((n + 11) % 12) + 1;
+  return `${h12}${suffix}`;
 }
 
 // ─── Hourly trend chart tile ───────────────────────────────────────────
@@ -417,13 +536,8 @@ function ChartTile({ spec, result, yFormat }: {
                 width={50}
               />
               <Tooltip
-                contentStyle={{
-                  background: 'rgba(14,20,39,0.92)',
-                  border: '1px solid rgba(255,255,255,0.1)',
-                  borderRadius: 8, fontSize: 12,
-                }}
-                labelStyle={{ color: '#cbd5e1', fontWeight: 700 }}
-                formatter={(v: any) => v == null ? '–' : formatValue(Number(v), yFormat)}
+                cursor={{ fill: 'rgba(255,255,255,0.04)' }}
+                content={<HourTooltip yFormat={yFormat} series={series} />}
               />
               {series.map(s => (
                 <Bar key={s.key} dataKey={s.key} fill={s.tint} radius={[3, 3, 0, 0]} />
