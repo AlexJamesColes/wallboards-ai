@@ -9,6 +9,7 @@ import {
   useKioskRotation,
 } from '@/lib/kioskHooks';
 import { parseAgentName } from '@/lib/agentDisplayName';
+import { useAlertChime } from '@/lib/useAlertChime';
 import BoardBackButton from '@/components/BoardBackButton';
 
 interface AgentRow {
@@ -52,7 +53,8 @@ interface Payload {
 interface LiveAgent extends AgentRow {
   office:    string | null;     // 'London' | 'Guildford' | null (unmatched)
   livetime:  number;
-  concern:   boolean;           // true once over threshold for status
+  concern:   boolean;           // true once over concernSec for status
+  alert:     boolean;           // true once over alertSec — fires chime + banner
 }
 
 interface Props {
@@ -80,7 +82,12 @@ interface StatusMeta {
   tint:         string;        // lane accent + tile text
   glow:         string;        // halo behind status dots
   tier:         Tier;
-  concernSec?:  number;        // tile gets concern rim past this many seconds
+  concernSec?:  number;        // tile gets amber concern rim past this many seconds
+  /** Hard-alarm threshold — the card pulses red and a banner + chime
+   *  fires when an agent crosses this. Use sparingly; only the states
+   *  the floor manager genuinely needs to act on (lunch overrunning,
+   *  not-ready stretching past a coffee break). */
+  alertSec?:    number;
 }
 
 // Seven canonical buckets every Noetica status collapses into. Tier
@@ -88,11 +95,13 @@ interface StatusMeta {
 // away at the bottom.
 const STATUS_META: Record<string, StatusMeta> = {
   'Hold':           { label: 'Hold',          tint: '#fb923c', glow: 'rgba(251,146,60,0.55)',  tier: 'alert',  concernSec: 60 },
-  'Not Ready':      { label: 'Not Ready',     tint: '#f87171', glow: 'rgba(248,113,113,0.55)', tier: 'alert',  concernSec: 5 * 60 },
+  'Not Ready':      { label: 'Not Ready',     tint: '#f87171', glow: 'rgba(248,113,113,0.55)', tier: 'alert',  concernSec: 5 * 60, alertSec: 10 * 60 },
   'Talking':        { label: 'Talking',       tint: '#10b981', glow: 'rgba(16,185,129,0.45)',  tier: 'active' },
   'Wrap':           { label: 'Wrap',          tint: '#fbbf24', glow: 'rgba(251,191,36,0.45)',  tier: 'active', concernSec: 3 * 60 },
   'Waiting':        { label: 'Waiting',       tint: '#38bdf8', glow: 'rgba(56,189,248,0.45)',  tier: 'active' },
-  'Lunch':          { label: 'Lunch',         tint: '#94a3b8', glow: 'rgba(148,163,184,0.35)', tier: 'away' },
+  // Lunch isn't normally a concern — but if anyone runs more than an
+  // hour we treat it like an overrun and fire the alert pipeline.
+  'Lunch':          { label: 'Lunch',         tint: '#94a3b8', glow: 'rgba(148,163,184,0.35)', tier: 'away',  alertSec: 60 * 60 },
   'Comfort Break':  { label: 'Comfort Break', tint: '#94a3b8', glow: 'rgba(148,163,184,0.35)', tier: 'away' },
   // Synthetic — server-padded for rostered agents not in the Noetica
   // feed at all. Distinct from Lunch/Break (those are signed in but
@@ -217,6 +226,7 @@ export default function AgentStatesView({ slug, title, department }: Props) {
           office:   office.label,
           livetime,
           concern:  !!(meta.concernSec && livetime >= meta.concernSec),
+          alert:    !!(meta.alertSec   && livetime >= meta.alertSec),
         });
       }
     }
@@ -231,6 +241,7 @@ export default function AgentStatesView({ slug, title, department }: Props) {
           office:   null,
           livetime,
           concern:  !!(meta.concernSec && livetime >= meta.concernSec),
+          alert:    !!(meta.alertSec   && livetime >= meta.alertSec),
         });
       }
     }
@@ -275,6 +286,20 @@ export default function AgentStatesView({ slug, title, department }: Props) {
   // Every tile would carry the same letter, claiming pixels for no info.
   // Multi-office (combined) boards keep it.
   const showOfficeChip = !isPerOffice;
+
+  // Threshold-crossed alerts — anyone on Lunch >1h or Not Ready >10m.
+  // Sorted longest-overrun-first so the worst breach reads first in the
+  // banner. Keys include status so an agent re-entering the threshold
+  // after switching away triggers a fresh chime.
+  const alertingAgents = useMemo(
+    () => agents.filter(a => a.alert).sort((a, b) => b.livetime - a.livetime),
+    [agents],
+  );
+  const alertKeys = useMemo(
+    () => alertingAgents.map(a => `${a.name}·${a.status}`),
+    [alertingAgents],
+  );
+  useAlertChime(alertKeys);
 
   return (
     <div style={{
@@ -324,6 +349,9 @@ export default function AgentStatesView({ slug, title, department }: Props) {
           display: 'flex', flexDirection: 'column',
           gap: isInKioskRotation ? 10 : 'clamp(16px, 2.4vh, 26px)',
         }}>
+          {alertingAgents.length > 0 && (
+            <AlertBanner agents={alertingAgents} />
+          )}
           {data.queues && data.queues.length > 0 && (
             <QueueStrip queues={data.queues} compact={isInKioskRotation} />
           )}
@@ -567,30 +595,44 @@ function Lane({ lane, compact, showOfficeChip, dense = false }: {
 function Tile({ agent, accent, showOfficeChip }: {
   agent: LiveAgent; accent: string; showOfficeChip: boolean;
 }) {
-  const rim = agent.concern ? '#f87171' : `${accent}33`;
+  // Three rim states: alert (lunch >1h, not-ready >10m) > concern > calm.
+  // Alert pulses + glows so a TV across the room broadcasts pressure.
+  const rim = agent.alert   ? '#f87171'
+            : agent.concern ? '#fb923c'
+            :                 `${accent}33`;
   return (
     <div style={{
-      borderRadius: 9, padding: '8px 10px',
+      borderRadius: 9, padding: '10px 12px',
       background: 'rgba(14,20,39,0.72)',
-      border: `1px solid ${rim}`,
-      boxShadow: agent.concern ? `0 0 16px rgba(248,113,113,0.22)` : undefined,
-      display: 'flex', alignItems: 'center', gap: 8,
+      border: `${agent.alert ? 2 : 1}px solid ${rim}`,
+      boxShadow: agent.alert
+        ? '0 0 22px rgba(248,113,113,0.45)'
+        : agent.concern ? '0 0 14px rgba(251,146,60,0.25)' : undefined,
+      animation: agent.alert ? 'wb-alert-pulse 1.6s ease-in-out infinite' : undefined,
+      display: 'flex', alignItems: 'center', gap: 10,
       transition: 'border-color 0.2s ease, box-shadow 0.2s ease',
     }}>
       {showOfficeChip && <OfficeChip office={agent.office} />}
       <span style={{
         flex: 1, minWidth: 0,
-        fontSize: 14, fontWeight: 700, color: '#f1f5f9',
+        // Bumped from 14 → 17 so an agent's name reads from across
+        // the floor without anyone squinting.
+        fontSize: 17, fontWeight: 700, color: '#f1f5f9',
         overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
       }}>
         {parseAgentName(agent.name).display}
       </span>
       <span style={{
         flexShrink: 0,
-        fontSize: 11, fontWeight: 700,
+        // Time-in-state was the user-flagged readability problem on
+        // floor TVs — bumped 11 → 15 and added tabular nums so the
+        // digits don't dance as the seconds tick.
+        fontSize: 15, fontWeight: 800,
         fontVariantNumeric: 'tabular-nums',
-        color: agent.concern ? '#fca5a5' : '#94a3b8',
-        textShadow: agent.concern ? '0 0 6px rgba(248,113,113,0.4)' : undefined,
+        color: agent.alert   ? '#fca5a5'
+             : agent.concern ? '#fed7aa'
+             :                 '#cbd5e1',
+        textShadow: agent.alert ? '0 0 8px rgba(248,113,113,0.5)' : undefined,
       }}>
         {formatDuration(agent.livetime)}
       </span>
@@ -609,20 +651,32 @@ function CompactRow({ agent, showOfficeChip }: {
   const showTime = agent.status !== 'Not logged in';
   return (
     <div style={{
-      display: 'flex', alignItems: 'center', gap: 8,
-      padding: '4px 6px',
-      fontSize: 13,
-      color: agent.status === 'Not logged in' ? '#94a3b8' : '#cbd5e1',
+      display: 'flex', alignItems: 'center', gap: 10,
+      padding: '6px 8px',
+      // Bumped from 13 → 16 so even the compact (kiosk-rotation) layout
+      // is legible from a TV across the room. Alert state gets a
+      // pulsing red wash so lunch >1h + not-ready >10m can't be missed.
+      fontSize: 16,
+      borderRadius: 6,
+      background: agent.alert ? 'rgba(248,113,113,0.12)' : undefined,
+      animation: agent.alert ? 'wb-alert-pulse 1.6s ease-in-out infinite' : undefined,
+      color: agent.alert                  ? '#fca5a5'
+           : agent.status === 'Not logged in' ? '#94a3b8'
+           :                                 '#cbd5e1',
     }}>
       {showOfficeChip && <OfficeChip office={agent.office} compact />}
       <span style={{
-        flex: 1, minWidth: 0,
+        flex: 1, minWidth: 0, fontWeight: 600,
         overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
       }}>{parseAgentName(agent.name).display}</span>
       {showTime && (
         <span style={{
-          fontSize: 11, color: '#64748b',
+          // Bumped 11 → 14, weight up to 800, tabular nums so the
+          // digits don't shimmy each second.
+          fontSize: 14, fontWeight: 800,
+          color: agent.alert ? '#fca5a5' : '#94a3b8',
           fontVariantNumeric: 'tabular-nums',
+          textShadow: agent.alert ? '0 0 6px rgba(248,113,113,0.4)' : undefined,
         }}>
           {formatDuration(agent.livetime)}
         </span>
@@ -649,6 +703,67 @@ function OfficeChip({ office, compact = false }: { office: string | null; compac
       color: tint.fg, fontSize: 9, fontWeight: 800,
       letterSpacing: 0, flexShrink: 0,
     }}>{letter}</span>
+  );
+}
+
+// ─── Alert banner — lunch >1h or not-ready >10m ────────────────────────
+//
+// Renders above the queue strip whenever any agent has crossed the
+// alertSec threshold for their status. Lists each by name + status +
+// elapsed time, sorted longest-breach-first. Pulses red so a TV across
+// the floor broadcasts pressure even before anyone reads the names.
+// The audio chime fires from useAlertChime (one bell per new entrant);
+// this banner is the visual half of the same alarm.
+
+function AlertBanner({ agents }: { agents: LiveAgent[] }) {
+  return (
+    <section
+      role="alert"
+      style={{
+        borderRadius: 12,
+        padding: 'clamp(10px, 1.4vh, 14px) clamp(14px, 2vw, 22px)',
+        background: 'linear-gradient(90deg, rgba(248,113,113,0.20) 0%, rgba(251,146,60,0.16) 100%)',
+        border: '1px solid rgba(248,113,113,0.6)',
+        boxShadow: '0 0 22px rgba(248,113,113,0.25) inset',
+        animation: 'wb-alert-pulse 1.6s ease-in-out infinite',
+        display: 'flex', flexDirection: 'column', gap: 6,
+      }}
+    >
+      <div style={{
+        display: 'flex', alignItems: 'baseline', gap: 10,
+        fontSize: 12, fontWeight: 800,
+        color: '#fca5a5', letterSpacing: '0.22em', textTransform: 'uppercase',
+      }}>
+        <span aria-hidden style={{ fontSize: 18, lineHeight: 1 }}>🚨</span>
+        Threshold breach · {agents.length} {agents.length === 1 ? 'agent' : 'agents'}
+      </div>
+      <ul style={{
+        listStyle: 'none', margin: 0, padding: 0,
+        display: 'flex', flexWrap: 'wrap', gap: 12,
+      }}>
+        {agents.map(a => (
+          <li key={`${a.name}·${a.status}`} style={{
+            display: 'inline-flex', alignItems: 'center', gap: 8,
+            padding: '4px 12px', borderRadius: 99,
+            background: 'rgba(14,20,39,0.65)',
+            border: '1px solid rgba(248,113,113,0.4)',
+            fontSize: 14, fontWeight: 700, color: '#f1f5f9',
+          }}>
+            <span style={{ color: '#fbbf24' }}>⚠</span>
+            <span>{parseAgentName(a.name).display}</span>
+            <span style={{
+              fontSize: 11, fontWeight: 700, color: '#94a3b8',
+              letterSpacing: '0.12em', textTransform: 'uppercase',
+            }}>{a.status}</span>
+            <span style={{
+              fontSize: 14, fontWeight: 800, color: '#fca5a5',
+              fontVariantNumeric: 'tabular-nums',
+              textShadow: '0 0 6px rgba(248,113,113,0.4)',
+            }}>{formatDuration(a.livetime)}</span>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 

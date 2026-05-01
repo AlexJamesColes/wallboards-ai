@@ -14,6 +14,7 @@ import {
   useKioskRotation,
 } from '@/lib/kioskHooks';
 import { useAgentStates, type AgentLiveState } from '@/lib/useAgentStates';
+import QueueBanner from '@/components/QueueBanner';
 import { getShowcaseBoard } from '@/lib/showcaseBoards';
 import { statusMetaFor } from '@/lib/agentStateMeta';
 import { normalizeAgentName } from '@/lib/normalizeAgentName';
@@ -310,7 +311,7 @@ export default function ShowcaseView({ board, slug, defaultTarget }: Props) {
   // etc.). Configured per leaderboard via SHOWCASE_BOARDS.agentStateSlugs;
   // empty array → state-blind board, no extra fetches.
   const agentStateSlugs = getShowcaseBoard(slug)?.agentStateSlugs ?? [];
-  const agentStates = useAgentStates(agentStateSlugs);
+  const { states: agentStates, queues: liveQueues } = useAgentStates(agentStateSlugs);
 
   // Poll /api/alerts for anything IT has pushed (Teams webhook forwards etc.)
   // and prepend them to the ticker as they arrive. Much shorter interval
@@ -603,6 +604,14 @@ export default function ShowcaseView({ board, slug, defaultTarget }: Props) {
         {/* Ambient glows in the background */}
         <div aria-hidden style={{ position: 'absolute', top: '-10%', left: '-5%', width: '40vw', height: '40vw', background: 'radial-gradient(circle, rgba(99,102,241,0.12) 0%, transparent 60%)', pointerEvents: 'none' }} />
         <div aria-hidden style={{ position: 'absolute', bottom: '-20%', right: '-10%', width: '50vw', height: '50vw', background: 'radial-gradient(circle, rgba(168,85,247,0.10) 0%, transparent 60%)', pointerEvents: 'none' }} />
+
+        {/* ── Inbound queue banner ─────────────────────────────────── */}
+        {/* Slides in above the header when at least one queue has
+            callers. Replaces the old smart-pin-on-queue rotation —
+            floor managers now see calls landing without losing the
+            leaderboard context they were already reading. Hidden
+            entirely when every queue is empty. */}
+        <QueueBanner queues={liveQueues} />
 
         {/* ── Header ───────────────────────────────────────────────── */}
         <Header boardName={board.name} teamTotal={teamTotal} target={teamTarget} targetPct={targetPct} isMobile={isMobile} />

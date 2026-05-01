@@ -220,6 +220,16 @@ input, select, textarea, button { font-family: inherit; }
                          0 0 20px 2px var(--queue-pulse, transparent); }
 }
 
+/* Agent-state alert pulse — fires when an agent crosses the lunch >1h
+   or not-ready >10m threshold. More insistent than concern (which is
+   a static rim) so the floor manager sees it from across the room. */
+@keyframes wb-alert-pulse {
+  0%, 100% { box-shadow: 0 0 0  0  rgba(248,113,113,0);
+             border-color: #f87171; }
+  50%      { box-shadow: 0 0 18px 4px rgba(248,113,113,0.55);
+             border-color: #fca5a5; }
+}
+
 /* ─── Hall-of-fame takeover ────────────────────────────────────────────── */
 
 /* Dim the wallboard behind the celebration */
