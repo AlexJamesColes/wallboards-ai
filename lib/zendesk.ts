@@ -177,12 +177,16 @@ function buildTimeQuery(timeField: string, time: string): string {
   return `${timeField}>=${startStr} ${timeField}<${endStr}`;
 }
 
-function buildZdFilterQuery(filters: Array<{ field: string; value: string }>): string {
+function buildZdFilterQuery(filters: Array<{ field: string; value: string; negate?: boolean }>): string {
   return (filters || [])
     .filter(f => f.field && f.value)
     .map(f => {
       const zdKey = ZD_FILTER_FIELDS[f.field]?.zdKey || f.field;
-      return `${zdKey}:${f.value}`;
+      // Zendesk supports `-tags:foo` to exclude. The legacy editor never
+      // emits `negate` so existing widgets keep their positive shape;
+      // Sales-Board-1 needs negation for "Tag is NOT failedatvalidation"
+      // style filters.
+      return f.negate ? `-${zdKey}:${f.value}` : `${zdKey}:${f.value}`;
     })
     .join(' ');
 }
@@ -193,7 +197,7 @@ const TICKET_COLUMNS = ['id', 'subject', 'status', 'priority', 'assignee_id', 'g
 export async function fetchZendeskMetric(config: {
   metric?:     string;
   time?:       string;
-  zd_filters?: Array<{ field: string; value: string }>;
+  zd_filters?: Array<{ field: string; value: string; negate?: boolean }>;
   /** For charts: fetch enough pages to produce a meaningful time series. */
   maxPages?:   number;
   /** For leaderboards: sideload users/groups/brands/orgs so we can resolve IDs to names. */
@@ -401,7 +405,7 @@ export function groupTickets(
 export async function fetchZendeskDailyCounts(config: {
   metric?:     string;
   time?:       string;
-  zd_filters?: Array<{ field: string; value: string }>;
+  zd_filters?: Array<{ field: string; value: string; negate?: boolean }>;
 }): Promise<Array<{ date: string; count: number }>> {
   const def = ZD_METRICS[config.metric || 'created_tickets'] || ZD_METRICS.created_tickets;
   const range = getDateRange(config.time || 'today');

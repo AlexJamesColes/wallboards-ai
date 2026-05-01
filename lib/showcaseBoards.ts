@@ -40,6 +40,12 @@ export interface ShowcaseBoard {
   data:
     | { type: 'widget' }                                  // resolved via wb_widgets row attached to this slug
     | { type: 'combined'; sources: string[] }             // concatenated from other showcase slugs
+    | { type: 'dashboard'; widgetSpecKey: 'sales-board-1' }
+    // ↑ multi-widget director-style overview. The widget specs + monthly
+    //   targets live in their own module (lib/salesBoard<N>Spec.ts) keyed
+    //   by `widgetSpecKey` — keeps the catalogue thin while the spec
+    //   itself can be hundreds of lines (12 tiles, 50-line trend SQL,
+    //   Zendesk filter lists, division code mappings…).
     | { type: 'rotation'; sources: string[]; intervalMs?: number }
     // ↑ kiosk slideshow — cycles a TV between two or more board slugs
     //   (e.g. /london-agents ↔ /london-agent-states). The /kiosk/<slug>
@@ -93,6 +99,22 @@ export const SHOWCASE_BOARDS: ShowcaseBoard[] = [
     defaultTarget: 2_590_000,
     data:          { type: 'combined', sources: ['london-agents', 'guildford-agents'] },
     agentStateSlugs: ['london-agent-states', 'guildford-agent-states'],
+  },
+
+  // ─── Director overview ──────────────────────────────────────────────
+  // Director-level NB-CV sales board — replaces the legacy Geckoboard
+  // "Sales - Board 1". Pulls from MS-SQL (SalesBoard rollups +
+  // SalesBoardHistoryByHour for trends), the Noetica `division`
+  // dataset (channel split + headline brokerage earn), and Zendesk
+  // (open Webbys, manual wraps, web-cancellation referrals). Two tiles
+  // are deferred until their connectors land — Google + MS Ads spend
+  // and the Mixpanel Radio Ads funnel — and render as muted "Pending
+  // data source" placeholders so the layout slot stays put.
+  {
+    slug:       'sales-board-1',
+    name:       'Sales · Board 1',
+    department: 'Sales',
+    data:       { type: 'dashboard', widgetSpecKey: 'sales-board-1' },
   },
   // ─── Per-office agent-state boards ──────────────────────────────────
   // Same Noetica feed, same queue summary, just a different roster +

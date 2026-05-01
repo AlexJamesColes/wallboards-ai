@@ -5,6 +5,7 @@ import { getShowcaseBoard, isSyntheticBoard } from '@/lib/showcaseBoards';
 import KioskView from '../view/[token]/KioskView';
 import ShowcaseView from '../showcase/[slug]/ShowcaseView';
 import AgentStatesView from '../_agent-states/AgentStatesView';
+import SalesBoard1View from '../_sales-board-1/SalesBoard1View';
 
 export const dynamic = 'force-dynamic';
 
@@ -36,6 +37,19 @@ export default async function SlugKioskPage({ params }: { params: { slug: string
       return (
         <AgentStatesView
           slug={config.slug}
+          title={config.name}
+          department={config.department}
+        />
+      );
+    }
+
+    // Dashboard variant — multi-widget director overview (Sales · Board 1
+    // and friends). Each board's widget specs live in their own module
+    // referenced by `widgetSpecKey`; the view fetches /api/<slug> which
+    // fans out to MS-SQL / Noetica / Zendesk in parallel.
+    if (config.data.type === 'dashboard') {
+      return (
+        <SalesBoard1View
           title={config.name}
           department={config.department}
         />
