@@ -212,6 +212,11 @@ export default function AgentStatesView({ slug, title, department }: Props) {
   // render unmatched into the lanes since "unknown office" is genuinely
   // useful info there.
   const isPerOffice = (data?.offices?.length ?? 0) <= 1;
+  // Lunch-overrun + not-ready-overrun alerts only fire on kiosk-bound
+  // TVs (URL has `?rotate=…`). A manager opening /london-agent-states
+  // directly at their desk gets the static concern rim like before but
+  // no pulsing red, no banner, no chime — sirens are reserved for the
+  // floor TVs the alert was designed for.
   const agents = useMemo<LiveAgent[]>(() => {
     if (!data) return [];
     const out: LiveAgent[] = [];
@@ -226,7 +231,7 @@ export default function AgentStatesView({ slug, title, department }: Props) {
           office:   office.label,
           livetime,
           concern:  !!(meta.concernSec && livetime >= meta.concernSec),
-          alert:    !!(meta.alertSec   && livetime >= meta.alertSec),
+          alert:    isInKioskRotation && !!(meta.alertSec && livetime >= meta.alertSec),
         });
       }
     }
@@ -241,12 +246,12 @@ export default function AgentStatesView({ slug, title, department }: Props) {
           office:   null,
           livetime,
           concern:  !!(meta.concernSec && livetime >= meta.concernSec),
-          alert:    !!(meta.alertSec   && livetime >= meta.alertSec),
+          alert:    isInKioskRotation && !!(meta.alertSec && livetime >= meta.alertSec),
         });
       }
     }
     return out;
-  }, [data, elapsedSinceFetch, isPerOffice]);
+  }, [data, elapsedSinceFetch, isPerOffice, isInKioskRotation]);
 
   // Group agents by status — the layout's spine.
   const byStatus = useMemo(() => {
