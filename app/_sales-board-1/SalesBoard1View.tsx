@@ -125,7 +125,7 @@ export default function SalesBoard1View({ title, department }: Props) {
               the page-dominating headline. */}
           <section style={headlineRowStyle}>
             <HeadlineTile {...get('earn-today')} accent="#38bdf8" big />
-            <HeadlineTile {...get('webbys')}     accent="#a5b4fc" big />
+            <HeadlineTile {...get('webbys')}     accent="#fbbf24" big />
             <StackTile>
               <SmallKpi {...get('webcnx-today')}     compact />
               <SmallKpi {...get('manual-wrap-ups')}  compact />
@@ -278,22 +278,38 @@ function HeadlineTile({ spec, result, accent, big = false }: {
   if (!spec) return null;
   const value = result?.value ?? null;
   const status = computeStatus(value, spec.status);
+  // If a threshold trips, the status colour overrides the tile's
+  // configured accent — alert always wins. Keeps the visual rule
+  // consistent: red/amber/green means the same thing on every tile.
+  const tint =
+    status === 'good'  ? { fg: '#86efac', glow: 'rgba(16,185,129,0.24)',  border: 'rgba(16,185,129,0.55)' }
+  : status === 'warn'  ? { fg: '#fcd34d', glow: 'rgba(251,191,36,0.24)',  border: 'rgba(251,191,36,0.55)' }
+  : status === 'alert' ? { fg: '#fca5a5', glow: 'rgba(248,113,113,0.30)', border: 'rgba(248,113,113,0.6)' }
+  : null;
+
+  const finalAccent = tint?.fg     ?? accent;
+  const borderCol   = tint?.border ?? `${accent}55`;
+  const glowCol     = tint?.glow   ?? `${accent}20`;
+
   return (
     <div style={{
       ...tileStyle, flex: big ? '2 1 0' : '1 1 0',
       padding: 'clamp(16px, 2vw, 24px) clamp(18px, 2.4vw, 28px)',
       // Headline tiles pop a little harder — brighter border + glow
       // halo so they carry distance.
-      border: `1px solid ${accent}33`,
-      background: `linear-gradient(180deg, ${accent}14 0%, rgba(20,26,46,0.65) 70%)`,
-      boxShadow: `0 0 28px ${accent}14`,
+      border: `1px solid ${borderCol}`,
+      background: tint
+        ? `linear-gradient(180deg, ${tint.glow} 0%, rgba(20,26,46,0.7) 75%)`
+        : `linear-gradient(180deg, ${accent}1c 0%, rgba(20,26,46,0.65) 70%)`,
+      boxShadow: `0 0 32px ${glowCol}`,
+      animation: status === 'alert' ? 'wb-alert-pulse 1.6s ease-in-out infinite' : undefined,
       position: 'relative',
     }}>
       <div style={{
         display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
         marginBottom: 8,
       }}>
-        <div style={{ ...tileLabelStyle, fontSize: 13, color: accent }}>
+        <div style={{ ...tileLabelStyle, fontSize: 13, color: finalAccent }}>
           {spec.label}
         </div>
         {status && <StatusChip status={status} />}
@@ -303,8 +319,9 @@ function HeadlineTile({ spec, result, accent, big = false }: {
           ? 'clamp(46px, 6.4vw, 88px)'
           : 'clamp(34px, 4.6vw, 60px)',
         fontWeight: 800, lineHeight: 0.92,
-        color: '#f1f5f9', fontVariantNumeric: 'tabular-nums',
-        textShadow: `0 0 24px ${accent}33`,
+        color: tint ? tint.fg : '#f1f5f9',
+        fontVariantNumeric: 'tabular-nums',
+        textShadow: `0 0 28px ${glowCol}`,
       }}>{formatValueOrError(result, spec.format)}</div>
     </div>
   );
@@ -410,15 +427,35 @@ function SmallKpi({ spec, result, compact = false }: {
     return <PlaceholderKpi label={spec.label} reason={result.reason || ''} compact={compact} />;
   }
   const status = computeStatus(result?.value ?? null, spec.status);
+  // The whole card now reads as the indicator — tinted background +
+  // coloured border + matching chip + value text shifts shade. Reads
+  // from across the room: green = OK, amber = watch, red = act.
+  const tint =
+    status === 'good'  ? { bg: 'rgba(16,185,129,0.14)',  border: 'rgba(16,185,129,0.55)',  glow: 'rgba(16,185,129,0.20)',  fg: '#86efac' }
+  : status === 'warn'  ? { bg: 'rgba(251,191,36,0.14)',  border: 'rgba(251,191,36,0.55)',  glow: 'rgba(251,191,36,0.18)',  fg: '#fcd34d' }
+  : status === 'alert' ? { bg: 'rgba(248,113,113,0.16)', border: 'rgba(248,113,113,0.6)',  glow: 'rgba(248,113,113,0.30)', fg: '#fca5a5' }
+  :                      null;
+
+  const baseStyle = compact ? compactKpiStyle : standaloneKpiStyle;
+  const overlayStyle: React.CSSProperties = tint
+    ? {
+        background: tint.bg,
+        border: `1px solid ${tint.border}`,
+        boxShadow: `0 0 18px ${tint.glow} inset`,
+        animation: status === 'alert' ? 'wb-alert-pulse 1.6s ease-in-out infinite' : undefined,
+      }
+    : {};
+
   return (
-    <div style={compact ? compactKpiStyle : standaloneKpiStyle}>
+    <div style={{ ...baseStyle, ...overlayStyle }}>
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         gap: 8, marginBottom: 3,
       }}>
         <div style={{
           fontSize: compact ? 11 : 12, fontWeight: 800,
-          color: '#cbd5e1', letterSpacing: '0.12em', textTransform: 'uppercase',
+          color: tint ? tint.fg : '#cbd5e1',
+          letterSpacing: '0.12em', textTransform: 'uppercase',
           whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
         }}>{spec.label}</div>
         {status && <StatusChip status={status} small />}
@@ -426,10 +463,9 @@ function SmallKpi({ spec, result, compact = false }: {
       <div style={{
         fontSize: compact ? 'clamp(24px, 2.6vw, 34px)' : 'clamp(32px, 3.4vw, 44px)',
         fontWeight: 800, lineHeight: 1,
-        color: status === 'alert' ? '#fca5a5'
-             : status === 'warn'  ? '#fcd34d'
-             :                       '#f1f5f9',
+        color: tint ? tint.fg : '#f1f5f9',
         fontVariantNumeric: 'tabular-nums',
+        textShadow: tint ? `0 0 12px ${tint.glow}` : undefined,
       }}>{formatValueOrError(result, spec.format)}</div>
     </div>
   );

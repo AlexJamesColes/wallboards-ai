@@ -341,7 +341,7 @@ export const SALES_BOARD_1_WIDGETS: WidgetSpec[] = [
     format: 'gbp-k',
     visual: 'bar-pair', xKey: 'Hour',
     series: [
-      { key: 'Yesterday', label: 'Yesterday', tint: '#94a3b8' },
+      { key: 'Yesterday', label: 'Yesterday', tint: '#fbbf24' },
       { key: 'Today',     label: 'Today',     tint: '#38bdf8' },
     ] },
 
@@ -359,7 +359,7 @@ export const SALES_BOARD_1_WIDGETS: WidgetSpec[] = [
     format: 'gbp-k',
     visual: 'bar-pair', xKey: 'Hour',
     series: [
-      { key: 'Last week', label: 'Last week', tint: '#94a3b8' },
+      { key: 'Last week', label: 'Last week', tint: '#fbbf24' },
       { key: 'Today',     label: 'Today',     tint: '#38bdf8' },
     ] },
 
@@ -376,7 +376,7 @@ export const SALES_BOARD_1_WIDGETS: WidgetSpec[] = [
     format: 'gbp-2dp',
     visual: 'bar-pair', xKey: 'Hour',
     series: [
-      { key: 'Last week', label: 'Last week', tint: '#94a3b8' },
+      { key: 'Last week', label: 'Last week', tint: '#fbbf24' },
       { key: 'Today',     label: 'Today',     tint: '#38bdf8' },
     ] },
 ];
