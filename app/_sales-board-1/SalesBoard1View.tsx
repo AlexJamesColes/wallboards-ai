@@ -117,58 +117,73 @@ export default function SalesBoard1View({ title, department }: Props) {
 
       {data && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          {/* ── Headline strip: NB Earn MTD (biggest), Earn today ────────── */}
-          <section style={headlineStripStyle}>
-            <BigNumberWithTarget
+          {/* ── Row 1: Headline KPIs ─────────────────────────────────────
+              Mirrors Gecko's hierarchy — Earn and Webbys are the top-left
+              eye-catchers a director sees first. NB Earn MTD lives in
+              row 3, paired with the Earn-vs-Yesterday chart, so the
+              "are we hitting target" answer is mid-board context, not
+              the page-dominating headline. */}
+          <section style={headlineRowStyle}>
+            <HeadlineTile {...get('earn-today')} accent="#38bdf8" big />
+            <HeadlineTile {...get('webbys')}     accent="#a5b4fc" big />
+            <StackTile>
+              <SmallKpi {...get('webcnx-today')}     compact />
+              <SmallKpi {...get('manual-wrap-ups')}  compact />
+            </StackTile>
+            <GridTile cols={2}>
+              <SmallKpi {...get('quotes-today')} compact />
+              <SmallKpi {...get('sales-today')}  compact />
+              <SmallKpi {...get('quotes-mtd')}   compact />
+              <SmallKpi {...get('sales-mtd')}    compact />
+            </GridTile>
+          </section>
+
+          {/* ── Row 2: Direct/External + per-channel KPIs ────────────── */}
+          <section style={row2Style}>
+            <DirectExternal
+              direct={get('direct-earn')}
+              external={get('external-earn')}
+            />
+            <StackTile>
+              <SmallKpi {...get('nb-units-today')} compact />
+              <SmallKpi {...get('ipp-today')}      compact />
+              <SmallKpi {...get('avg-ipp-mtd')}    compact />
+            </StackTile>
+            <StackTile>
+              <SmallKpi {...get('vc-spend-today')}      compact />
+              <SmallKpi {...get('tradepoint-signups')}  compact />
+              <SmallKpi {...get('qts-today')}           compact />
+            </StackTile>
+          </section>
+
+          {/* ── Row 3: Earn-vs-yesterday chart + NB Earn MTD with target  */}
+          <section style={chartBandStyle}>
+            <div style={{ flex: '1 1 0', minWidth: 320 }}>
+              <ChartTile {...get('earn-vs-yesterday')} yFormat="gbp-k" />
+            </div>
+            <NBEarnMTDTile
               {...get('nb-earn-mtd')}
               target={data.targets['nb-earn-mtd']}
             />
-            <BigNumber {...get('earn-today')} />
           </section>
 
-          {/* ── Today-flow row: 8 small KPI tiles ───────────────────────── */}
-          <section style={kpiRowStyle}>
-            <SmallKpi {...get('quotes-today')} />
-            <SmallKpi {...get('sales-today')} />
-            <SmallKpi {...get('nb-units-today')} />
-            <SmallKpi {...get('ipp-today')} />
-            <SmallKpi {...get('qts-today')} />
-            <SmallKpi {...get('webbys')} />
-            <SmallKpi {...get('webcnx-today')} />
-            <SmallKpi {...get('manual-wrap-ups')} />
-          </section>
-
-          {/* ── MTD continuation row: MTD volume + avg IPP + ad spend ───── */}
-          <section style={kpiRowStyle}>
-            <SmallKpi {...get('quotes-mtd')} />
-            <SmallKpi {...get('sales-mtd')} />
-            <SmallKpi {...get('avg-ipp-mtd')} />
-            <SmallKpi {...get('tradepoint-signups')} />
-            <SmallKpi {...get('vc-spend-today')} />
-          </section>
-
-          {/* ── Direct v External — horizontal split bar ─────────────────── */}
-          <DirectExternal
-            direct={get('direct-earn')}
-            external={get('external-earn')}
-          />
-
-          {/* ── Hourly trend band — three charts side by side ────────────── */}
+          {/* ── Row 4: trend charts + Mixpanel placeholder ──────────────── */}
           <section style={chartBandStyle}>
-            <ChartTile {...get('earn-vs-yesterday')} yFormat="gbp-k" />
             <ChartTile {...get('earn-vs-last-week')} yFormat="gbp-k" />
+            <Placeholder
+              label="Radio Ads (30 Days)"
+              reason="Awaiting Mixpanel API connector"
+            />
             <ChartTile {...get('ipp-vs-last-week')}  yFormat="gbp-2dp" />
           </section>
 
-          {/* ── Funnel placeholder — Mixpanel pending ────────────────────── */}
-          <Placeholder
-            label="Radio Ads (30 Days)"
-            reason="Awaiting Mixpanel API connector"
-          />
+          {/* ── Row 5: Top Brokers Today — fills the bottom space with
+              an operational read floor managers actually use. */}
+          <TopBrokersToday />
         </div>
       )}
 
-      <Footer now={now} />
+      <Footer title={title} now={now} />
     </div>
   );
 }
@@ -215,40 +230,120 @@ function Header({ title, department, loading, updatedAt, now }: {
   );
 }
 
-// ─── Footer (clock) ─────────────────────────────────────────────────────
+// ─── Footer (logo · board name · clock) ────────────────────────────────
+//
+// More visible than the previous one-liner — wears the InsureTec brand
+// strip in three columns: logo on the left, board name centred, clock
+// on the right. Reads like a finished operations dashboard rather than
+// a forgotten margin.
 
-function Footer({ now }: { now: number }) {
+function Footer({ title, now }: { title: string; now: number }) {
   const t = new Date(now);
   const hh = t.getHours().toString().padStart(2, '0');
   const mm = t.getMinutes().toString().padStart(2, '0');
   return (
     <footer style={{
-      marginTop: 18, paddingTop: 14, borderTop: '1px solid rgba(255,255,255,0.06)',
-      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-      color: '#475569', fontSize: 13, fontWeight: 600,
+      marginTop: 16, padding: '12px 18px',
+      borderTop: '1px solid rgba(255,255,255,0.10)',
+      background: 'rgba(11,16,32,0.5)',
+      display: 'grid', gridTemplateColumns: '1fr 1fr 1fr',
+      alignItems: 'center', borderRadius: 10,
     }}>
-      <span>InsureTec</span>
-      <span style={{ fontVariantNumeric: 'tabular-nums' }}>{hh}:{mm}</span>
+      <span style={{ display: 'flex', alignItems: 'center', gap: 10, color: '#cbd5e1' }}>
+        <img src="/insuretec-logo.svg" alt="InsureTec" height={22}
+             style={{ display: 'block', filter: 'drop-shadow(0 0 8px rgba(56,189,248,0.2))' }} />
+      </span>
+      <span style={{
+        textAlign: 'center', fontSize: 14, fontWeight: 700,
+        color: '#cbd5e1', letterSpacing: '0.12em', textTransform: 'uppercase',
+      }}>{title}</span>
+      <span style={{
+        textAlign: 'right', fontSize: 22, fontWeight: 800, color: '#f1f5f9',
+        fontVariantNumeric: 'tabular-nums',
+      }}>{hh}:{mm}</span>
     </footer>
   );
 }
 
-// ─── Big number with target progress (the headline tile) ───────────────
+// ─── Headline tile (Earn + Webbys) — biggest cards, top-left placement ─
+//
+// The pair of metrics a director glances at first when they walk past
+// the wall. Mirrors the Gecko hierarchy: today's Earn is the lead, with
+// Webbys as the live-flow companion. Bigger and brighter than every
+// other tile on the board so the eye lands here on entry.
 
-function BigNumberWithTarget({ spec, result, target }: {
+function HeadlineTile({ spec, result, accent, big = false }: {
+  spec?: WidgetSpec; result?: WidgetResult; accent: string; big?: boolean;
+}) {
+  if (!spec) return null;
+  const value = result?.value ?? null;
+  const status = computeStatus(value, spec.status);
+  return (
+    <div style={{
+      ...tileStyle, flex: big ? '2 1 0' : '1 1 0',
+      padding: 'clamp(16px, 2vw, 24px) clamp(18px, 2.4vw, 28px)',
+      // Headline tiles pop a little harder — brighter border + glow
+      // halo so they carry distance.
+      border: `1px solid ${accent}33`,
+      background: `linear-gradient(180deg, ${accent}14 0%, rgba(20,26,46,0.65) 70%)`,
+      boxShadow: `0 0 28px ${accent}14`,
+      position: 'relative',
+    }}>
+      <div style={{
+        display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
+        marginBottom: 8,
+      }}>
+        <div style={{ ...tileLabelStyle, fontSize: 13, color: accent }}>
+          {spec.label}
+        </div>
+        {status && <StatusChip status={status} />}
+      </div>
+      <div style={{
+        fontSize: big
+          ? 'clamp(46px, 6.4vw, 88px)'
+          : 'clamp(34px, 4.6vw, 60px)',
+        fontWeight: 800, lineHeight: 0.92,
+        color: '#f1f5f9', fontVariantNumeric: 'tabular-nums',
+        textShadow: `0 0 24px ${accent}33`,
+      }}>{formatValueOrError(result, spec.format)}</div>
+    </div>
+  );
+}
+
+// ─── NB Earn MTD tile — mid-board pairing with the Earn-vs-Yesterday
+// chart. Demoted from page-headline to row 3, where Gecko also placed
+// it. The big number + target progress bar communicate "are we on
+// track for the month" at a glance.
+
+function NBEarnMTDTile({ spec, result, target }: {
   spec?: WidgetSpec; result?: WidgetResult; target?: number;
 }) {
   if (!spec) return null;
   const value = result?.value ?? null;
   const pct = (target && value != null) ? Math.max(0, Math.min(1, value / target)) : 0;
+  const onTrack = pct >= 1;
   return (
-    <div style={{ ...tileStyle, flex: 2.4, padding: '20px 24px' }}>
-      <div style={tileLabelStyle}>{spec.label}</div>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 14, marginTop: 4 }}>
+    <div style={{
+      ...tileStyle, flex: '1 1 0', minWidth: 280,
+      padding: 'clamp(16px, 2vw, 22px)',
+      border: '1px solid rgba(129,140,248,0.4)',
+      background: 'linear-gradient(180deg, rgba(129,140,248,0.10) 0%, rgba(20,26,46,0.65) 70%)',
+    }}>
+      <div style={{
+        display: 'flex', justifyContent: 'space-between', alignItems: 'baseline',
+        marginBottom: 6,
+      }}>
+        <div style={{ ...tileLabelStyle, color: '#a5b4fc' }}>{spec.label}</div>
+        <div style={{
+          fontSize: 14, fontWeight: 700, color: onTrack ? '#86efac' : '#cbd5e1',
+          fontVariantNumeric: 'tabular-nums',
+        }}>{Math.round(pct * 100)}%</div>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
         <span style={{
-          fontSize: 'clamp(40px, 5.8vw, 78px)', fontWeight: 800, lineHeight: 0.95,
+          fontSize: 'clamp(40px, 5.4vw, 72px)', fontWeight: 800, lineHeight: 0.95,
           color: '#f1f5f9', fontVariantNumeric: 'tabular-nums',
-          textShadow: '0 0 28px rgba(56,189,248,0.18)',
+          textShadow: '0 0 24px rgba(129,140,248,0.25)',
         }}>{formatValue(value, spec.format)}</span>
         {target != null && (
           <span style={{ fontSize: 14, fontWeight: 600, color: '#94a3b8' }}>
@@ -259,8 +354,9 @@ function BigNumberWithTarget({ spec, result, target }: {
       {target != null && (
         <div style={{ marginTop: 14 }}>
           <div style={{
-            position: 'relative', height: 10, borderRadius: 99,
+            position: 'relative', height: 12, borderRadius: 99,
             background: 'rgba(255,255,255,0.06)', overflow: 'hidden',
+            border: '1px solid rgba(255,255,255,0.06)',
           }}>
             <div style={{
               position: 'absolute', inset: 0, width: `${pct * 100}%`,
@@ -269,57 +365,82 @@ function BigNumberWithTarget({ spec, result, target }: {
               transition: 'width 0.6s ease',
             }} />
           </div>
-          <div style={{
-            display: 'flex', justifyContent: 'space-between',
-            marginTop: 6, fontSize: 12, fontWeight: 700,
-            color: pct >= 1 ? '#86efac' : '#cbd5e1',
-            fontVariantNumeric: 'tabular-nums',
-          }}>
-            <span>{Math.round(pct * 100)}%</span>
-            <span style={{ color: '#475569' }}>target {formatValue(target, spec.format)}</span>
-          </div>
         </div>
       )}
     </div>
   );
 }
 
-// ─── Big number (no target) — used for Earn today next to NB Earn MTD ──
+// ─── Stack / grid wrappers — for grouping small KPIs in row 1/2 ────────
 
-function BigNumber({ spec, result }: { spec?: WidgetSpec; result?: WidgetResult }) {
-  if (!spec) return null;
+function StackTile({ children }: { children: React.ReactNode }) {
   return (
-    <div style={{ ...tileStyle, flex: 1.2, padding: '20px 24px' }}>
-      <div style={tileLabelStyle}>{spec.label}</div>
-      <div style={{
-        fontSize: 'clamp(32px, 4.2vw, 56px)', fontWeight: 800, lineHeight: 0.95,
-        color: '#f1f5f9', fontVariantNumeric: 'tabular-nums',
-        marginTop: 8,
-      }}>{formatValueOrError(result, spec.format)}</div>
-    </div>
+    <div style={{
+      ...tileStyle, flex: '1 1 0', minWidth: 180,
+      padding: 12,
+      display: 'flex', flexDirection: 'column', gap: 8,
+    }}>{children}</div>
   );
 }
 
-// ─── Small KPI tile (today-flow row) ───────────────────────────────────
+function GridTile({ cols, children }: { cols: number; children: React.ReactNode }) {
+  return (
+    <div style={{
+      ...tileStyle, flex: '1.4 1 0', minWidth: 280,
+      padding: 12,
+      display: 'grid',
+      gridTemplateColumns: `repeat(${cols}, 1fr)`,
+      gap: 8,
+    }}>{children}</div>
+  );
+}
 
-function SmallKpi({ spec, result }: { spec?: WidgetSpec; result?: WidgetResult }) {
+// ─── Small KPI tile ────────────────────────────────────────────────────
+//
+// Beefier than the previous version — bigger value font, brighter
+// labels (no more whisper-thin tracking), stronger card contrast,
+// optional status chip in the corner. `compact` mode is what the
+// stack/grid rows use; full standalone mode is left for future use.
+
+function SmallKpi({ spec, result, compact = false }: {
+  spec?: WidgetSpec; result?: WidgetResult; compact?: boolean;
+}) {
   if (!spec) return null;
   if (result?.placeholder) {
-    return <PlaceholderKpi label={spec.label} reason={result.reason || ''} />;
+    return <PlaceholderKpi label={spec.label} reason={result.reason || ''} compact={compact} />;
   }
+  const status = computeStatus(result?.value ?? null, spec.status);
   return (
-    <div style={{ ...tileStyle, flex: '1 1 0', padding: '12px 14px' }}>
-      <div style={{ ...tileLabelStyle, fontSize: 10 }}>{spec.label}</div>
+    <div style={compact ? compactKpiStyle : standaloneKpiStyle}>
       <div style={{
-        fontSize: 'clamp(20px, 2.2vw, 30px)', fontWeight: 800, lineHeight: 1,
-        color: '#f1f5f9', fontVariantNumeric: 'tabular-nums',
-        marginTop: 6,
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        gap: 8, marginBottom: 3,
+      }}>
+        <div style={{
+          fontSize: compact ? 11 : 12, fontWeight: 800,
+          color: '#cbd5e1', letterSpacing: '0.12em', textTransform: 'uppercase',
+          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+        }}>{spec.label}</div>
+        {status && <StatusChip status={status} small />}
+      </div>
+      <div style={{
+        fontSize: compact ? 'clamp(24px, 2.6vw, 34px)' : 'clamp(32px, 3.4vw, 44px)',
+        fontWeight: 800, lineHeight: 1,
+        color: status === 'alert' ? '#fca5a5'
+             : status === 'warn'  ? '#fcd34d'
+             :                       '#f1f5f9',
+        fontVariantNumeric: 'tabular-nums',
       }}>{formatValueOrError(result, spec.format)}</div>
     </div>
   );
 }
 
-// ─── Direct v External split bar ───────────────────────────────────────
+// ─── Direct v External — big numbers first, bar as supporting context ──
+//
+// Rebuilt to lead with two prominent channel cards (value + percent)
+// before the proportional bar underneath, matching the original Gecko
+// where the two figures were the primary read. The bar still gives
+// the at-a-glance proportion but doesn't compete with the numbers.
 
 function DirectExternal({ direct, external }: {
   direct:   { spec?: WidgetSpec; result?: WidgetResult };
@@ -331,90 +452,248 @@ function DirectExternal({ direct, external }: {
   const dPct = total > 0 ? d / total : 0;
   const ePct = total > 0 ? e / total : 0;
 
-  // Two horizontal bars share the same scale (max = total) so the
-  // longer bar visually wins, giving the eye an immediate "which
-  // channel is bigger" read. Mirrors the progress-bar idiom we use
-  // for NB Earn MTD target — same vocabulary across the board.
-  const ROW_H = 36; // ample room for value text inside the bar
   return (
     <section style={{
-      ...tileStyle, padding: '16px 20px',
+      ...tileStyle, flex: '1.6 1 0', minWidth: 360,
+      padding: '14px 18px',
+      display: 'flex', flexDirection: 'column', gap: 12,
     }}>
       <div style={{
         display: 'flex', justifyContent: 'space-between', alignItems: 'baseline',
-        marginBottom: 14,
       }}>
-        <span style={tileLabelStyle}>Direct v External</span>
+        <span style={{ ...tileLabelStyle, fontSize: 12, color: '#cbd5e1' }}>
+          Direct v External
+        </span>
         <span style={{
-          fontSize: 14, fontWeight: 700, color: '#94a3b8',
+          fontSize: 13, fontWeight: 700, color: '#94a3b8',
           fontVariantNumeric: 'tabular-nums',
         }}>
           Total {formatValue(total, 'gbp-k')}
         </span>
       </div>
 
-      <ChannelBar
-        label="Direct"   value={d} pct={dPct} total={total} rowHeight={ROW_H}
-        gradient="linear-gradient(90deg, #38bdf8 0%, #818cf8 100%)"
-        labelColor="#a5b4fc"
-      />
-      <div style={{ height: 8 }} />
-      <ChannelBar
-        label="External" value={e} pct={ePct} total={total} rowHeight={ROW_H}
-        gradient="linear-gradient(90deg, #94a3b8 0%, #64748b 100%)"
-        labelColor="#cbd5e1"
-      />
+      {/* Two big-number cards side-by-side */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+        <ChannelCard label="Direct"   value={d} pct={dPct} accent="#38bdf8" />
+        <ChannelCard label="External" value={e} pct={ePct} accent="#94a3b8" />
+      </div>
+
+      {/* Stacked horizontal bar — single bar with two segments, sized
+          by proportion. Acts as the visual sanity check for the two
+          numbers above. */}
+      <div style={{
+        position: 'relative', height: 8, borderRadius: 99, overflow: 'hidden',
+        background: 'rgba(255,255,255,0.04)',
+      }}>
+        {total > 0 && (
+          <>
+            <div style={{
+              position: 'absolute', top: 0, bottom: 0, left: 0,
+              width: `${dPct * 100}%`,
+              background: 'linear-gradient(90deg, #38bdf8 0%, #818cf8 100%)',
+            }} />
+            <div style={{
+              position: 'absolute', top: 0, bottom: 0,
+              left: `${dPct * 100}%`,
+              width: `${ePct * 100}%`,
+              background: 'linear-gradient(90deg, #94a3b8 0%, #64748b 100%)',
+            }} />
+          </>
+        )}
+      </div>
     </section>
   );
 }
 
-function ChannelBar({ label, value, pct, total, rowHeight, gradient, labelColor }: {
-  label: string; value: number; pct: number; total: number;
-  rowHeight: number; gradient: string; labelColor: string;
+function ChannelCard({ label, value, pct, accent }: {
+  label: string; value: number; pct: number; accent: string;
 }) {
   return (
     <div style={{
-      display: 'grid',
-      gridTemplateColumns: '90px 1fr 90px',
-      alignItems: 'center', gap: 12,
+      borderRadius: 10,
+      padding: '10px 14px',
+      background: `${accent}10`,
+      border: `1px solid ${accent}33`,
     }}>
-      <span style={{
-        fontSize: 12, fontWeight: 800,
-        color: labelColor, letterSpacing: '0.18em', textTransform: 'uppercase',
-      }}>{label}</span>
-
       <div style={{
-        position: 'relative', height: rowHeight, borderRadius: 8, overflow: 'hidden',
-        background: 'rgba(255,255,255,0.04)',
-        border: '1px solid rgba(255,255,255,0.06)',
+        display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
+        marginBottom: 4,
       }}>
-        <div style={{
-          position: 'absolute', inset: 0,
-          width: `${Math.max(2, pct * 100)}%`, // min 2% so a £0 channel still shows a sliver
-          background: gradient,
-          transition: 'width 0.6s ease',
-        }} />
-        {/* Value floats inside the bar at the right edge — keeps the
-            eye anchored to where the bar ends */}
         <span style={{
-          position: 'absolute', top: 0, bottom: 0,
-          left: total > 0 ? `calc(${pct * 100}% + 8px)` : 8,
-          display: 'flex', alignItems: 'center',
-          fontSize: 16, fontWeight: 800, color: '#f1f5f9',
+          fontSize: 11, fontWeight: 800,
+          color: accent, letterSpacing: '0.18em', textTransform: 'uppercase',
+        }}>{label}</span>
+        <span style={{
+          fontSize: 14, fontWeight: 800, color: '#f1f5f9',
           fontVariantNumeric: 'tabular-nums',
-          textShadow: '0 1px 2px rgba(0,0,0,0.4)',
-          whiteSpace: 'nowrap',
-        }}>
-          {formatValue(value, 'gbp-k')}
-        </span>
+        }}>{Math.round(pct * 100)}%</span>
       </div>
-
-      <span style={{
-        fontSize: 18, fontWeight: 800, color: '#f1f5f9',
-        fontVariantNumeric: 'tabular-nums', textAlign: 'right',
-      }}>{Math.round(pct * 100)}%</span>
+      <div style={{
+        fontSize: 'clamp(28px, 3vw, 40px)', fontWeight: 800, lineHeight: 0.95,
+        color: '#f1f5f9', fontVariantNumeric: 'tabular-nums',
+        textShadow: `0 0 18px ${accent}33`,
+      }}>{formatValue(value, 'gbp-k')}</div>
     </div>
   );
+}
+
+// ─── Status indicator helpers ──────────────────────────────────────────
+
+type Status = 'good' | 'warn' | 'alert';
+
+function computeStatus(
+  value: number | null,
+  threshold: WidgetSpec['status'] | undefined,
+): Status | null {
+  if (value == null || !threshold) return null;
+  if ('goodAbove' in threshold) {
+    if (value >= threshold.goodAbove) return 'good';
+    if (value >= threshold.warnAbove) return 'warn';
+    return 'alert';
+  }
+  if (value <= threshold.goodBelow) return 'good';
+  if (value <= threshold.warnBelow) return 'warn';
+  return 'alert';
+}
+
+function StatusChip({ status, small = false }: { status: Status; small?: boolean }) {
+  const conf =
+    status === 'good'  ? { bg: 'rgba(16,185,129,0.16)', fg: '#86efac', mark: '✓' }
+  : status === 'warn'  ? { bg: 'rgba(251,191,36,0.18)', fg: '#fcd34d', mark: '!' }
+  :                       { bg: 'rgba(248,113,113,0.20)', fg: '#fca5a5', mark: '!' };
+  const sz = small ? 18 : 22;
+  return (
+    <span aria-hidden style={{
+      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+      width: sz, height: sz, borderRadius: 99,
+      background: conf.bg, color: conf.fg,
+      fontSize: small ? 11 : 13, fontWeight: 900,
+      flexShrink: 0,
+    }}>{conf.mark}</span>
+  );
+}
+
+// ─── Top Brokers Today — fills the bottom space ────────────────────────
+//
+// Reuses the existing /api/board-data/sales-group endpoint (the
+// combined London + Guildford leaderboard). Pulls the top 5 by income
+// today and renders a small horizontal podium. Operational read floor
+// managers actually use — "who's having a great morning, who needs a
+// nudge" — without anyone having to flip to another board.
+
+function TopBrokersToday() {
+  const [rows,  setRows]  = useState<any[]>([]);
+  const [tick,  setTick]  = useState(0);
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/board-data/sales-group', { cache: 'no-store' })
+      .then(r => r.ok ? r.json() : null)
+      .then((d: any) => {
+        if (cancelled || !d) return;
+        const cols   = (d.columns || []) as string[];
+        const rs     = (d.rows    || []) as any[];
+        const nameC  = cols[0] || 'name';
+        const todayC = cols.find((c: string) => /income.*today|today.*income/i.test(c)) || '';
+        if (!todayC) return setRows([]);
+        const ranked = rs
+          .map(r => ({
+            name: String(r[nameC] ?? ''),
+            today: parseMoney(r[todayC]),
+          }))
+          .filter(r => r.today > 0)
+          .sort((a, b) => b.today - a.today)
+          .slice(0, 5);
+        setRows(ranked);
+      })
+      .catch(() => { /* swallow — board still renders without this strip */ });
+    return () => { cancelled = true; };
+  }, [tick]);
+
+  // Refresh every 60s — we don't need second-by-second precision here
+  // and we want to amortise the SQL hit on the underlying leaderboard.
+  useEffect(() => {
+    const iv = setInterval(() => setTick(t => t + 1), 60_000);
+    return () => clearInterval(iv);
+  }, []);
+
+  return (
+    <section style={{ ...tileStyle, padding: '14px 18px' }}>
+      <div style={{
+        display: 'flex', justifyContent: 'space-between', alignItems: 'baseline',
+        marginBottom: 12,
+      }}>
+        <span style={{ ...tileLabelStyle, color: '#fde68a' }}>🏆 Top Brokers Today</span>
+        <span style={{ fontSize: 11, color: '#64748b', fontWeight: 600 }}>
+          combined London + Guildford
+        </span>
+      </div>
+      <div style={{
+        display: 'grid', gap: 10,
+        gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))',
+      }}>
+        {rows.length === 0 && (
+          <div style={{ color: '#475569', fontSize: 13, fontWeight: 600 }}>
+            No income recorded yet today
+          </div>
+        )}
+        {rows.map((r, i) => (
+          <BrokerCard key={r.name + i} rank={i + 1} name={r.name} income={r.today} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function BrokerCard({ rank, name, income }: { rank: number; name: string; income: number }) {
+  const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : '';
+  const accent = rank === 1 ? '#fcd34d'
+              : rank === 2 ? '#cbd5e1'
+              : rank === 3 ? '#fbbf24'
+              :              '#64748b';
+  return (
+    <div style={{
+      borderRadius: 10, padding: '10px 14px',
+      background: `linear-gradient(180deg, ${accent}14 0%, rgba(20,26,46,0.5) 80%)`,
+      border: `1px solid ${accent}40`,
+      display: 'flex', alignItems: 'center', gap: 12,
+    }}>
+      <span aria-hidden style={{
+        fontSize: 22, lineHeight: 1, flexShrink: 0,
+        opacity: medal ? 1 : 0.5,
+      }}>{medal || `#${rank}`}</span>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{
+          fontSize: 14, fontWeight: 800, color: '#f1f5f9',
+          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+        }}>{stripAwardEmojis(name)}</div>
+        <div style={{
+          fontSize: 18, fontWeight: 800, color: accent,
+          fontVariantNumeric: 'tabular-nums', marginTop: 2,
+        }}>{formatValue(income, 'gbp')}</div>
+      </div>
+    </div>
+  );
+}
+
+/** Pull the £ value out of whatever the leaderboard SQL returned —
+ *  could be a number, a £-prefixed string, with K/M suffixes etc. */
+function parseMoney(v: any): number {
+  if (v == null) return 0;
+  if (typeof v === 'number') return v;
+  const s = String(v).replace(/[£$,\s]/g, '');
+  const mul = /K$/i.test(s) ? 1e3 : /M$/i.test(s) ? 1e6 : 1;
+  const n = parseFloat(s.replace(/[KM]$/i, ''));
+  return Number.isFinite(n) ? n * mul : 0;
+}
+
+/** Award emojis (🥇🥈🥉🍪🔥🎉🚐🍺🍾) are pre-stamped onto leaderboard
+ *  names by the per-office SQL. We're showing our own podium, so strip
+ *  them off to avoid redundancy. */
+function stripAwardEmojis(name: string): string {
+  return name
+    .replace(/[\u{1F947}\u{1F948}\u{1F949}\u{1F36A}\u{1F525}\u{1F389}\u{1F690}\u{1F37A}\u{1F37E}]/gu, '')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 // ─── Custom Recharts tooltip ───────────────────────────────────────────
@@ -500,19 +779,27 @@ function ChartTile({ spec, result, yFormat }: {
   const rows = result?.rows ?? [];
   const series = spec.series || [];
   return (
-    <div style={{ ...tileStyle, flex: '1 1 0', minWidth: 280, padding: '14px 16px' }}>
+    <div style={{ ...tileStyle, flex: '1 1 0', minWidth: 280, padding: '16px 18px' }}>
       <div style={{
         display: 'flex', justifyContent: 'space-between', alignItems: 'baseline',
-        marginBottom: 10,
+        marginBottom: 12,
       }}>
-        <span style={tileLabelStyle}>{spec.label}</span>
-        <span style={{ display: 'inline-flex', gap: 12, fontSize: 11, fontWeight: 700 }}>
+        <span style={{ ...tileLabelStyle, fontSize: 12, color: '#cbd5e1' }}>{spec.label}</span>
+        <span style={{ display: 'inline-flex', gap: 14, fontSize: 13, fontWeight: 700 }}>
           {series.map(s => (
-            <span key={s.key} style={{ color: s.tint }}>● {s.label}</span>
+            <span key={s.key} style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6, color: s.tint,
+            }}>
+              <span aria-hidden style={{
+                width: 10, height: 10, borderRadius: 99, background: s.tint,
+                boxShadow: `0 0 8px ${s.tint}80`,
+              }} />
+              {s.label}
+            </span>
           ))}
         </span>
       </div>
-      <div style={{ height: 200 }}>
+      <div style={{ height: 220 }}>
         {rows.length === 0 ? (
           <div style={{
             height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -520,27 +807,27 @@ function ChartTile({ spec, result, yFormat }: {
           }}>No data yet</div>
         ) : (
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={rows} margin={{ top: 4, right: 8, left: -10, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
+            <BarChart data={rows} margin={{ top: 4, right: 8, left: -8, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" vertical={false} />
               <XAxis
                 dataKey={spec.xKey || 'Hour'}
-                tick={{ fill: '#64748b', fontSize: 11 }}
-                axisLine={{ stroke: 'rgba(255,255,255,0.08)' }}
+                tick={{ fill: '#cbd5e1', fontSize: 13, fontWeight: 700 }}
+                axisLine={{ stroke: 'rgba(255,255,255,0.12)' }}
                 tickLine={false}
               />
               <YAxis
-                tick={{ fill: '#64748b', fontSize: 11 }}
-                axisLine={{ stroke: 'rgba(255,255,255,0.08)' }}
+                tick={{ fill: '#cbd5e1', fontSize: 12, fontWeight: 600 }}
+                axisLine={{ stroke: 'rgba(255,255,255,0.12)' }}
                 tickLine={false}
-                tickFormatter={(v: number) => formatValue(v, yFormat).replace('£', '£')}
-                width={50}
+                tickFormatter={(v: number) => formatValue(v, yFormat)}
+                width={56}
               />
               <Tooltip
-                cursor={{ fill: 'rgba(255,255,255,0.04)' }}
+                cursor={{ fill: 'rgba(255,255,255,0.06)' }}
                 content={<HourTooltip yFormat={yFormat} series={series} />}
               />
               {series.map(s => (
-                <Bar key={s.key} dataKey={s.key} fill={s.tint} radius={[3, 3, 0, 0]} />
+                <Bar key={s.key} dataKey={s.key} fill={s.tint} radius={[4, 4, 0, 0]} />
               ))}
             </BarChart>
           </ResponsiveContainer>
@@ -555,9 +842,9 @@ function ChartTile({ spec, result, yFormat }: {
 function Placeholder({ label, reason }: { label: string; reason: string }) {
   return (
     <section style={{
-      ...tileStyle,
+      ...tileStyle, flex: '1 1 0', minWidth: 280,
       borderStyle: 'dashed',
-      borderColor: 'rgba(255,255,255,0.12)',
+      borderColor: 'rgba(255,255,255,0.16)',
       padding: '18px 22px',
       color: '#64748b',
     }}>
@@ -569,30 +856,40 @@ function Placeholder({ label, reason }: { label: string; reason: string }) {
   );
 }
 
-function PlaceholderKpi({ label, reason }: { label: string; reason: string }) {
+function PlaceholderKpi({ label, reason, compact = false }: {
+  label: string; reason: string; compact?: boolean;
+}) {
   return (
-    <div title={reason} style={{
-      ...tileStyle, flex: '1 1 0', padding: '12px 14px',
-      borderStyle: 'dashed', borderColor: 'rgba(255,255,255,0.12)',
-    }}>
-      <div style={{ ...tileLabelStyle, fontSize: 10, color: '#64748b' }}>{label}</div>
+    <div title={reason} style={compact ? { ...compactKpiStyle, borderStyle: 'dashed' }
+                                       : { ...standaloneKpiStyle, borderStyle: 'dashed' }}>
       <div style={{
-        fontSize: 'clamp(16px, 1.6vw, 22px)', fontWeight: 700, lineHeight: 1,
-        color: '#475569', marginTop: 6,
+        fontSize: compact ? 11 : 12, fontWeight: 800,
+        color: '#64748b', letterSpacing: '0.12em', textTransform: 'uppercase',
+      }}>{label}</div>
+      <div style={{
+        fontSize: compact ? 'clamp(20px, 2.2vw, 28px)' : 'clamp(28px, 3vw, 38px)',
+        fontWeight: 700, lineHeight: 1,
+        color: '#475569', marginTop: 4,
       }}>⏸ Pending</div>
     </div>
   );
 }
 
 // ─── Styling primitives ────────────────────────────────────────────────
+//
+// Page background went a touch darker (#08101e) so the cards' lighter
+// gradients have something to lift off — fixes the "too flat" feedback
+// where cards were close to the page colour. Tile borders also bumped
+// from rgba(255,255,255,0.06) → 0.10 so each card has visible
+// boundaries from across the room.
 
 const pageStyle: React.CSSProperties = {
   minHeight: '100vh',
-  background: '#0e1426',
+  background: '#08101e',
   backgroundImage: `
-    radial-gradient(ellipse at 50% -10%, rgba(56,189,248,0.06) 0%, transparent 55%),
-    linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px)
+    radial-gradient(ellipse at 50% -10%, rgba(56,189,248,0.10) 0%, transparent 55%),
+    linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px)
   `,
   backgroundSize: 'auto, 40px 40px, 40px 40px',
   color: '#f1f5f9',
@@ -603,22 +900,44 @@ const pageStyle: React.CSSProperties = {
 
 const tileStyle: React.CSSProperties = {
   borderRadius: 14,
-  border: '1px solid rgba(255,255,255,0.06)',
-  background: 'linear-gradient(180deg, rgba(99,102,241,0.06) 0%, rgba(20,26,46,0.55) 70%)',
+  border: '1px solid rgba(255,255,255,0.10)',
+  background: 'linear-gradient(180deg, rgba(99,102,241,0.10) 0%, rgba(20,26,46,0.68) 70%)',
+  boxShadow: '0 4px 18px rgba(0,0,0,0.25)',
 };
 
 const tileLabelStyle: React.CSSProperties = {
-  fontSize: 11, fontWeight: 800,
-  color: '#94a3b8', letterSpacing: '0.18em', textTransform: 'uppercase',
+  fontSize: 12, fontWeight: 800,
+  color: '#cbd5e1', letterSpacing: '0.14em', textTransform: 'uppercase',
 };
 
-const headlineStripStyle: React.CSSProperties = {
-  display: 'flex', gap: 14, flexWrap: 'wrap',
+/** Inner KPI tile — used inside a StackTile or GridTile. No own
+ *  background or border (the parent provides the card chrome); just
+ *  spacing + label + value. */
+const compactKpiStyle: React.CSSProperties = {
+  padding: '8px 10px',
+  borderRadius: 8,
+  background: 'rgba(11,16,32,0.55)',
+  border: '1px solid rgba(255,255,255,0.04)',
+  minWidth: 0,
 };
 
-const kpiRowStyle: React.CSSProperties = {
-  display: 'grid', gap: 10,
-  gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 150px), 1fr))',
+/** Full-card KPI — for use outside a StackTile/GridTile (currently
+ *  unused, kept for layout flexibility). */
+const standaloneKpiStyle: React.CSSProperties = {
+  ...({} as any),
+  borderRadius: 14,
+  border: '1px solid rgba(255,255,255,0.10)',
+  background: 'linear-gradient(180deg, rgba(99,102,241,0.10) 0%, rgba(20,26,46,0.68) 70%)',
+  boxShadow: '0 4px 18px rgba(0,0,0,0.25)',
+  padding: '14px 18px', flex: '1 1 0', minWidth: 0,
+};
+
+const headlineRowStyle: React.CSSProperties = {
+  display: 'flex', gap: 12, flexWrap: 'wrap',
+};
+
+const row2Style: React.CSSProperties = {
+  display: 'flex', gap: 12, flexWrap: 'wrap',
 };
 
 const chartBandStyle: React.CSSProperties = {

@@ -35,10 +35,22 @@ export type WidgetFormat =
   | 'gbp-2dp'    // £305.08    — 2 decimal places, no suffix
   | 'percent';   // 47%        — trailing percent, 0–1 decimals
 
+/** Threshold-based status indicator. Either `goodAbove` (higher is
+ *  better, e.g. IPP) or `goodBelow` (lower is better, e.g. Manual
+ *  Wraps backlog) — never both. The view renders a small green tick
+ *  when in target, an amber warning between target and the trip line,
+ *  and a red alert when fully breached. Designed to give a sales-floor
+ *  manager an instant "are we OK" read without having to know the
+ *  threshold values themselves. */
+export type StatusThreshold =
+  | { goodAbove: number; warnAbove: number }     // higher is better
+  | { goodBelow: number; warnBelow: number };    // lower is better
+
 interface BaseWidget {
   id:        string;
   label:     string;
   format:    WidgetFormat;
+  status?:   StatusThreshold;
 }
 
 /** SQL-backed widget — runs `query` against MS-SQL via runQuery and
@@ -242,11 +254,14 @@ export const SALES_BOARD_1_WIDGETS: WidgetSpec[] = [
     zd_filters: [{ field: 'tag', value: 'webcanref' }],
     format: 'count' },
 
-  // 3b. Manual Wrap Ups — open tickets tagged manualwrap
+  // 3b. Manual Wrap Ups — open tickets tagged manualwrap.
+  //     Lower is better; a backlog above 6 tickets is the wallboard's
+  //     "act now" trigger — typical day floats around 2-3.
   { id: 'manual-wrap-ups', label: 'Manual Wrap Ups',
     source: 'zendesk', metric: 'open_tickets',
     zd_filters: [{ field: 'tag', value: 'manualwrap' }],
-    format: 'count' },
+    format: 'count',
+    status: { goodBelow: 3, warnBelow: 6 } },
 
   // 4a-4d. Today + MTD volume — all from SalesBoard, Team='All'
   { id: 'quotes-today', label: 'Quotes Today',
@@ -285,15 +300,21 @@ export const SALES_BOARD_1_WIDGETS: WidgetSpec[] = [
     where: { Division: 'Z-ALL' },
     format: 'count' },
 
-  // 6b, 6c. IPP today + MTD avg
+  // 6b, 6c. IPP today + MTD avg.
+  //   Targets: ≥£290 today / ≥£280 MTD reads as "in target" (green tick),
+  //   £270–289 / £260–279 as "watch" (amber). Below those trips red.
+  //   Roughly the historical floor of acceptable; bump in the spec if
+  //   the floor manager wants the bar higher.
   { id: 'ipp-today', label: 'IPP Today',
     source: 'sql',
     query: "SELECT IPP FROM SalesBoard WHERE Date = CONVERT(DATE, GETDATE()) AND Team = 'All'",
-    format: 'gbp-2dp' },
+    format: 'gbp-2dp',
+    status: { goodAbove: 290, warnAbove: 270 } },
   { id: 'avg-ipp-mtd', label: 'Average IPP MTD',
     source: 'sql',
     query: "SELECT AVG(IPP) FROM SalesBoard WHERE Date BETWEEN DATEADD(M, DATEDIFF(M, 0, GETDATE()), 0) AND CONVERT(DATE, GETDATE()) AND Team = 'All'",
-    format: 'gbp-2dp' },
+    format: 'gbp-2dp',
+    status: { goodAbove: 280, warnAbove: 260 } },
 
   // 7a. VC Google + MS Ads spend — deferred
   { id: 'vc-spend-today', label: 'Spent Today · Ads',
@@ -320,7 +341,7 @@ export const SALES_BOARD_1_WIDGETS: WidgetSpec[] = [
     format: 'gbp-k',
     visual: 'bar-pair', xKey: 'Hour',
     series: [
-      { key: 'Yesterday', label: 'Yesterday', tint: '#475569' },
+      { key: 'Yesterday', label: 'Yesterday', tint: '#94a3b8' },
       { key: 'Today',     label: 'Today',     tint: '#38bdf8' },
     ] },
 
@@ -338,7 +359,7 @@ export const SALES_BOARD_1_WIDGETS: WidgetSpec[] = [
     format: 'gbp-k',
     visual: 'bar-pair', xKey: 'Hour',
     series: [
-      { key: 'Last week', label: 'Last week', tint: '#475569' },
+      { key: 'Last week', label: 'Last week', tint: '#94a3b8' },
       { key: 'Today',     label: 'Today',     tint: '#38bdf8' },
     ] },
 
@@ -355,7 +376,7 @@ export const SALES_BOARD_1_WIDGETS: WidgetSpec[] = [
     format: 'gbp-2dp',
     visual: 'bar-pair', xKey: 'Hour',
     series: [
-      { key: 'Last week', label: 'Last week', tint: '#475569' },
+      { key: 'Last week', label: 'Last week', tint: '#94a3b8' },
       { key: 'Today',     label: 'Today',     tint: '#38bdf8' },
     ] },
 ];
