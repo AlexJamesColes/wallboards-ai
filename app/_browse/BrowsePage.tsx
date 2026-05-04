@@ -26,6 +26,40 @@ type Mode = 'desktop' | 'mobile';
  *  browse page chrome and the chosen wallboard layout flip together. */
 const MOBILE_MAX_WIDTH = 768;
 
+/** Split a board name into a primary type label and a location
+ *  subtitle. Two patterns supported:
+ *
+ *  1. Bullet-separated  "Sales · Board 1"  →  { primary: 'Board 1',
+ *     location: 'Sales' }
+ *  2. Location-prefixed  "London Agents Leaderboard"  →  { primary:
+ *     'Agents Leaderboard', location: 'London' }
+ *
+ *  Names that match neither (e.g. "Cancellation Refund Report") fall
+ *  through with `location: null`, so the card just shows the name as
+ *  one line.
+ */
+const KNOWN_LOCATION_PREFIXES = ['London', 'Guildford', 'Sales', 'Renewals'];
+
+function splitBoardName(name: string): { primary: string; location: string | null } {
+  const bullet = ' · ';
+  const idx = name.indexOf(bullet);
+  if (idx > 0) {
+    return {
+      location: name.slice(0, idx).trim(),
+      primary:  name.slice(idx + bullet.length).trim(),
+    };
+  }
+  for (const loc of KNOWN_LOCATION_PREFIXES) {
+    if (name.startsWith(loc + ' ')) {
+      return {
+        location: loc,
+        primary:  name.slice(loc.length + 1).trim(),
+      };
+    }
+  }
+  return { location: null, primary: name };
+}
+
 // "Kiosk" sits at the bottom — these are TV-bookmark rotator URLs,
 // not boards an analyst opens day-to-day. Last in the list keeps them
 // out of the way unless the user has favourited them (favourites
@@ -446,26 +480,38 @@ function BoardCard({ board: b, url, isAdmin, isFavourite, onToggleFavourite, onM
         <BoardIcon department={b.department} />
 
         <div style={{ flex: 1, minWidth: 0 }}>
-          {/* Department isn't shown here — boards are already grouped
-              under the section header above the card, so repeating the
-              dept name on every card was redundant noise. The space is
-              given to the name, which is now allowed to wrap to two
-              lines + bumped a couple of points so it reads cleanly
-              from across the room. */}
-          <div style={{
-            fontSize: 15, fontWeight: 700, color: '#f1f5f9',
-            lineHeight: 1.25,
-            display: '-webkit-box',
-            WebkitLineClamp: 2,
-            WebkitBoxOrient: 'vertical',
-            overflow: 'hidden',
-            // Hyphenate is a no-op on most board names but kicks in
-            // gracefully if someone names one "Cancellation Refund Audit"
-            // and the second word would otherwise spill.
-            wordBreak: 'break-word',
-          }}>
-            {b.name}
-          </div>
+          {/* Names follow a "<Location> · <Type>" convention (e.g.
+              "Guildford · Agent States", "Sales · Board 1"). Splitting
+              on the bullet — or on a known location prefix when there's
+              no bullet — lets us show the type as the primary line
+              and the location as a quieter subtitle. Reads better:
+              "Agents Leaderboard" + "Guildford" beats truncating
+              "Guildford Agents Leaderboard" to "Guildford …".
+              Department isn't shown — boards are already grouped under
+              the section header above the card. */}
+          {(() => {
+            const parts = splitBoardName(b.name);
+            return (
+              <>
+                <div style={{
+                  fontSize: 13, fontWeight: 700, color: '#f1f5f9',
+                  lineHeight: 1.2,
+                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                }}>
+                  {parts.primary}
+                </div>
+                {parts.location && (
+                  <div style={{
+                    fontSize: 11, fontWeight: 600, color: '#94a3b8',
+                    marginTop: 2, letterSpacing: '0.04em',
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                  }}>
+                    {parts.location}
+                  </div>
+                )}
+              </>
+            );
+          })()}
         </div>
 
         <span aria-hidden style={{
