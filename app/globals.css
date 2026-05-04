@@ -1,9 +1,570 @@
+/*
+ * Global styles + theme tokens.
+ *
+ * Dark is default. `html.light` overrides the same tokens with light-mode
+ * equivalents, so any module CSS that uses `var(--token)` flips
+ * automatically. Values that don't appear here (e.g. a per-app accent
+ * hex baked into a specific component) stay hardcoded — the tokens
+ * cover the stuff that needs to change between modes.
+ */
+
+:root {
+  /* Legacy tokens — kept for any consumer still reading them. */
+  --bg: #0a0e1a;
+  --surface: #0f1420;
+  --surface-2: #141a2a;
+  --surface-3: #1c2436;
+  --border: #222b40;
+  --border-light: #2d3a57;
+  --text: #f1f5f9;
+  --text-dim: #94a3b8;
+  --text-faint: #64748b;
+  --blue: #3b82f6;
+  --blue-light: #60a5fa;
+  --blue-glow: rgba(59, 130, 246, 0.25);
+  --red: #ef4444;
+  --green: #10b981;
+  --amber: #f59e0b;
+
+  /* ── New theme tokens — prefer these in new/migrated modules. ─── */
+
+  /* Surfaces */
+  --bg-body:               #0a0e1a;
+  --bg-card:               linear-gradient(180deg, rgba(20, 26, 42, 0.78), rgba(15, 20, 32, 0.65));
+  --bg-card-solid:         rgba(15, 23, 42, 0.55);
+  --bg-input:              #0b1220;
+  --bg-nav:                rgba(10, 14, 26, 0.82);
+  --bg-hover-subtle:       rgba(255, 255, 255, 0.04);
+  --bg-hover-accent:       rgba(99, 102, 241, 0.08);
+
+  /* Borders */
+  --border-subtle:         rgba(255, 255, 255, 0.06);
+  --border-default:        rgba(255, 255, 255, 0.10);
+  --border-input:          rgba(148, 163, 184, 0.25);
+  --border-hover:          rgba(99, 102, 241, 0.30);
+
+  /* Text */
+  --text-primary:          #f1f5f9;
+  --text-secondary:        #cbd5e1;
+  --text-tertiary:         #94a3b8;
+  --text-faint:            #64748b;
+  --text-on-accent:        #ffffff;
+
+  /* Shadows */
+  --shadow-card:           0 16px 40px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  --shadow-card-hover:     0 24px 60px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  --shadow-toast:          0 16px 36px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  --shadow-inset-highlight: rgba(255, 255, 255, 0.03);
+
+  /* Effects */
+  --blur-card:             blur(14px);
+  --blur-nav:              blur(18px);
+
+  /* Accent TEXT tokens — these ARE the per-app tagline / eyebrow /
+   * pill text colours. Named by accent, not by semantics, so module
+   * CSS can swap a raw hex for a var without guessing intent. Dark
+   * mode = pale tints that pop on dark; light mode (see html.light
+   * override below) = saturated shades that read on white. */
+  --text-amber:   #fde68a;
+  --text-orange:  #fed7aa;
+  --text-pink:    #fbcfe8;
+  --text-purple:  #e9d5ff;
+  --text-indigo:  #c7d2fe;
+  --text-teal:    #99f6e4;
+  --text-emerald: #6ee7b7;
+  --text-blue:    #93c5fd;
+  --text-red:     #fca5a5;
+  --text-yellow:  #fcd34d;
+  --text-rose:    #fda4af;
+  --text-violet:  #c4b5fd;
+
+  /* Force LIGHT color-scheme at the root, even though the visual
+   * theme is dark. Reasoning: iOS's keyboard appearance + native
+   * date/time picker overlay are driven by the page's color-scheme
+   * hint, NOT by our actual paint colours. Setting `dark` here
+   * caused iOS to render the keyboard's magnified-key preview and
+   * the calendar-picker's day cells in some hybrid dark mode that
+   * landed as solid black boxes (Ben's "black squares instead of
+   * characters" bug across the v2.89.x → v2.97.x runs).
+   *
+   * Switching to `light` here means iOS commits to light-mode
+   * rendering for those native bits — keyboard preview shows the
+   * correct character glyph, picker day numbers render dark-on-
+   * white as expected. Our app's dark visual theme is unaffected
+   * because the actual colours come from --bg-body / --text-* etc,
+   * not from this hint. The only side-effect is dark-mode
+   * scrollbars render in light style — minor cosmetic trade for
+   * killing the keyboard/picker bug.
+   *
+   * Keeping the comment-trail in case a future Claude is tempted
+   * to "fix" this by flipping it back to dark. Don't. */
+  color-scheme: light;
+}
+
+/* ── Light mode — applied via <html class="light"> ─────────────────
+ *
+ * Revised 2026-04-21 after Ben reported the first pass looked thin /
+ * washed out on the live site. Key fixes:
+ *   - Body: warmer, more saturated off-white (was #eef2f7 with barely
+ *     any contrast against white cards — cards vanished). Now a
+ *     slate-tinted tone so cards clearly separate.
+ *   - Cards: pure white but with a real border + a proper shadow so
+ *     they actually look like cards.
+ *   - Borders bumped up one tier in contrast across the board.
+ *   - Shadows tuned for light backgrounds (were echoing the dark-mode
+ *     rgba(0,0,0,0.45) which is too heavy on pale backgrounds).
+ */
+html.light {
+  --bg: #e2e8f0;
+  --surface: #ffffff;
+  --surface-2: #f8fafc;
+  --surface-3: #f1f5f9;
+  --border: #cbd5e1;
+  --border-light: #94a3b8;
+  --text: #0f172a;
+  --text-dim: #334155;
+  --text-faint: #64748b;
+
+  /* Page body — cool slate that makes cards pop. */
+  --bg-body:               #e2e8f0;
+  /* Cards: pure white, no gradient fade (the gradient made the bottom
+     edge blend into the body). */
+  --bg-card:               #ffffff;
+  --bg-card-solid:         #ffffff;
+  --bg-input:              #ffffff;
+  /* Nav: slate-tinted white. Fully opaque so the drop-shadow
+     doesn't bleed through; the TopNav module stacks a gradient on
+     top for the polished look. */
+  --bg-nav:                #f8fafc;
+  --bg-hover-subtle:       rgba(15, 23, 42, 0.05);
+  --bg-hover-accent:       rgba(99, 102, 241, 0.10);
+
+  /* Borders: visibly darker — was 0.08 which rendered as invisible
+     1px lines on a near-white bg. 0.14 still feels subtle but you
+     can actually see the card outline now. */
+  --border-subtle:         rgba(15, 23, 42, 0.14);
+  --border-default:        rgba(15, 23, 42, 0.22);
+  --border-input:          rgba(15, 23, 42, 0.22);
+  --border-hover:          rgba(99, 102, 241, 0.55);
+
+  /* Text: higher contrast across all tiers. */
+  --text-primary:          #0f172a;
+  --text-secondary:        #1e293b;
+  --text-tertiary:         #475569;
+  --text-faint:            #64748b;
+
+  /* Shadows: soft + coloured to land on a light bg. Inset highlight
+     removed because it was invisible on pure white anyway. */
+  --shadow-card:           0 1px 2px rgba(15, 23, 42, 0.05), 0 6px 16px rgba(15, 23, 42, 0.08);
+  --shadow-card-hover:     0 4px 8px rgba(15, 23, 42, 0.08), 0 12px 28px rgba(15, 23, 42, 0.12);
+  --shadow-toast:          0 12px 32px rgba(15, 23, 42, 0.14);
+  --shadow-inset-highlight: rgba(255, 255, 255, 1);
+
+  --blur-card:             blur(0px);
+  --blur-nav:              blur(10px);
+
+  /* Accent text tokens — light-mode overrides. Dark mode uses pale
+   * tints that pop on dark; light mode needs saturated shades that
+   * actually read on white/near-white surfaces. Without these the
+   * eyebrow pills and taglines disappear on white cards. */
+  --text-amber:   #b45309;
+  --text-orange:  #c2410c;
+  --text-pink:    #be185d;
+  --text-purple:  #7e22ce;
+  --text-indigo:  #4338ca;
+  --text-teal:    #0f766e;
+  --text-emerald: #047857;
+  --text-blue:    #1d4ed8;
+  --text-red:     #b91c1c;
+  --text-yellow:  #b45309;
+  --text-rose:    #be123c;
+  --text-violet:  #6d28d9;
+
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  /* min-height (NOT height) so body grows with its content + padding.
+   * With height: 100% body was locked at exactly the viewport height
+   * — every page's wrapper has min-height: 100vh, which then OVERFLOWS
+   * past body's fixed bottom, and body's own padding-bottom gets
+   * compressed against the wrapper. The user sees the page content
+   * sitting basically right against the tab bar with the body padding
+   * "invisible" because it's behind the overflowing wrapper.
+   *
+   * Switching to min-height: 100% lets body extend properly:
+   *   document_height = max(100vh, body_padding_top + wrapper + body_padding_bottom)
+   * which restores the breathing room above the tab bar that all the
+   * +96 / +140px bumps were supposed to give. */
+  min-height: 100%;
+  background: var(--bg-body);
+  color: var(--text-primary);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, 'Helvetica Neue', Arial, sans-serif;
+  font-size: 14px;
+  line-height: 1.4;
+  -webkit-font-smoothing: antialiased;
+  /* Soft theme crossfade. Scoped to body so interactive element
+   * transitions (buttons, hovers) stay snappy. */
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+/* Hide native scrollbars site-wide — we have a tab bar + version
+ * pill at the bottom-right, neither of which want to fight a
+ * Webkit scrollbar overlay. Content still scrolls normally. */
+::-webkit-scrollbar { width: 0; height: 0; display: none; }
+html, body, * { scrollbar-width: none; -ms-overflow-style: none; }
+
+/* TopNav is `position: fixed` so every page needs a body
+ * padding-top to avoid content sitting under the nav. Desktop nav
+ * is now 92px tall (28px padding × 2 + 36px brand mark) after
+ * Ben's "make the menu bar a bit more substantial" bump (was 80).
+ * Mobile values are overridden in the @media (max-width: 767px)
+ * block below. Sub-nav sticky offset (qmsubnav.module.css .bar) MUST
+ * match this number — they're the same "clear the TopNav" guarantee. */
+body {
+  padding-top: 92px;
+}
+body:has(.no-topnav-spacer) {
+  padding-top: 0;
+}
+
+/* Pages that hard-lock the viewport (e.g. /ask Text-to-SQL) opt
+ * out of body's bottom spacer AND the natural body scroll so only
+ * inside-content scrolls. Applied at ALL sizes (was previously
+ * mobile-only — caused empty space below the input bar on desktop). */
+body:has(.no-tab-bar) {
+  padding-bottom: 0;
+  overflow: hidden;
+  height: 100dvh;
+}
+
+a {
+  color: var(--blue-light, #60a5fa);
+  text-decoration: none;
+}
+html.light a { color: #2563eb; }
+a:hover {
+  text-decoration: underline;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+}
+
+input,
+select,
+textarea {
+  /* SYSTEM FONT site-wide. Some layouts wrap subtrees in
+   * next/font/google Raleway via a hashed class — if inputs inherit
+   * font-family that hashed name leaks into iOS WebKit's date-picker
+   * overlay (rendered outside the React tree where the hashed class
+   * doesn't resolve), causing digits to render as .notdef tofu
+   * rectangles. Explicit -apple-system here breaks the inheritance.
+   *
+   * font-size: 16px is set in the mobile @media block below — keeps
+   * iOS from auto-zooming on focus. Inheriting body's 14px fails. */
+  font-family: -apple-system, BlinkMacSystemFont, system-ui, 'Segoe UI', Roboto, sans-serif;
+  font-size: inherit;
+}
+
+/**
+ * Date / time / datetime-local inputs need extra-tight color-scheme
+ * pinning. Without this iOS WebKit's HTML date-picker overlay AND
+ * the on-screen keyboard's magnified-key preview both render with
+ * MIXED color-scheme expectations — the popover sets its own light
+ * background but inherits dark-mode text from the input, producing
+ * solid black rectangles where digits/glyphs should be (Ben's
+ * "black boxes on the calendar and keyboard" bug across the
+ * v2.89.x series).
+ *
+ * `color-scheme: only light` is the strongest possible signal —
+ * "render this control's UI in light mode, period, no fallback".
+ * Combined with explicit color: #0a0e1a on the input value, iOS
+ * commits to a single rendering pass with predictable colors.
+ * Apply it to all four picker-bearing input types so we're not
+ * reliant on which one Ben happens to use first.
+ */
+input[type="date"],
+input[type="time"],
+input[type="datetime-local"],
+input[type="month"],
+input[type="week"] {
+  /* `only light` is the strongest possible signal — iOS commits to
+   * light-mode rendering for the picker overlay, no fallback. The
+   * input itself stays themed via the .formInput/.input CSS
+   * modules; only the picker render mode changes. */
+  color-scheme: only light;
+}
+
+/* ────────────────────────────────────────────────────────────────
+ * Mobile optimisations — native-app-feel when the browser viewport
+ * is a phone OR when running inside a Capacitor WebView (same
+ * effective viewport). Desktop users see none of this.
+ * ──────────────────────────────────────────────────────────────── */
+
+@media (max-width: 767px) {
+  /* TopNav is now `position: fixed` (sticky was failing in WKWebView)
+   * so the body needs a top spacer equal to the nav's full height
+   * (inner content + safe-area-inset-top) — otherwise page content
+   * sits hidden under the nav. Mobile inner padding is 18px top +
+   * 18px bottom + brand mark ~36px = ~72px, so spacer is 72px.
+   *
+   * Bottom = tab-bar height (96px — was 88, raised 8px per Ben's
+   * "raise the bottom bar a bit more" feedback) + safe-area-inset-bottom
+   * + 24px breathing room. */
+  body {
+    /* Mobile TopNav actual height: 36px brand + 14+14 padding = 64px,
+     * plus padding-top: env(safe-area-inset-top). 68px gives a 4px
+     * buffer so the sub-nav sits flush below the TopNav with no gap.
+     * Bumped from 60 → 68 along with the inner padding bump 10 → 14
+     * per Ben's "more substantial menu bar" ask. */
+    padding-top: calc(68px + env(safe-area-inset-top, 0px));
+    /* Bottom = tab-bar height (96px = 74 + env-buffer + 22) +
+     * safe-area-inset-bottom + 12px breathing room. Trimmed +32 → +12
+     * per Ben's "should just be a cm or so" feedback — combined with
+     * each page's own .main padding-bottom (~24px) the user sees
+     * roughly 1cm of bg between page content and the tab bar at
+     * scroll-bottom, no more. */
+    padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px) + 12px);
+    /* Disable bounce-scroll elasticity on iOS — feels wrong under a
+     * fixed tab bar because the bar lifts. */
+    overscroll-behavior-y: none;
+  }
+
+  /* Status-bar filler: a fixed dark-navy strip behind the iPhone
+   * status bar so page content scrolling underneath never bleeds
+   * through. Hardcoded #0a0e1a (NOT theme-tokenised) because the
+   * status-bar icons are forced WHITE (Info.plist
+   * UIStatusBarStyleLightContent + StatusBar plugin Style.Light)
+   * and white icons need a dark surface to remain readable in
+   * both dark AND light mode. Light-mode users get a brief dark
+   * strip at the top — same as Twitter / Instagram / most
+   * dark-chrome apps in light mode. Acceptable trade.
+   *
+   * Implemented via body::before so every page gets it without
+   * adding a component to the layout tree. z-index 200 sits above
+   * the TopNav (100) so the strip is the last thing painted in the
+   * status-bar zone — page content can't leak through.
+   *
+   * Capacitor-native iOS gets a min-height fallback below in case
+   * env(safe-area-inset-top) returns 0 inside the WebView (which
+   * happens on some Capacitor / iOS combos when contentInset and
+   * StatusBar.setOverlaysWebView interact poorly). */
+  body::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: env(safe-area-inset-top, 0px);
+    /* Layered: faint white grid lines (effective opacity ~0.009 to
+     * match the dashboard's <Background /> grid at rgba 0.15 × 0.06)
+     * over solid #0a0e1a. Result is visually identical to the dark
+     * navy + grid pattern that fills the rest of the page on the
+     * dashboard, so the status-bar strip is a seamless extension of
+     * the dashboard surface rather than a flat dark stripe sitting
+     * above it. */
+    background:
+      linear-gradient(rgba(255, 255, 255, 0.009) 1px, transparent 1px) 0 0 / 60px 60px,
+      linear-gradient(90deg, rgba(255, 255, 255, 0.009) 1px, transparent 1px) 0 0 / 60px 60px,
+      #0a0e1a;
+    z-index: 200;
+    pointer-events: none;
+  }
+  /* Capacitor iOS: force the strip to AT LEAST 47px (notched-iPhone
+   * status-bar height) regardless of what env() reports, so the zone
+   * is always opaque. NativeStatusBar.tsx adds the .native-ios class
+   * on app boot. */
+  html.native-ios body::before {
+    min-height: 47px;
+  }
+  html.native-android body::before {
+    min-height: 24px;
+  }
+  /* On pages that opt out of the TopNav (.no-topnav-spacer — login,
+   * forced password change) we also hide the status-bar strip so
+   * the page's own bg (animated orbs / grid) flows continuously
+   * into the iPhone status-bar zone instead of being capped by a
+   * solid dark strip. The page bg is still dark navy so the white
+   * status-bar icons stay readable; just no hard edge between
+   * status-bar zone and page content. */
+  body:has(.no-topnav-spacer)::before {
+    display: none;
+  }
+  /* Body padding-top must include the same fallback so page content
+   * isn't hidden under the status-bar strip + TopNav. Without this,
+   * the body padding stays at calc(72 + env=0) = 72px on Capacitor
+   * iOS, and the page hero ends up partially covered by the TopNav
+   * (which itself extends down ~47 + 52 = ~99px from the top). */
+  html.native-ios body {
+    padding-top: calc(68px + max(env(safe-area-inset-top, 0px), 47px));
+    /* Same fallback for the home-indicator zone — env(safe-area-inset-bottom)
+     * returns 0 in some Capacitor / iOS configs even on devices with
+     * a home indicator, leaving the dashboard's last tile clipped
+     * right under the tab bar. Floor at 34px (typical iPhone home
+     * indicator strip). */
+    padding-bottom: calc(96px + max(env(safe-area-inset-bottom, 0px), 34px) + 32px);
+  }
+  html.native-android body {
+    padding-top: calc(68px + max(env(safe-area-inset-top, 0px), 24px));
+    padding-bottom: calc(96px + max(env(safe-area-inset-bottom, 0px), 16px) + 32px);
+  }
+  /* Login + change-password don't render the TopNav, so cancel the
+   * top spacer there — otherwise the login form sits 72px lower
+   * than designed. The pages have their own padding scheme. */
+  body:has(.no-topnav-spacer) {
+    padding-top: 0;
+  }
+
+  /* Pages that replace the bottom tab bar with their own input dock
+   * (e.g. /ask) opt out of body's bottom spacer + scroll bounce. The
+   * MobileTabBar component itself also bails on those paths so the
+   * tab strip isn't rendered, and the page's own input bar handles
+   * env(safe-area-inset-bottom) instead.
+   *
+   * Mobile-specific overrides only — the global rule below also
+   * applies the page-lock at desktop sizes (was the cause of empty
+   * space below the input bar on /ask before — body had no height
+   * cap so the layout extended past the viewport). */
+  body:has(.no-tab-bar) {
+    overscroll-behavior-y: none;
+  }
+
+  /* (Old `rem-sheet-open` rule removed along with the slide-up
+   * AddReminderSheet itself — /rem now opens a dedicated /rem/new
+   * page so the iOS keyboard / tab-bar interaction sorts itself
+   * out the way it does on every other form.) */
+
+  /* When the iOS on-screen keyboard is up, slide the bottom
+   * MobileTabBar OFF-SCREEN downward so it doesn't sit over the
+   * form inputs.
+   *
+   * Implemented via transform (NOT display:none) so the change
+   * smoothly animates rather than snapping in/out. Pointer events
+   * disabled while hidden so taps in the keyboard region don't
+   * accidentally hit the still-laid-out (but invisible) bar.
+   *
+   * The class is toggled by TopNavViewportTracker which detects
+   * keyboard via `visualViewport.height < window.innerHeight - 100`. */
+  .mobile-tab-bar-root {
+    transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
+                opacity 180ms ease;
+    will-change: transform;
+  }
+  body.keyboard-open .mobile-tab-bar-root {
+    transform: translateY(120%);
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  /* 2. Bump base font size slightly for readability on small screens
+   *    without zooming. iOS auto-zooms on focus to any input < 16px
+   *    so forms below also get 16px to suppress that. */
+  html, body {
+    font-size: 15px;
+  }
+  input, select, textarea {
+    font-size: 16px;  /* blocks iOS focus-zoom */
+  }
+
+  /* 3. Make interactive elements easier to tap. Apple HIG = 44x44pt
+   *    min. Hover states aren't useful on touch so kill the
+   *    link-underline hover (it flashes on tap). */
+  a:hover, button:hover { text-decoration: none; }
+  /* Suppress the default grey tap-flash on iOS WebKit — we handle
+   * tap states per-component with :active. */
+  a, button {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* 4. Smoother scrolling on iOS WebKit */
+  html, body {
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* 5. Pages with fixed / sticky elements (TopNav, Canx results
+   *    panel) need to account for the notch too. The top-padding on
+   *    body handles most cases, but explicit sticky elements need
+   *    the inset applied directly. Handled per-component where
+   *    relevant (see topnav.module.css).
+   */
+
+  /* 6. Text-selection smoothing — native apps don't let you
+   *    accidentally select chunks of UI chrome. Keep selection on
+   *    real content but disable it on nav surfaces. */
+  nav, [role="navigation"], button {
+    -webkit-user-select: none;
+    user-select: none;
+  }
+}
+
+/* (Previously had an `ann-noscroll` lock here that froze the body
+ * while /ann was open — removed because it broke the /ann sub-nav
+ * sticky + header layout. /ann uses normal page scrolling now.) */
+
+/* ── Investor Insights — scroll-snap (v2.99.59) ─────────────────
+ * Lives here (not in home.module.css) because Next.js CSS Modules
+ * forbid pure :global() rules — selectors must contain at least
+ * one local class. html.* targets the document element directly,
+ * so it has to be in the global stylesheet.
+ *
+ * HomeTimeline.tsx adds the .ii-snap class on mount; BeatStub
+ * adds .ii-section-open while any beat is expanded (counter-tracked).
+ * Disabled below 768px and under prefers-reduced-motion. */
+html.ii-snap {
+  /* v2.99.68: bumped from `proximity` → `mandatory`. With proximity
+   * the browser only snaps if a snap point is within a narrow
+   * threshold at scroll-end, but each beat is a full viewport apart
+   * so the threshold was never met — Ben reported snap "not firing"
+   * even with the rule deployed. Mandatory snaps every scroll-end
+   * to the nearest beat, which is the centring behaviour requested. */
+  scroll-snap-type: y mandatory;
+  scroll-padding-top: 80px;
+}
+html.ii-snap.ii-section-open {
+  scroll-snap-type: none;
+}
+@media (max-width: 768px) {
+  html.ii-snap { scroll-snap-type: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  html.ii-snap { scroll-snap-type: none; }
+}
+
+/* ─── Wallboards-specific resets and utilities ────────────────────────────
+ *
+ * Below this line is everything that's specific to Wallboards Pro and
+ * doesn't belong in the dashboard's shared theme tokens above. Two
+ * categories:
+ *   1. TV kiosk affordances — overflow control, cursor hide, brand
+ *      strip used by the legacy /browse landing.
+ *   2. The @keyframes powering the gamification + agent-state +
+ *      Hall-of-Fame animations on the showcase boards.
+ *
+ * Body background uses var(--bg-body) so the wallboard surface
+ * follows the user's theme toggle (dark default, light when html.light
+ * is set). DO NOT hardcode #131b30 / #0a0e1a / similar — let the
+ * theme tokens drive it.
+ */
+
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-/* Page surface — lifted from near-black (#0a0f1c) to a brighter navy
-   so the wallboards have presence on the office TVs without losing
-   the dark-theme feel. Knock-on effect: every card / strip with
-   `rgba(...)` translucent backgrounds picks up extra lift for free. */
-html, body { height: 100%; background: #131b30; color: #f1f5f9; }
+
+html, body {
+  height: 100%;
+  background: var(--bg-body);
+  color: var(--text-primary);
+  font-family: var(--font-raleway, -apple-system, sans-serif);
+  -webkit-font-smoothing: antialiased;
+}
+
 /* No horizontal scroll, ever. iOS Safari otherwise lets you swipe a page
    sideways if any descendant overflows by even a pixel and won't bounce
    back. TVs already clip via the showcase's outer overflow:hidden, so
@@ -16,6 +577,9 @@ html, body { overflow-x: hidden; }
    into a dark void below it reads like the page is broken. */
 html, body { overscroll-behavior-y: contain; }
 
+a { color: inherit; text-decoration: none; }
+input, select, textarea, button { font-family: inherit; }
+
 /* Auto-hide cursor on the showcase TVs. The class gets toggled by
    useAutoHideCursor in ShowcaseView; using a class with descendant
    selectors keeps it specific enough to override per-element
@@ -26,7 +590,9 @@ html.wb-cursor-hidden, html.wb-cursor-hidden * { cursor: none !important; }
    Sized purely via CSS — 40px tall on mobile, 48px on desktop, width
    auto — so we never crop the shield off for a "mobile mark" or ship
    PNG variants per breakpoint. Both the wordmark and the shield live
-   inside the SVG; nothing else in the codebase should re-draw either. */
+   inside the SVG; nothing else in the codebase should re-draw either.
+   NOTE: the legacy BrowseHeader still uses this. Once we adopt the
+   shared TopNav/BrandMark from the dashboard, this can retire. */
 .wb-brand-logo {
   height: 48px;
   width: auto;
@@ -38,69 +604,49 @@ html.wb-cursor-hidden, html.wb-cursor-hidden * { cursor: none !important; }
   .wb-brand-logo { height: 40px; }
 }
 
-/* Brand strip — the dark navy bar at the very top of every browse /
-   connections / dataset page. Matches the InsureTec dashboard's top
-   chrome (a near-black strip distinct from the brighter page surface
-   below it) so the two apps read as one product. Bleeds full-width
-   past the page padding on every viewport, eats the page's top
-   padding so it touches the screen edge, and gets a soft bottom rule
-   to separate it from the page content. */
+/* Brand strip — used by the legacy BrowseHeader. Will retire once the
+   shared TopNav lands. Background uses theme tokens so it flips
+   between dark (near-black bar over navy body) and light (slate bar
+   over white body) without manual care. */
 .wb-brand-strip {
-  background: #0a0f1c;
-  border-bottom: 1px solid rgba(255,255,255,0.06);
+  background: var(--bg-nav);
+  border-bottom: 1px solid var(--border-subtle);
   margin-left:  calc(-1 * clamp(16px, 4vw, 48px));
   margin-right: calc(-1 * clamp(16px, 4vw, 48px));
   padding-left:  clamp(16px, 4vw, 48px);
   padding-right: clamp(16px, 4vw, 48px);
   padding-top: 14px;
   padding-bottom: 14px;
-  margin-top: calc(-1 * clamp(24px, 5vh, 64px));   /* eat the page top padding */
+  margin-top: calc(-1 * clamp(24px, 5vh, 64px));
   margin-bottom: 22px;
 }
 
-/* Mobile-only sticky lock for the BrowseHeader brand strip. Pinned to
-   the top of the viewport on phones so the InsureTec wordmark stays
-   visible while the user scrolls through 50+ boards. */
 @media (max-width: 768px) {
   .wb-mobile-sticky-top {
     position: sticky;
     top: 0;
     z-index: 30;
-    box-shadow: 0 6px 16px rgba(0,0,0,0.45);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.45);
   }
 }
 
-/* Tap feedback on the browse / connection / dataset cards — hover
-   states don't fire on touch devices, so without this a tap looks
-   inert until the page navigates. The class is applied to anything
-   that should "press" visually on tap. */
 .wb-tappable { -webkit-tap-highlight-color: transparent; }
 .wb-tappable:active {
   transform: translateY(0) scale(0.985) !important;
-  border-color: rgba(99,102,241,0.6) !important;
+  border-color: var(--border-hover) !important;
   transition: transform 80ms ease, border-color 80ms ease !important;
 }
 
-/* Tighten page padding and lead-text spacing on phones so the live
-   content fills more of the screen instead of being cushioned by
-   layout chrome borrowed from desktop. */
 @media (max-width: 768px) {
   .wb-page-lead { font-size: 20px !important; margin-bottom: 2px !important; }
   .wb-page-sub  { font-size: 13px !important; margin-bottom: 14px !important; }
 }
 
-/* Utility — hide native scrollbars on a horizontally-scrolling row
-   (Today's Earn pills on mobile). Content is still scrollable, just
-   without the visual track so the row reads as a clean strip. */
 .wb-no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
 .wb-no-scrollbar::-webkit-scrollbar { display: none; }
-body { font-family: var(--font-raleway, -apple-system, sans-serif); -webkit-font-smoothing: antialiased; }
-a { color: inherit; text-decoration: none; }
-input, select, textarea, button { font-family: inherit; }
 
-/* ─── Gamification ─────────────────────────────────────────────────────── */
+/* ─── Wallboards keyframes — gamification, agent-state, hall-of-fame ─── */
 
-/* Emoji pops in with a spring — rotate-in + overshoot + settle */
 @keyframes wb-emoji-pop {
   0%   { transform: scale(0)   rotate(-180deg); opacity: 0; }
   40%  { transform: scale(1.5) rotate(20deg);   opacity: 1; }
@@ -108,27 +654,23 @@ input, select, textarea, button { font-family: inherit; }
   100% { transform: scale(1)   rotate(0);       opacity: 1; }
 }
 
-/* Emoji fades out when lost */
 @keyframes wb-emoji-fade {
   0%   { transform: scale(1);   opacity: 1; filter: grayscale(0); }
   100% { transform: scale(0.6); opacity: 0; filter: grayscale(1); }
 }
 
-/* Row glows green when it climbs up the ranking */
 @keyframes wb-row-up {
   0%   { background: rgba(16,185,129,0);    box-shadow: none; }
   20%  { background: rgba(16,185,129,0.28); box-shadow: inset 0 0 32px rgba(16,185,129,0.4); }
   100% { background: rgba(16,185,129,0);    box-shadow: none; }
 }
 
-/* Row glows red when it drops down the ranking */
 @keyframes wb-row-down {
   0%   { background: rgba(248,113,113,0);    box-shadow: none; }
   20%  { background: rgba(248,113,113,0.22); box-shadow: inset 0 0 28px rgba(248,113,113,0.3); }
   100% { background: rgba(248,113,113,0);    box-shadow: none; }
 }
 
-/* Rank-change arrow slides up (for gains) or down (for drops) into place */
 @keyframes wb-arrow-up {
   0%   { transform: translateY(14px); opacity: 0; }
   100% { transform: translateY(0);    opacity: 1; }
@@ -138,13 +680,11 @@ input, select, textarea, button { font-family: inherit; }
   100% { transform: translateY(0);     opacity: 1; }
 }
 
-/* Perpetual #1 spotlight — subtle gold pulse so the leader always stands out */
 @keyframes wb-leader-pulse {
   0%, 100% { box-shadow: inset 0 0 0 1px rgba(251,191,36,0.15); }
   50%      { box-shadow: inset 0 0 0 1px rgba(251,191,36,0.45), inset 0 0 24px rgba(251,191,36,0.15); }
 }
 
-/* Big celebratory crown flourish when someone new takes #1 */
 @keyframes wb-crown {
   0%   { transform: scale(1)   rotate(0); }
   25%  { transform: scale(1.6) rotate(-15deg); filter: drop-shadow(0 0 12px rgba(251,191,36,0.9)); }
@@ -152,17 +692,12 @@ input, select, textarea, button { font-family: inherit; }
   100% { transform: scale(1)   rotate(0); }
 }
 
-/* Brief flash on a numeric cell when its value changes */
 @keyframes wb-value-flash {
   0%   { color: inherit; }
   25%  { color: #fbbf24; text-shadow: 0 0 10px rgba(251,191,36,0.5); }
   100% { color: inherit; text-shadow: none; }
 }
 
-/* Floating "+£X" badge — pops in, settles just above the card, dwells
-   in view for most of the cycle so the floor actually catches it from
-   across the room, then fades up. With DELTA_TTL_MS at 7s the chip
-   is fully visible for ~5 seconds. */
 @keyframes wb-delta-rise {
   0%   { opacity: 0; transform: translateY(0)    scale(0.7); }
   6%   { opacity: 1; transform: translateY(-6px) scale(1.12); }
@@ -171,7 +706,6 @@ input, select, textarea, button { font-family: inherit; }
   100% { opacity: 0; transform: translateY(-34px) scale(0.95); }
 }
 
-/* Falling "−£X" badge — counterpart for drops / refunds / cancellations */
 @keyframes wb-delta-sink {
   0%   { opacity: 0; transform: translateY(0)    scale(0.7); }
   6%   { opacity: 1; transform: translateY(6px)  scale(1.12); }
@@ -180,39 +714,26 @@ input, select, textarea, button { font-family: inherit; }
   100% { opacity: 0; transform: translateY(34px) scale(0.95); }
 }
 
-/* Quick green glow on a card whose agent just earned */
 @keyframes wb-card-pulse-up {
   0%, 100% { box-shadow: 0 0 0 0 rgba(16,185,129,0);    }
   18%      { box-shadow: 0 0 28px 2px rgba(16,185,129,0.40); }
 }
 
-/* Quick red glow on a card whose agent just had income drop */
 @keyframes wb-card-pulse-down {
   0%, 100% { box-shadow: 0 0 0 0 rgba(248,113,113,0);    }
   18%      { box-shadow: 0 0 28px 2px rgba(248,113,113,0.40); }
 }
 
-/* Old-school stock-tape crawl. Two copies of the content sit inside
-   the wrapper; this slides them left by 50% (one copy's width) so the
-   second copy lands exactly where the first started — seamless loop
-   without a hard restart. */
 @keyframes wb-ticker-scroll {
   from { transform: translate3d(0, 0, 0); }
   to   { transform: translate3d(-50%, 0, 0); }
 }
 
-/* Soft pulse on the per-agent "online" dot — visible at a glance but
-   never strobing hard enough to pull focus from the scoreboard. */
 @keyframes wb-online-pulse {
   0%, 100% { box-shadow: 0 0 0 0 rgba(16,185,129,0.6); }
   50%      { box-shadow: 0 0 0 5px rgba(16,185,129,0);   }
 }
 
-/* In-queue pulse — soft halo for the "calls in queue" stat. The colour
-   is set per-tile via a CSS custom property so the same keyframe drives
-   every severity (soft yellow → amber → orange → red, all in the
-   InsureTec brand range). Toned down vs. the earlier version so a busy
-   queue reads urgent but doesn't dominate the rest of the board. */
 @keyframes wb-queue-pulse {
   0%, 100% { box-shadow: 0 0 0 0  var(--queue-pulse, transparent),
                          0 0 14px 0 var(--queue-pulse, transparent); }
@@ -220,9 +741,6 @@ input, select, textarea, button { font-family: inherit; }
                          0 0 20px 2px var(--queue-pulse, transparent); }
 }
 
-/* Agent-state alert pulse — fires when an agent crosses the lunch >1h
-   or not-ready >10m threshold. More insistent than concern (which is
-   a static rim) so the floor manager sees it from across the room. */
 @keyframes wb-alert-pulse {
   0%, 100% { box-shadow: 0 0 0  0  rgba(248,113,113,0);
              border-color: #f87171; }
@@ -232,7 +750,6 @@ input, select, textarea, button { font-family: inherit; }
 
 /* ─── Hall-of-fame takeover ────────────────────────────────────────────── */
 
-/* Dim the wallboard behind the celebration */
 @keyframes wb-celeb-backdrop-in {
   0%   { opacity: 0; }
   100% { opacity: 1; }
@@ -242,10 +759,6 @@ input, select, textarea, button { font-family: inherit; }
   100% { opacity: 0; }
 }
 
-/* Agent's name drops in, sits centre stage, then ascends out.
-   Keyframe split tuned for a 7s slide — the majority of the time is the
-   hold in the middle so there's room to read the AI summary, while enter
-   and exit stay snappy (same feel as the original 3.2s version). */
 @keyframes wb-celeb-name {
   0%    { transform: scale(0.3)  translateY(20px);  opacity: 0; letter-spacing: -0.02em; }
   6%    { transform: scale(1.08) translateY(0);     opacity: 1; letter-spacing: 0.02em; }
@@ -254,7 +767,6 @@ input, select, textarea, button { font-family: inherit; }
   100%  { transform: scale(1.3)  translateY(-30px); opacity: 0; }
 }
 
-/* Subtitle (stats) slides in from below, holds, exits */
 @keyframes wb-celeb-stats {
   0%   { transform: translateY(24px);  opacity: 0; }
   9%   { transform: translateY(0);     opacity: 1; }
@@ -262,8 +774,6 @@ input, select, textarea, button { font-family: inherit; }
   100% { transform: translateY(-24px); opacity: 0; }
 }
 
-/* Emoji firework — explodes outward from the name, rotates, fades.
-   --dx / --dy / --spin are set inline per emoji so each flies a unique path. */
 @keyframes wb-celeb-emoji {
   0% {
     transform: translate(-50%, -50%) scale(0.1) rotate(0);
@@ -283,14 +793,12 @@ input, select, textarea, button { font-family: inherit; }
   }
 }
 
-/* Radial sparkle burst behind the name */
 @keyframes wb-celeb-burst {
   0%   { transform: translate(-50%, -50%) scale(0);   opacity: 0; }
   20%  { transform: translate(-50%, -50%) scale(1);   opacity: 0.6; }
   100% { transform: translate(-50%, -50%) scale(2.4); opacity: 0; }
 }
 
-/* "Hall of Fame" banner fades in then out across the whole sequence */
 @keyframes wb-celeb-banner {
   0%, 2%   { transform: translateY(-40px); opacity: 0; }
   4%, 96%  { transform: translateY(0);     opacity: 1; }
