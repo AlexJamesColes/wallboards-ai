@@ -113,7 +113,10 @@ export const SHOWCASE_BOARDS: ShowcaseBoard[] = [
   {
     slug:       'sales-board-1',
     name:       'Sales · Board 1',
-    department: 'Sales',
+    // Lives under Operations on the browse page even though it's a
+    // sales-data board — director-level overview is owned by Ops, not
+    // by the sales floor managers who use the per-office leaderboards.
+    department: 'Operations',
     data:       { type: 'dashboard', widgetSpecKey: 'sales-board-1' },
   },
   // ─── Per-office agent-state boards ──────────────────────────────────

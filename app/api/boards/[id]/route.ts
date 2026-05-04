@@ -23,6 +23,16 @@ export const dynamic = 'force-dynamic';
 export const PATCH = withAdminKey(async (req, ctx) => {
   await ensureDbReady();
   const id = ctx.params.id as string;
+
+  // Synthetic boards (sales-board-1, london-kiosk, …) have no DB row —
+  // their department is set in lib/showcaseBoards.ts. Don't try to
+  // update one; explain how to actually move it.
+  if (id.startsWith('synthetic:') || id.startsWith('external:')) {
+    return NextResponse.json({
+      error: 'This board\'s config lives in lib/showcaseBoards.ts. Edit the catalogue and redeploy to move it.',
+    }, { status: 400 });
+  }
+
   const body = await readJson<{ department?: string | null }>(req);
   if (!body) return NextResponse.json({ error: 'Body required' }, { status: 400 });
 

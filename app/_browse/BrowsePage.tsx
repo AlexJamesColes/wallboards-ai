@@ -11,6 +11,12 @@ interface PublicBoard {
   slug_token: string;
   department: string | null;
   url:        string;
+  /** Synthetic boards are defined in code (lib/showcaseBoards.ts), not
+   *  the wb_boards table. They have no DB row, so admin actions like
+   *  "Move department" or "Delete" don't apply — the catalogue config
+   *  is the source of truth. The admin overflow menu is hidden on
+   *  these boards entirely. */
+  synthetic?: boolean;
 }
 
 type Mode = 'desktop' | 'mobile';
@@ -490,7 +496,10 @@ function BoardCard({ board: b, url, isAdmin, isFavourite, onToggleFavourite, onM
         </svg>
       </button>
 
-      {isAdmin && (
+      {/* Admin overflow — hidden on synthetic boards (their config lives
+          in lib/showcaseBoards.ts, not the DB, so move/delete here would
+          500 on the API. Edit the catalogue file instead). */}
+      {isAdmin && !b.synthetic && (
         <>
           <button
             onClick={e => { e.stopPropagation(); setMenuOpen(o => !o); }}
