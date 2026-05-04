@@ -446,21 +446,26 @@ function BoardCard({ board: b, url, isAdmin, isFavourite, onToggleFavourite, onM
         <BoardIcon department={b.department} />
 
         <div style={{ flex: 1, minWidth: 0 }}>
+          {/* Department isn't shown here — boards are already grouped
+              under the section header above the card, so repeating the
+              dept name on every card was redundant noise. The space is
+              given to the name, which is now allowed to wrap to two
+              lines + bumped a couple of points so it reads cleanly
+              from across the room. */}
           <div style={{
-            fontSize: 14, fontWeight: 700, color: '#f1f5f9',
-            lineHeight: 1.3,
-            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            fontSize: 15, fontWeight: 700, color: '#f1f5f9',
+            lineHeight: 1.25,
+            display: '-webkit-box',
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: 'vertical',
+            overflow: 'hidden',
+            // Hyphenate is a no-op on most board names but kicks in
+            // gracefully if someone names one "Cancellation Refund Audit"
+            // and the second word would otherwise spill.
+            wordBreak: 'break-word',
           }}>
             {b.name}
           </div>
-          {b.department && (
-            <div style={{
-              fontSize: 11, color: '#64748b', fontWeight: 600,
-              marginTop: 2, letterSpacing: '0.04em',
-            }}>
-              {b.department}
-            </div>
-          )}
         </div>
 
         <span aria-hidden style={{
