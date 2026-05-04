@@ -1,0 +1,50 @@
+/* ThemeToggle — a menu-item row inside the UserMenu dropdown. Uses
+ * the same visual language as the other rows so it doesn't look
+ * bolted-on. */
+
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 14px;
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  font-size: 13.5px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.12s ease;
+  font-family: inherit;
+}
+.toggle:hover {
+  background: var(--bg-hover-subtle);
+}
+
+.iconSlot {
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+}
+
+.label {
+  flex: 1;
+}
+
+.hint {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--bg-hover-subtle);
+  border: 1px solid var(--border-subtle);
+  min-width: 32px;
+  text-align: center;
+}

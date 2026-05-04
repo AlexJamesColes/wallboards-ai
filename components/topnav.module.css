@@ -1,0 +1,259 @@
+.topnav {
+  /* `position: fixed` rather than `sticky` — sticky was silently
+   * failing inside Capacitor's WKWebView (known iOS bug with sticky
+   * + the `-webkit-overflow-scrolling: touch` we have on html/body),
+   * causing the nav to scroll out of view as the user scrolled
+   * down. Fixed sidesteps the issue entirely.
+   *
+   * `padding-top: env(safe-area-inset-top)` makes the nav extend
+   * UP into the iPhone status-bar / Dynamic Island area, so its
+   * background fills that zone cleanly. The brand mark sits below
+   * the padding (i.e. below the status bar).
+   *
+   * `top: var(--topnav-offset, 0px)` tracks the visible viewport's
+   * offset rather than always 0. Without this, when iOS opens the
+   * keyboard and shifts the visual viewport down, the fixed nav
+   * stays anchored to layout-viewport top (now off-screen above
+   * the visible region) and appears to scroll AWAY from the user.
+   * TopNavViewportTracker writes the offset to the CSS variable. */
+  position: fixed;
+  top: var(--topnav-offset, 0px);
+  left: 0;
+  right: 0;
+  z-index: 100;
+  width: 100%;
+  background: var(--bg-nav);
+  backdrop-filter: var(--blur-nav);
+  -webkit-backdrop-filter: var(--blur-nav);
+  border-bottom: 1px solid var(--border-subtle);
+  padding-top: env(safe-area-inset-top, 0px);
+}
+:global(html.light) .topnav {
+  /* Plain-white nav read as flat and cheap against the slate body.
+   * Tint it with a slate-to-white vertical gradient, lean on a
+   * stronger bottom divider, and float it with a soft drop shadow
+   * so it feels like proper app chrome instead of a blank strip. */
+  background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);
+  border-bottom-color: rgba(15, 23, 42, 0.08);
+  box-shadow: 0 1px 0 rgba(15, 23, 42, 0.04), 0 8px 24px -16px rgba(15, 23, 42, 0.18);
+}
+.inner {
+  /* Full-width nav — logo at far left, user menu at far right, so
+     the corners line up with whatever content sits below the nav
+     (many pages, including the legacy /suppliers, span edge-to-edge).
+     Horizontal padding matches the page-content padding used
+     elsewhere in the app (~28px). Vertical padding bumped 22→28
+     per Ben's "make it a bit more substantial" feedback — TopNav
+     total height is now 28+28+36 = 92px on desktop. body padding-top
+     in globals.css and sub-nav sticky offset in qmsubnav.module.css
+     follow this number. */
+  width: 100%;
+  padding: 28px 28px;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+@media (max-width: 640px) {
+  .inner { padding: 22px 18px; }
+}
+/* App-level back button — sits left of the brand mark, hidden on
+ * home/login pages by the BackButton component itself. Native-app
+ * style chevron in a small pill button with hover + active feedback. */
+.backBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--bg-hover-subtle);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-family: inherit;
+  flex-shrink: 0;
+  margin-right: 6px;
+  transition: background 0.15s ease, color 0.15s ease, transform 0.12s ease;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+.backBtn:hover {
+  background: rgba(99, 102, 241, 0.10);
+  border-color: rgba(99, 102, 241, 0.30);
+  color: var(--text-indigo);
+}
+.backBtn:active {
+  transform: scale(0.92);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  color: inherit;
+  transition: opacity 0.15s;
+}
+.brand:hover { opacity: 0.85; text-decoration: none; }
+.brandText { line-height: 1; }
+.brandName {
+  font-family: 'Raleway', -apple-system, sans-serif;
+  font-size: 19px;
+  font-weight: 800;
+  color: var(--text-primary);
+  letter-spacing: -0.3px;
+}
+.brandName span { color: #60a5fa; }
+:global(html.light) .brandName span { color: #2563eb; }
+.brandSub {
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--text-faint);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  margin-top: 3px;
+}
+
+.appPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px 6px 10px;
+  border-radius: 999px;
+  background: rgba(168, 85, 247, 0.10);
+  border: 1px solid rgba(168, 85, 247, 0.25);
+  color: var(--text-purple);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.appPillTeal {
+  background: rgba(20, 184, 166, 0.10);
+  border-color: rgba(20, 184, 166, 0.30);
+  color: var(--text-teal);
+}
+.appPillDot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: #a855f7;
+  box-shadow: 0 0 8px rgba(168, 85, 247, 0.7);
+}
+.appPillTeal .appPillDot,
+.appPillDotTeal {
+  background: #14b8a6;
+  box-shadow: 0 0 8px rgba(20, 184, 166, 0.7);
+}
+.appPillAmber {
+  background: rgba(245, 158, 11, 0.10);
+  border-color: rgba(245, 158, 11, 0.30);
+  color: var(--text-amber);
+}
+.appPillAmber .appPillDot,
+.appPillDotAmber {
+  background: #f59e0b;
+  box-shadow: 0 0 8px rgba(245, 158, 11, 0.7);
+}
+
+.appPillPink {
+  background: rgba(236, 72, 153, 0.10);
+  border-color: rgba(236, 72, 153, 0.30);
+  color: var(--text-pink);
+}
+.appPillPink .appPillDot,
+.appPillDotPink {
+  background: #ec4899;
+  box-shadow: 0 0 8px rgba(236, 72, 153, 0.7);
+}
+
+.appPillIndigo {
+  background: rgba(99, 102, 241, 0.10);
+  border-color: rgba(99, 102, 241, 0.30);
+  color: var(--text-indigo);
+}
+.appPillIndigo .appPillDot,
+.appPillDotIndigo {
+  background: #6366f1;
+  box-shadow: 0 0 8px rgba(99, 102, 241, 0.7);
+}
+
+.appPillOrange {
+  background: rgba(249, 115, 22, 0.10);
+  border-color: rgba(249, 115, 22, 0.30);
+  color: var(--text-orange);
+}
+.appPillOrange .appPillDot,
+.appPillDotOrange {
+  background: #f97316;
+  box-shadow: 0 0 8px rgba(249, 115, 22, 0.7);
+}
+
+.appPillEmerald {
+  background: rgba(16, 185, 129, 0.10);
+  border-color: rgba(16, 185, 129, 0.30);
+  color: #a7f3d0;
+}
+.appPillEmerald .appPillDot,
+.appPillDotEmerald {
+  background: #10b981;
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.7);
+}
+
+.spacer { flex: 1; }
+
+/* ── Mobile optimisations ─────────────────────────────────── */
+
+@media (max-width: 767px) {
+  /* Respect the notch — the TopNav is sticky so it covers the
+   * status-bar area; give it internal padding so the logo doesn't
+   * sit under the status bar. */
+  .topnav {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+  /* Capacitor-iOS fallback: env(safe-area-inset-top) returns 0 in
+   * some Capacitor / iOS combos, which would let the brand mark sit
+   * directly under the status bar. NativeStatusBar.tsx adds the
+   * .native-ios class to <html> on app boot. */
+  :global(html.native-ios) .topnav {
+    padding-top: max(env(safe-area-inset-top, 0px), 47px);
+  }
+  :global(html.native-android) .topnav {
+    padding-top: max(env(safe-area-inset-top, 0px), 24px);
+  }
+  /* Tighter inner padding on mobile (was 10x14, bumped to 14x14 per
+   * Ben's "more substantial" feedback). Mobile inner content height
+   * is 14+14+36 = 64px, plus padding-top: env(safe-area-inset-top). */
+  .inner {
+    padding: 14px 14px;
+    gap: 10px;
+  }
+  /* App pill ("QM Scorer" etc.) eats horizontal space next to the
+   * logo — hide it on mobile. The bottom tab bar tells you which
+   * primary section you're in; nested pages can still show the
+   * breadcrumb in their own header. */
+  .appPill,
+  .appPillTeal,
+  .appPillAmber,
+  .appPillPink,
+  .appPillIndigo,
+  .appPillOrange,
+  .appPillEmerald {
+    display: none;
+  }
+  /* Brand "Dashboard" subtitle — verbose on a phone. Hide it too;
+   * the "Insure Tec" wordmark alone is enough. */
+  .brandSub {
+    display: none;
+  }
+  /* Tighten the brand wordmark slightly. */
+  .brandName {
+    font-size: 16px;
+  }
+  /* Shield-icon → "InsureTec" gap is too generous on mobile —
+   * pull them closer. (Desktop keeps the original 10px so the
+   * full "Dashboard" subtitle has room to sit alongside.) Per
+   * Ben's "reduce the space between the icon and 'InsureTec'
+   * text in the logo, its too big". */
+  .brand {
+    gap: 6px;
+  }
+}

@@ -1,0 +1,219 @@
+.wrap {
+  position: relative;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px 6px 6px;
+  border-radius: 999px;
+  background: var(--bg-hover-subtle);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.chip:hover {
+  background: var(--bg-hover-subtle);
+  border-color: var(--border-default);
+  transform: translateY(-1px);
+}
+.chipOpen {
+  background: var(--bg-hover-subtle);
+  border-color: rgba(96, 165, 250, 0.35);
+}
+.avatar {
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, rgba(96, 165, 250, 0.18), rgba(168, 85, 247, 0.18));
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  line-height: 1;
+}
+.name {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.caret {
+  color: var(--text-tertiary);
+  flex: 0 0 12px;
+}
+
+.menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 240px;
+  /* Override the global --bg-card-solid token (rgba 0.55) — at that
+   * opacity you can read the page text behind the dropdown, which
+   * looks unfinished. Bump to 0.96 so the menu is essentially solid
+   * but still gets the soft glassmorphic edge from the blur. */
+  background: rgba(15, 23, 42, 0.96);
+  backdrop-filter: blur(24px) saturate(1.4);
+  -webkit-backdrop-filter: blur(24px) saturate(1.4);
+  border: 1px solid var(--border-default);
+  border-radius: 14px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.55),
+              0 0 0 1px rgba(255, 255, 255, 0.04) inset;
+  padding: 6px;
+  z-index: 100;
+  animation: menuIn 0.18s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+:global(html.light) .menu {
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 16px 48px rgba(15, 23, 42, 0.14), 0 0 0 1px rgba(15, 23, 42, 0.04) inset;
+}
+@keyframes menuIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.menuHeader {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px;
+}
+.menuAvatar {
+  width: 38px; height: 38px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, rgba(96, 165, 250, 0.22), rgba(168, 85, 247, 0.22));
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  flex: 0 0 38px;
+}
+.menuIdent { min-width: 0; flex: 1; }
+.menuName {
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.menuMeta {
+  font-size: 11px;
+  color: var(--text-faint);
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.menuRole {
+  display: inline-block;
+  margin-top: 6px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-blue);
+  background: rgba(59, 130, 246, 0.12);
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+/* v3.9.4: 'View profile →' link in the menu header. Sits directly
+ * under the role pill — small but always visible so users learn
+ * the menu header itself is the entry point to /at-a-glance. */
+.menuViewProfile {
+  display: inline-block;
+  margin-top: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-blue);
+  text-decoration: none;
+  letter-spacing: 0.01em;
+  transition: color 0.1s ease, transform 0.1s ease;
+}
+.menuViewProfile:hover {
+  color: #93c5fd;
+  text-decoration: none;
+  transform: translateX(2px);
+}
+
+.menuDivider {
+  height: 1px;
+  background: var(--border-subtle);
+  margin: 4px 6px;
+}
+
+.menuItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  font-family: inherit;
+  border-radius: 8px;
+  cursor: pointer;
+  text-decoration: none;
+  transition: all 0.1s ease;
+}
+.menuItem:hover {
+  background: var(--bg-hover-subtle);
+  color: var(--text-primary);
+  text-decoration: none;
+}
+.menuIcon {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 15px;
+  opacity: 0.55;
+  transition: opacity 0.1s ease;
+}
+.menuItem:hover .menuIcon { opacity: 0.85; }
+.menuItemDanger {
+  color: var(--text-red);
+}
+.menuItemDanger:hover {
+  background: rgba(248, 113, 113, 0.08);
+  color: #fecaca;
+}
+
+/* ── Mobile optimisations ─────────────────────────────────────
+ * On phones the chip collapses to just the avatar so it looks
+ * like a settings icon in the top-right. Tapping still opens the
+ * same dropdown (theme toggle, change password, log out, etc.) —
+ * the menu IS the settings.
+ * ────────────────────────────────────────────────────────────── */
+@media (max-width: 767px) {
+  .chip {
+    /* Chip outer = 32 (avatar) + 6+6 (padding) = 44px square,
+     * matching the Notifications bell button on mobile so the two
+     * sit at the same height in the TopNav cluster. Was 30 + 6+6
+     * = 42 — visibly slightly smaller than the bell. */
+    padding: 6px;
+    gap: 0;
+    border-radius: 12px;
+  }
+  .name { display: none; }
+  .caret { display: none; }
+  .avatar {
+    width: 32px;
+    height: 32px;
+    font-size: 20px;
+  }
+  /* Dropdown itself: anchor right-aligned and leave room below the
+   * TopNav's safe-area inset. */
+  .menu {
+    right: 0;
+    left: auto;
+    max-width: calc(100vw - 20px);
+    width: 280px;
+  }
+}
