@@ -1,6 +1,8 @@
 import type { Metadata } from 'next';
+import { cookies } from 'next/headers';
 import { Raleway } from 'next/font/google';
 import AuthProvider from '@/components/AuthProvider';
+import WbGate from '@/components/WbGate';
 import './globals.css';
 
 const raleway = Raleway({
@@ -15,18 +17,24 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
+  // Read the theme cookie set by ThemeToggle so the page paints in the
+  // right mode on first SSR pass — avoids a dark→light flash on
+  // light-mode users' first render.
+  const theme = cookies().get('theme')?.value === 'light' ? 'light' : '';
   return (
-    <html lang="en">
+    <html lang="en" className={theme}>
       <body className={raleway.variable}>
-        {/* MSAL Provider wraps every route so any client component
-            can drive the SSO flow via useMsal/useIsAuthenticated.
-            The actual permissions gate (whether the user has wb
-            access) is applied by the wallboards-internal pages —
-            see components/WbGate.tsx (next commit). Auth callback
-            (/auth/callback) sits outside the gate so the redirect
-            from Microsoft can complete sign-in. */}
+        {/* MSAL provider wraps every route so any client component
+            can use useMsal / useIsAuthenticated. WbGate sits inside
+            the provider, gates every route except /auth/callback,
+            redirects unauthed users to Microsoft sign-in, redirects
+            no-access users to the InsureTec dashboard, and renders
+            TopNav above the page content for signed-in users with
+            wb permission. */}
         <AuthProvider>
-          {children}
+          <WbGate>
+            {children}
+          </WbGate>
         </AuthProvider>
       </body>
     </html>
